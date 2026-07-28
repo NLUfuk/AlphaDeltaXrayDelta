@@ -1,0 +1,65 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+*.dll
+*.exe
+*.pdb
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vscode/*
+!.vscode/extensions.json
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+
+# Test / coverage
+[Tt]est[Rr]esult*/
+coverage/
+*.coverage
+*.trx
+
+# Node (frontend altprojeler icin)
+node_modules/
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# Ortam degiskenleri ve gizli bilgiler - ASLA commit edilmez
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+appsettings.*.local.json
+secrets.json
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Claude Code makine-yerel ayarlari (paylasilan settings.json haric)
+.claude/settings.local.json
+
+# Gecici dosyalar
+*.tmp
+*.bak
+*.swp
+*~
