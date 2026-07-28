@@ -1,0 +1,21 @@
+# Depoda tum metin dosyalari LF olarak saklanir; checkout sirasinda platform
+# varsayilanina cevrilir. Windows/Linux karisik ortamda sahte diff'leri onler.
+* text=auto
+
+# Satir sonu duyarli dosyalar
+*.sh text eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary olarak isaretlenmesi gerekenler (diff/merge denenmemeli)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.dll binary
+*.exe binary
+*.pfx binary
