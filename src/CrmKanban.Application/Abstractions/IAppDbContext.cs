@@ -28,6 +28,7 @@ public interface IAppDbContext
     DbSet<Comment> Comments { get; }
     DbSet<CommentRevision> CommentRevisions { get; }
     DbSet<TicketEvent> TicketEvents { get; }
+    DbSet<Attachment> Attachments { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

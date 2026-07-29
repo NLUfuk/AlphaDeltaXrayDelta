@@ -41,6 +41,22 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasherAdapter>();
         services.AddScoped<IPermissionService, PermissionService>();
 
+        // File storage (S3-compatible) + CAPTCHA gate + file limits (spec §10, §12, §13)
+        services.Configure<CrmKanban.Application.Files.FileOptions>(config.GetSection("Files"));
+        services.Configure<Files.S3Options>(config.GetSection(Files.S3Options.SectionName));
+        services.AddSingleton<Amazon.S3.IAmazonS3>(sp =>
+        {
+            var o = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Files.S3Options>>().Value;
+            var cfg = new Amazon.S3.AmazonS3Config { ForcePathStyle = o.ForcePathStyle };
+            if (!string.IsNullOrWhiteSpace(o.ServiceUrl)) cfg.ServiceURL = o.ServiceUrl;
+            else cfg.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(o.Region);
+            return new Amazon.S3.AmazonS3Client(new Amazon.Runtime.BasicAWSCredentials(o.AccessKey, o.SecretKey), cfg);
+        });
+        services.AddSingleton<IFileStorage, Files.S3FileStorage>();
+
+        services.Configure<Captcha.CaptchaOptions>(config.GetSection(Captcha.CaptchaOptions.SectionName));
+        services.AddSingleton<ICaptchaValidator, Captcha.CaptchaValidator>();
+
         services.AddSingleton(new SeederOptions(
             SuperAdminEmail: config["SuperAdmin:Email"] ?? Environment.GetEnvironmentVariable("SUPERADMIN_EMAIL"),
             SuperAdminPassword: config["SuperAdmin:Password"] ?? Environment.GetEnvironmentVariable("SUPERADMIN_PASSWORD")));

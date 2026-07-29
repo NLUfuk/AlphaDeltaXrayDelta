@@ -35,6 +35,7 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<CommentRevision> CommentRevisions => Set<CommentRevision>();
     public DbSet<TicketEvent> TicketEvents => Set<TicketEvent>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -146,6 +147,15 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
         b.Entity<TicketEvent>(e =>
         {
             e.HasIndex(x => x.TicketId);
+            e.HasQueryFilter(x => x.DeletedAt == null && (IsSuperAdmin || CompanyScope.Contains(x.CompanyId)));
+        });
+        b.Entity<Attachment>(e =>
+        {
+            e.HasIndex(x => x.TicketId);
+            e.HasIndex(x => x.S3Key).IsUnique();
+            e.Property(x => x.S3Key).HasMaxLength(500).IsRequired();
+            e.Property(x => x.FileName).HasMaxLength(300).IsRequired();
+            e.Property(x => x.ContentType).HasMaxLength(150).IsRequired();
             e.HasQueryFilter(x => x.DeletedAt == null && (IsSuperAdmin || CompanyScope.Contains(x.CompanyId)));
         });
     }

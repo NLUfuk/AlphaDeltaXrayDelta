@@ -1,3 +1,4 @@
+using CrmKanban.Application.Files;
 using CrmKanban.Domain.Enums;
 
 namespace CrmKanban.Application.Tickets;
@@ -13,7 +14,7 @@ public sealed record ChangeStatusRequest(Guid TargetStatusId);
 
 public sealed record SetPriorityRequest(Priority Priority);
 
-public sealed record AddCommentRequest(string Body, bool IsInternal);
+public sealed record AddCommentRequest(string Body, bool IsInternal, IReadOnlyList<AttachmentDescriptor>? Attachments = null);
 
 public sealed record EditCommentRequest(string Body);
 
@@ -39,7 +40,7 @@ public sealed record TicketDetail(
     Guid StatusId, string StatusName, StatusCategory Category, Priority Priority,
     Guid OpenedById, Guid? AssignedToId, Guid? CategoryId,
     DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt,
-    DateTime CreatedAt, IReadOnlyList<CommentDto> Comments);
+    DateTime CreatedAt, IReadOnlyList<CommentDto> Comments, IReadOnlyList<AttachmentDto> Attachments);
 
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
 

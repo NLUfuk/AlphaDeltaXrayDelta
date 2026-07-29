@@ -1,5 +1,6 @@
 using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Common;
+using CrmKanban.Application.Files;
 using CrmKanban.Application.Tickets;
 using CrmKanban.Domain.Entities;
 using CrmKanban.Domain.Enums;
@@ -33,6 +34,17 @@ public class CommentVisibilityTests
             Task.FromResult(false);
     }
 
+    private sealed class FakeFileStorage : IFileStorage
+    {
+        public string PresignPut(string key, string contentType, TimeSpan expiry) => $"https://storage.test/put/{key}";
+        public string PresignGet(string key, TimeSpan expiry) => $"https://storage.test/get/{key}";
+    }
+
+    private sealed class FixedClock : IClock
+    {
+        public DateTime UtcNow => new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    }
+
     private static readonly Guid CompanyId = Guid.NewGuid();
     private static readonly Guid CustomerId = Guid.NewGuid();
     private static readonly Guid StaffId = Guid.NewGuid();
@@ -62,7 +74,9 @@ public class CommentVisibilityTests
     {
         var db = new CrmDbContext(options, user);
         var authz = new TicketAuthorizationService(user, new FakePermissionService(), db);
-        return new TicketQueryService(db, user, authz, Options.Create(new TicketOptions()));
+        var attachments = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(),
+            Options.Create(new Application.Files.FileOptions()));
+        return new TicketQueryService(db, user, authz, attachments, Options.Create(new TicketOptions()));
     }
 
     [Fact]

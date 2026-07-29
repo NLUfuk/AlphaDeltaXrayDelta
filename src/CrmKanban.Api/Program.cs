@@ -54,6 +54,21 @@ try
         });
     builder.Services.AddAuthorization();
 
+    // Rate limit the anonymous public form (spec §10) — 5 requests/min per client IP.
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        options.AddPolicy("public-form", httpContext =>
+            System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
+    });
+
     var app = builder.Build();
 
     // Apply migrations and run the idempotent seed on startup (dev-friendly; multi-instance prod
@@ -76,6 +91,7 @@ try
     app.UseHttpsRedirection();
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseRateLimiter();
 
     app.MapControllers();
     app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();

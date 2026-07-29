@@ -24,6 +24,9 @@ public static class DependencyInjection
         services.AddScoped<TicketQueryService>();
         services.AddScoped<CommentService>();
 
+        services.AddScoped<Files.AttachmentService>();
+        services.AddScoped<PublicForm.PublicFormService>();
+
         return services;
     }
 }

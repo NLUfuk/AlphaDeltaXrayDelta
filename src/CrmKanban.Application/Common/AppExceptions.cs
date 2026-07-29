@@ -17,3 +17,6 @@ public sealed class ConflictException(string code, string message) : AppExceptio
 
 /// <summary>Authentication failed (bad credentials, expired/invalid token).</summary>
 public sealed class UnauthorizedException(string code, string message) : AppException(code, message);
+
+/// <summary>Input violates a server-side rule (bad file type/size, missing consent, …) → 400.</summary>
+public sealed class BadRequestException(string code, string message) : AppException(code, message);

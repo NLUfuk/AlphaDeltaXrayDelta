@@ -2,9 +2,9 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 2026-07-29 |
-| Aktif faz | Faz 3 tamam — sıradaki: Faz 4 (Public Form + S3) |
-| Genel durum | Faz 0-3 tamam, build+test yeşil (45 test: 16 domain + 29 application), `TicketPipeline` migration gerçek DB'ye uygulandı |
+| Son güncelleme | 2026-07-30 |
+| Aktif faz | Faz 4 tamam — sıradaki: Faz 5 (Bildirim / EmailQueue) |
+| Genel durum | Faz 0-4 tamam, build+test yeşil (56 test: 16 domain + 40 application), `TicketPipeline`+`Attachments` migration'ları gerçek DB'ye uygulandı |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
 | Spec | `crm-kanban-mimari.md` (Rev 2) — kod bununla senkron tutulur |
@@ -65,14 +65,30 @@
 - [x] `TicketPipeline` migration (Comment/CommentRevision/TicketEvent + Company.NextTicketNumber/Prefix) — gerçek SQL Server'a uygulandı
 - [x] Çekirdek testler (+10, toplam 45): iç-not sızmaması müşteri/staff (`CommentVisibilityTests`, §20 #1), statü/yorum yetkisi (`TicketAuthorizationTests`)
 
-> **Faz 3 tamamlandı — Mustafa'ya demo noktası (spec §18.21).** Faz 4-8 spec §17'de.
+> **Faz 3 tamamlandı — Mustafa'ya demo noktası (spec §18.21).** Faz 5-8 spec §17'de.
+
+### Faz 4 — Public Form + S3 ✅
+- [x] Anonim public form (`PublicFormService`): `/api/public/form/{slug}` — slug→şirket, kimliksiz ticket açma; e-posta eşleşirse mevcut kullanıcıya bağlar, yoksa taslak müşteri + tek-kullanım davet token'ı (§9)
+- [x] CAPTCHA seam (`ICaptchaValidator`/`CaptchaValidator`): config ile aç/kapa, dev'de kapalı, **açık+provider yoksa fail-closed** (§10/§13)
+- [x] Rate limiting: native ASP.NET fixed-window (IP başına 5/dk) `public-form` policy — bağımlılık yok (§10)
+- [x] KVKK onayı zorunlu — validator + servis (defense-in-depth) (§16)
+- [x] S3-uyumlu depolama (`IFileStorage`/`S3FileStorage`, AWSSDK.S3): presigned PUT (yükleme) + kısa ömürlü presigned GET (indirme); bucket private; endpoint config'ten (AWS **veya** MinIO)
+- [x] `Attachment` entity + migration; formda ve yorumda dosya; tip/boyut/adet **sunucu tarafı** doğrulama (presign + link'te iki kez)
+- [x] İndirme yetkisi ticket aktörüne göre; **iç nota bağlı dosya müşteriye ASLA sızmaz** (§14/§20); ticket detayında attachment'lar presigned GET ile
+- [x] Endpoint'ler: public form submit + upload-url; `/api/tickets/{id}/attachments/upload-url` + `/api/tickets/attachments/{id}/download`
+- [x] Çekirdek testler (+11, toplam 56): public form (captcha fail-closed, KVKK, arşiv/slug, davet/link) + attachment (tip/boyut/adet + iç-not dosyası indirme reddi)
+- [x] `TicketPipeline`+`Attachments` migration'ları gerçek SQL Server'a uygulandı
+
+> **Faz 4 tamamlandı.** Faz 5-8 spec §17'de.
 
 ## Bir sonraki oturum — açık uçlar / Mustafa'ya sorulacaklar (spec §18.21-24)
 
 - Teslim/demo tarihi (Faz 3 sonu demo öneriliyor).
-- S3 sağlayıcı (AWS/MinIO), SMTP sağlayıcı, deploy ortamı (Faz 4-5'i etkiler).
+- ~~S3 sağlayıcı~~ → S3-uyumlu SDK, dev MinIO varsayımı seçildi (kod AWS/MinIO'da aynı; prod endpoint/credential env'den). Gerçek bucket sağlanınca e2e (teknik borç #11).
+- ~~CAPTCHA provider~~ → seam + dev'de kapalı seçildi; provider (Turnstile/reCAPTCHA) sonra (teknik borç #12).
+- **SMTP sağlayıcı (Faz 5'i doğrudan etkiler)** + deploy ortamı.
 - Hazır mockup/tasarım var mı (Faz 7).
-- Süper admin'in sıfırdan admin+ilk şirket oluşturma akışı (aşağıda teknik borç #5).
+- Süper admin'in sıfırdan admin+ilk şirket oluşturma akışı (teknik borç #5).
 
 ## Karar / Varsayım Günlüğü (spec §18 + oturum kararları)
 
@@ -96,6 +112,12 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 - **[Faz 3] Ticket detay tek erişim kapısı = `authz.ResolveAsync`.** GetDetail kaydı `IgnoreQueryFilters` ile yükleyip erişimi aktör çözümüne bırakıyor — bu tek kapı hem staff'ı tenant filtresiyle, hem müşteriyi (şirket üyesi değil) yalnız kendi ticket'ının açıcısı olarak geçiriyor. Müşteri listesi ayrıca `OpenedById` ile scope'lu (query filter müşteri için CompanyIds boş olduğundan tek başına yetmez).
 - **[Faz 3] Yorum düzenle/sil `ticket.edit` ile korunuyor (admin gücü).** Müşteri kendi yorumunu düzenleyemez/silemez (§18.12); admin düzenlemesi izli (revision + işaret), silme soft (§18.2).
 - **[Faz 3] `TicketListQuery.Sort` alanı silindi.** Hiçbir yerde tüketilmiyordu (ölü esneklik); liste sabit `CreatedAt desc`. Sıralama gerçek ihtiyaç olunca eklenir (2. gerçek durum).
+- **[Faz 4] S3-uyumlu tek SDK (AWSSDK.S3), dev'de MinIO — kullanıcı onayladı.** Kod AWS/MinIO'da aynı; fark yalnız `S3:ServiceUrl`/`ForcePathStyle`/credential (config). Spec §3/§12'nin adlandırdığı varyasyon noktası → `IFileStorage` seam hak ediyor. Presign lokal HMAC (network yok) → sync arayüz.
+- **[Faz 4] CAPTCHA seam + dev'de kapalı, fail-closed — kullanıcı onayladı.** `Captcha:Enabled=false` dev. Açık ama provider yoksa `false` döner (bot geçişini sessizce açmaz). Provider (Turnstile/reCAPTCHA) seçilince `CaptchaValidator`'a tek branch (§18.24). Rate limiting native ASP.NET ile tam yapıldı.
+- **[Faz 4] Rate limiter native ASP.NET (IP/fixed-window 5dk).** Yeni bağımlılık yok (ponytail rung 4). ponytail: in-memory + per-instance; çok-instance prod'da distributed limiter'a geçilir (teknik borç).
+- **[Faz 4] Anonim form tenant verisini `IgnoreQueryFilters` ile yazar.** Kimliksiz istekte SystemCurrentUser anonim → filtre okumaları boş. Şirket slug'la, statü global okunur (InvitationService pattern'i). Müşteri = Membership'siz User; ticket'a `OpenedById` ile bağlı (Faz 3 müşteri yolu ile tutarlı).
+- **[Faz 4] Dosya tip/boyut/adet doğrulaması sunucuda, iki kez (presign + link).** Client asla güvenilmez. `BadRequestException` (400) eklendi. ponytail ceiling: presigned PUT S3'te gerçek boyutu **zorlayamaz** (client bildirilen boyutu doğrular); gerçek sınır için presigned POST content-length-range veya upload sonrası HEAD — teknik borç.
+- **[Faz 4] İndirme yetkisi ticket aktörüne göre; iç-not dosyası müşteriye kapalı.** `AttachmentService.GetDownloadUrlAsync` ticket'ı çözer, müşteri ise iç nota bağlı dosyayı reddeder. Ticket detayında da attachment'lar görünür yorum kümesine göre süzülür (metin sızmama kuralının dosya karşılığı, §20).
 
 ## Bilinen sorunlar / teknik borç
 
@@ -110,7 +132,12 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 | 7 | FluentValidation hata mesajları OS kültürüne göre (dev'de Türkçe) geliyor; i18n mesaj kataloğuyla (spec §4.3) birleştirilecek (Faz 7). | Düşük |
 | 8 | Ticket araması `EF.Functions.Like('%term%')` — sargable değil, büyük tablolarda tarama. v1 ölçeğinde kabul; ölçek büyürse full-text index. | Düşük |
 | 9 | `TicketEvents` yazılıyor ama tüketen mail worker'ı yok (Faz 5). Şimdilik yalnız audit/rapor kaynağı. | Düşük |
-| 10 | Attachment (dosya) Faz 3'te yok — `Comment`/`Ticket` dosyasız; S3 + presigned Faz 4'te. | Orta |
+| 10 | ~~Attachment Faz 3'te yok~~ → Faz 4'te eklendi (S3 + presigned). | ✅ kapandı |
+| 11 | Gerçek S3/MinIO bucket sağlanmadı; presign kod yolu fake'lerle test edildi, **gerçek yükleme/indirme baytları uçtan uca doğrulanmadı**. Bucket + credential (env/user-secrets `S3:AccessKey/SecretKey`) gelince e2e test. | Orta |
+| 12 | CAPTCHA provider bağlı değil (açılırsa fail-closed). Provider seçilince `CaptchaValidator`'a tek branch. | Orta |
+| 13 | Presigned PUT S3'te dosya boyutunu zorlayamaz (client bildirimi doğrulanıyor). Presigned POST content-length-range veya upload sonrası HEAD ile sıkılaştır. | Orta |
+| 14 | Rate limiter in-memory + per-instance; çok-instance prod'da distributed (Redis vb.) limiter gerekir. | Düşük |
+| 15 | Token hash'leme 3. kez kopyalandı (refresh/invite/public-form SHA256). Auth'a bir dahaki dokunuşta `TokenHasher` helper'ına çıkar. | Düşük |
 
 ## Ortam gereksinimleri
 

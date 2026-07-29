@@ -12,7 +12,7 @@ namespace CrmKanban.Application.Tickets;
 /// customers cannot edit or delete comments (§18.12). Staff edits/deletes are tracked: an edit writes
 /// a CommentRevision and flags the comment as edited; a delete is soft (§18.2).
 /// </summary>
-public sealed class CommentService(IAppDbContext db, TicketAuthorizationService authz, IClock clock)
+public sealed class CommentService(IAppDbContext db, TicketAuthorizationService authz, Files.AttachmentService attachments, IClock clock)
 {
     public async Task<Guid> AddAsync(Guid ticketId, AddCommentRequest request, CancellationToken ct = default)
     {
@@ -24,6 +24,13 @@ public sealed class CommentService(IAppDbContext db, TicketAuthorizationService 
         db.Comments.Add(comment);
         db.TicketEvents.Add(new TicketEvent(ticket.CompanyId, ticketId, actor.UserId,
             request.IsInternal ? TicketEventType.InternalNoteAdded : TicketEventType.CommentAdded, null, null));
+
+        if (request.Attachments is { Count: > 0 } files)
+        {
+            foreach (var a in attachments.BuildAttachments(ticket.CompanyId, ticketId, comment.Id, files, actor.UserId))
+                db.Attachments.Add(a);
+        }
+
         await db.SaveChangesAsync(ct);
         return comment.Id;
     }

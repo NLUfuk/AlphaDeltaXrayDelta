@@ -1,3 +1,4 @@
+using CrmKanban.Application.Files;
 using CrmKanban.Application.Tickets;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +11,8 @@ namespace CrmKanban.Api.Controllers;
 public sealed class TicketsController(
     TicketCommandService commands,
     TicketQueryService queries,
-    CommentService comments) : ControllerBase
+    CommentService comments,
+    AttachmentService attachments) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PagedResult<TicketListItem>>> List([FromQuery] TicketListQuery query, CancellationToken ct) =>
@@ -95,4 +97,17 @@ public sealed class TicketsController(
         await comments.DeleteAsync(commentId, ct);
         return NoContent();
     }
+
+    // ---- attachments (spec §12) ----
+
+    /// <summary>Presigned PUT so the browser uploads directly to storage; then include the Key in a comment.</summary>
+    [HttpPost("{id:guid}/attachments/upload-url")]
+    public async Task<ActionResult<UploadUrlResult>> AttachmentUploadUrl(Guid id, UploadUrlRequest request, CancellationToken ct) =>
+        Ok(await attachments.CreateTicketUploadUrlAsync(id, request, ct));
+
+    /// <summary>Short-lived presigned GET for a private object; authorized against the ticket (a
+    /// customer never gets a file on an internal note).</summary>
+    [HttpGet("attachments/{attachmentId:guid}/download")]
+    public async Task<IActionResult> DownloadAttachment(Guid attachmentId, CancellationToken ct) =>
+        Redirect(await attachments.GetDownloadUrlAsync(attachmentId, ct));
 }

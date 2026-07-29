@@ -16,6 +16,7 @@ public sealed class TicketQueryService(
     IAppDbContext db,
     ICurrentUserService currentUser,
     TicketAuthorizationService authz,
+    Files.AttachmentService attachments,
     IOptions<TicketOptions> options)
 {
     private readonly TicketOptions _opt = options.Value;
@@ -52,10 +53,19 @@ public sealed class TicketQueryService(
             .Select(c => new CommentDto(c.Id, c.AuthorId, c.Body, c.IsInternal, c.EditedAt != null, c.CreatedAt, c.EditedAt))
             .ToListAsync(ct);
 
+        // Attachments visible to this caller: ticket-level (CommentId == null) plus those on comments the
+        // caller can see. A customer never gets a file on an internal note (spec §14/§20).
+        var visibleCommentIds = comments.Select(c => (Guid?)c.Id).ToHashSet();
+        var attachmentRows = await db.Attachments.IgnoreQueryFilters()
+            .Where(a => a.TicketId == ticketId && a.DeletedAt == null).ToListAsync(ct);
+        var attachmentDtos = attachmentRows
+            .Where(a => a.CommentId == null || visibleCommentIds.Contains(a.CommentId))
+            .Select(attachments.ToDto).ToList();
+
         return new TicketDetail(ticket.Id, ticket.Number, ticket.CompanyId, ticket.Title, ticket.Body,
             ticket.StatusId, status.Name, status.Category, ticket.Priority,
             ticket.OpenedById, ticket.AssignedToId, ticket.CategoryId,
-            ticket.FirstResponseAt, ticket.ResolvedAt, ticket.ClosedAt, ticket.CreatedAt, comments);
+            ticket.FirstResponseAt, ticket.ResolvedAt, ticket.ClosedAt, ticket.CreatedAt, comments, attachmentDtos);
     }
 
     public async Task<IReadOnlyList<KanbanColumn>> KanbanAsync(Guid companyId, TicketListQuery query, CancellationToken ct = default)
