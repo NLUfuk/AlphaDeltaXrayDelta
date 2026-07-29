@@ -1,0 +1,40 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.{cs,csx}]
+indent_size = 4
+dotnet_sort_system_directives_first = true
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_prefer_braces = true:suggestion
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+
+# Async methods should end in Async
+dotnet_naming_rule.async_methods_end_in_async.severity = suggestion
+
+# "Permission" is our domain vocabulary (spec §7: Permission/RolePermission/UserPermission).
+# CA1711 treats it as a reserved suffix; not applicable here.
+dotnet_diagnostic.CA1711.severity = none
+
+[*.{csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.{js,jsx,ts,tsx,json,css,html,yml,yaml}]
+indent_size = 2
+
+# Test method names use underscores by convention (Method_state_expectation).
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+
+# EF-generated migrations — treat as generated code, no analyzer noise.
+[**/Migrations/*.cs]
+generated_code = true
+
+[*.md]
+trim_trailing_whitespace = false

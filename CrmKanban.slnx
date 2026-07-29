@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CrmKanban.Api/CrmKanban.Api.csproj" />
+    <Project Path="src/CrmKanban.Application/CrmKanban.Application.csproj" />
+    <Project Path="src/CrmKanban.Domain/CrmKanban.Domain.csproj" />
+    <Project Path="src/CrmKanban.Infrastructure/CrmKanban.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CrmKanban.Application.Tests/CrmKanban.Application.Tests.csproj" />
+    <Project Path="tests/CrmKanban.Domain.Tests/CrmKanban.Domain.Tests.csproj" />
+  </Folder>
+</Solution>
