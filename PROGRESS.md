@@ -3,8 +3,8 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 2026-07-30 |
-| Aktif faz | Faz 4 tamam — sıradaki: Faz 5 (Bildirim / EmailQueue) |
-| Genel durum | Faz 0-4 tamam, build+test yeşil (56 test: 16 domain + 40 application), `TicketPipeline`+`Attachments` migration'ları gerçek DB'ye uygulandı |
+| Aktif faz | Faz 5 tamam — sıradaki: Faz 6 (Ayarlar + Raporlar) |
+| Genel durum | Faz 0-5 tamam, build+test yeşil (63 test: 16 domain + 47 application), `TicketPipeline`+`Attachments`+`Notifications` migration'ları gerçek DB'ye uygulandı |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
 | Spec | `crm-kanban-mimari.md` (Rev 2) — kod bununla senkron tutulur |
@@ -81,12 +81,26 @@
 
 > **Faz 4 tamamlandı.** Faz 5-8 spec §17'de.
 
+### Faz 5 — Bildirim / EmailQueue ✅
+- [x] `TicketEvent` = outbox (`NotifiedAt`); worker olayları tam-bir-kez fan-out eder (mail çağrıları iş mantığına serpilmez, §14)
+- [x] Olay×alıcı matrisi (`NotificationMatrix`, §14 v1 default): Created→açan+admin, StatusChanged/Reopened/Comment→açan+atanan, InternalNote→atanan+admin, Assigned→atanan; Priority/Category/Edit/Delete→kimse
+- [x] Çekirdek kurallar kodda zorlanır: **iç not açana/müşteriye ASLA** (matris + hard-exclude, §20), **kimseye kendi işleminin maili yok** (actor çıkarılır), **Created makbuzu açana** (actor olsa bile)
+- [x] Per-kullanıcı opt-out (`UserNotificationPref`, kritik-olmayan olaylar); Created kritik (opt-out'suz)
+- [x] Debounce: tick içinde (alıcı, ticket, olay) tekilleştirme (ponytail ceiling: çapraz-tip özet mail sonra)
+- [x] `EmailQueue` + arka plan `NotificationWorker` (BackgroundService, System-scope, tick başına fan-out+gönderim); retry + `DeadLetter` (max deneme)
+- [x] `IEmailSender` seam: dev'de `DevLogEmailSender` (log), prod `SmtpEmailSender` (`System.Net.Mail`, bağımlılık yok) — config `Email:Provider` ile seçilir
+- [x] `EmailTemplate` (DB, {{placeholder}} render) + 6 default şablon idempotent seed
+- [x] `Notifications` migration (EmailQueue/EmailTemplates/UserNotificationPrefs + TicketEvent.NotifiedAt) gerçek DB'ye uygulandı
+- [x] Çekirdek testler (+7, toplam 63): iç-not müşteriye gitmez, self-notify yok, Created makbuzu, opt-out, idempotent fan-out, dead-letter, başarılı render/gönderim
+
+> **Faz 5 tamamlandı.** Faz 6-8 spec §17'de.
+
 ## Bir sonraki oturum — açık uçlar / Mustafa'ya sorulacaklar (spec §18.21-24)
 
 - Teslim/demo tarihi (Faz 3 sonu demo öneriliyor).
 - ~~S3 sağlayıcı~~ → S3-uyumlu SDK, dev MinIO varsayımı seçildi (kod AWS/MinIO'da aynı; prod endpoint/credential env'den). Gerçek bucket sağlanınca e2e (teknik borç #11).
 - ~~CAPTCHA provider~~ → seam + dev'de kapalı seçildi; provider (Turnstile/reCAPTCHA) sonra (teknik borç #12).
-- **SMTP sağlayıcı (Faz 5'i doğrudan etkiler)** + deploy ortamı.
+- ~~SMTP sağlayıcı~~ → seam + dev log-sender ile Faz 5 tamam; gerçek SMTP + SPF/DKIM/DMARC sağlayıcı gelince (teknik borç #16). Deploy ortamı hâlâ açık (Faz 8).
 - Hazır mockup/tasarım var mı (Faz 7).
 - Süper admin'in sıfırdan admin+ilk şirket oluşturma akışı (teknik borç #5).
 
@@ -118,6 +132,11 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 - **[Faz 4] Anonim form tenant verisini `IgnoreQueryFilters` ile yazar.** Kimliksiz istekte SystemCurrentUser anonim → filtre okumaları boş. Şirket slug'la, statü global okunur (InvitationService pattern'i). Müşteri = Membership'siz User; ticket'a `OpenedById` ile bağlı (Faz 3 müşteri yolu ile tutarlı).
 - **[Faz 4] Dosya tip/boyut/adet doğrulaması sunucuda, iki kez (presign + link).** Client asla güvenilmez. `BadRequestException` (400) eklendi. ponytail ceiling: presigned PUT S3'te gerçek boyutu **zorlayamaz** (client bildirilen boyutu doğrular); gerçek sınır için presigned POST content-length-range veya upload sonrası HEAD — teknik borç.
 - **[Faz 4] İndirme yetkisi ticket aktörüne göre; iç-not dosyası müşteriye kapalı.** `AttachmentService.GetDownloadUrlAsync` ticket'ı çözer, müşteri ise iç nota bağlı dosyayı reddeder. Ticket detayında da attachment'lar görünür yorum kümesine göre süzülür (metin sızmama kuralının dosya karşılığı, §20).
+- **[Faz 5] `TicketEvent` outbox olarak kullanıldı (`NotifiedAt`), ayrı outbox tablosu yok.** Spec §14 "tetikleyici TicketEvents'ten beslenir" diyor; olay zaten append-only kayıt. Worker `NotifiedAt==null` satırları işler, tam-bir-kez. Servisler yalnız olay yazar, mail bilmez → "mail iş mantığına serpilmez" garantisi yapısal.
+- **[Faz 5] CommentAdded için tek matris girdisi iki §14 satırını karşılar.** "Public yorum (personel/admin)" ve "Müşteri yorum yazdı" farklı alıcılar; ama {Açan, Atanan} - actor kuralıyla ikisi de çıkar: müşteri yazarsa açan(actor) düşer→atanan; personel yazarsa açan+atanan(self düşer). Ekstra actor-role dalı gerekmedi.
+- **[Faz 5] Bildirim mantığı Application'da (`NotificationService`), worker API composition root'ta.** Worker seeder gibi System-scope `CrmDbContext` kurup servisi elle new'ler (request-scoped `ICurrentUserService` HttpContext'siz background'da çözülemez). Hosting bağımlılığı Infrastructure'a girmedi (API'de zaten var — ponytail: platform özelliği).
+- **[Faz 5] `IEmailSender` seam: SMTP `System.Net.Mail` ile (yeni bağımlılık yok).** Dev'de log sender; prod SMTP config'ten seçilir (`Email:Provider`). SMTP kimlik secret → env/user-secrets. Sağlayıcı seçimi bloklamadı (dev sender ile uçtan uca çalışıyor).
+- **[Faz 5] Debounce = tick-içi tekilleştirme (ponytail ceiling).** Aynı (alıcı, ticket, olay) bir tick içinde tek mail. Gerçek zaman-pencereli çapraz-tip "tek özet mail" (§14) daha büyük değişiklik; mail gürültülü olursa yapılır.
 
 ## Bilinen sorunlar / teknik borç
 
@@ -138,6 +157,10 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 | 13 | Presigned PUT S3'te dosya boyutunu zorlayamaz (client bildirimi doğrulanıyor). Presigned POST content-length-range veya upload sonrası HEAD ile sıkılaştır. | Orta |
 | 14 | Rate limiter in-memory + per-instance; çok-instance prod'da distributed (Redis vb.) limiter gerekir. | Düşük |
 | 15 | Token hash'leme 3. kez kopyalandı (refresh/invite/public-form SHA256). Auth'a bir dahaki dokunuşta `TokenHasher` helper'ına çıkar. | Düşük |
+| 16 | SMTP sağlayıcı seçilmedi; dev'de log sender. Gerçek SMTP + SPF/DKIM/DMARC + gönderim logu (§14) sağlayıcı gelince. | Orta |
+| 17 | Bildirim debounce tick-içi tekilleştirme; gerçek zaman-pencereli çapraz-tip özet mail değil (§14). | Düşük |
+| 18 | EmailQueue retry backoff'suz (her tick tekrar dener); üstel backoff + next-retry zamanı eklenebilir. | Düşük |
+| 19 | Bildirim worker'ı migration+seed gibi tek-instance varsayar; çok-instance prod'da kuyruk çekişi için satır kilidi/`SKIP LOCKED` gerekir. | Orta |
 
 ## Ortam gereksinimleri
 

@@ -29,6 +29,9 @@ public interface IAppDbContext
     DbSet<CommentRevision> CommentRevisions { get; }
     DbSet<TicketEvent> TicketEvents { get; }
     DbSet<Attachment> Attachments { get; }
+    DbSet<EmailTemplate> EmailTemplates { get; }
+    DbSet<EmailQueue> EmailQueue { get; }
+    DbSet<UserNotificationPref> UserNotificationPrefs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

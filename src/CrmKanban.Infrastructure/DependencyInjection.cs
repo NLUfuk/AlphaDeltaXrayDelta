@@ -57,6 +57,16 @@ public static class DependencyInjection
         services.Configure<Captcha.CaptchaOptions>(config.GetSection(Captcha.CaptchaOptions.SectionName));
         services.AddSingleton<ICaptchaValidator, Captcha.CaptchaValidator>();
 
+        // Notifications: email sender (log in dev, SMTP in prod) + background pipeline worker (spec §14)
+        services.Configure<CrmKanban.Application.Notifications.NotificationOptions>(config.GetSection("Notifications"));
+        services.Configure<Email.EmailOptions>(config.GetSection(Email.EmailOptions.SectionName));
+        var emailProvider = config.GetSection(Email.EmailOptions.SectionName)["Provider"] ?? "log";
+        if (string.Equals(emailProvider, "smtp", StringComparison.OrdinalIgnoreCase))
+            services.AddSingleton<IEmailSender, Email.SmtpEmailSender>();
+        else
+            services.AddSingleton<IEmailSender, Email.DevLogEmailSender>();
+        // The hosted worker that drains this pipeline lives at the composition root (API/Program.cs).
+
         services.AddSingleton(new SeederOptions(
             SuperAdminEmail: config["SuperAdmin:Email"] ?? Environment.GetEnvironmentVariable("SUPERADMIN_EMAIL"),
             SuperAdminPassword: config["SuperAdmin:Password"] ?? Environment.GetEnvironmentVariable("SUPERADMIN_PASSWORD")));

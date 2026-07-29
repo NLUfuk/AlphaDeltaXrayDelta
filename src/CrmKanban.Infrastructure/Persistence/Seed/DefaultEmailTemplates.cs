@@ -1,0 +1,41 @@
+using CrmKanban.Domain.Entities;
+
+namespace CrmKanban.Infrastructure.Persistence.Seed;
+
+/// <summary>
+/// v1 default email templates (spec §14). Keys match the notification matrix; bodies use
+/// {{placeholder}} tokens filled from the queued message payload (ticketNumber, title, newValue…).
+/// Super-admin editable in Faz 6; seeded idempotently by stable Id.
+/// </summary>
+public static class DefaultEmailTemplates
+{
+    public static IReadOnlyList<EmailTemplate> All { get; } =
+    [
+        T("11111111-0000-0000-0000-000000000001", "ticket_created",
+            "Talebiniz alındı: {{ticketNumber}}",
+            "<p>Merhaba,</p><p><b>{{title}}</b> başlıklı talebiniz <b>{{ticketNumber}}</b> numarasıyla oluşturuldu.</p>"),
+
+        T("11111111-0000-0000-0000-000000000002", "ticket_status_changed",
+            "{{ticketNumber}} durumu güncellendi",
+            "<p><b>{{ticketNumber}}</b> ({{title}}) durumu <b>{{newValue}}</b> olarak güncellendi.</p>"),
+
+        T("11111111-0000-0000-0000-000000000003", "ticket_reopened",
+            "{{ticketNumber}} yeniden açıldı",
+            "<p><b>{{ticketNumber}}</b> ({{title}}) yeniden açıldı: <b>{{newValue}}</b>.</p>"),
+
+        T("11111111-0000-0000-0000-000000000004", "ticket_comment_added",
+            "{{ticketNumber}} için yeni yorum",
+            "<p><b>{{ticketNumber}}</b> ({{title}}) talebine yeni bir yorum eklendi.</p>"),
+
+        T("11111111-0000-0000-0000-000000000005", "ticket_internal_note_added",
+            "{{ticketNumber}} için iç not",
+            "<p><b>{{ticketNumber}}</b> ({{title}}) talebine bir iç not eklendi.</p>"),
+
+        T("11111111-0000-0000-0000-000000000006", "ticket_assigned",
+            "{{ticketNumber}} size atandı",
+            "<p><b>{{ticketNumber}}</b> ({{title}}) talebi size atandı.</p>"),
+    ];
+
+    private static EmailTemplate T(string id, string key, string subject, string body) =>
+        new(key, subject, body, isActive: true, id: Guid.Parse(id));
+}

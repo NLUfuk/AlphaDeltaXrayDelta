@@ -29,6 +29,7 @@ public sealed class DatabaseSeeder(
         await SeedRolePermissionsAsync(db, ct);
         await SeedStatusesAsync(db, ct);
         await SeedTransitionsAsync(db, ct);
+        await SeedEmailTemplatesAsync(db, ct);
         await SeedSuperAdminAsync(db, ct);
 
         await db.SaveChangesAsync(ct);
@@ -76,6 +77,14 @@ public sealed class DatabaseSeeder(
         foreach (var (from, to) in DefaultStatuses.Transitions())
             if (have.Add((from, to)))
                 db.StatusTransitions.Add(new StatusTransition(from, to, Domain.Authorization.PermissionKeys.TicketStatusChange));
+    }
+
+    private static async Task SeedEmailTemplatesAsync(CrmDbContext db, CancellationToken ct)
+    {
+        var existingKeys = await db.EmailTemplates.Select(t => t.Key).ToListAsync(ct);
+        var have = existingKeys.ToHashSet();
+        foreach (var t in DefaultEmailTemplates.All.Where(t => !have.Contains(t.Key)))
+            db.EmailTemplates.Add(t);
     }
 
     private async Task SeedSuperAdminAsync(CrmDbContext db, CancellationToken ct)

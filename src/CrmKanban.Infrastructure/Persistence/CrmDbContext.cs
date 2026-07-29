@@ -36,6 +36,9 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
     public DbSet<CommentRevision> CommentRevisions => Set<CommentRevision>();
     public DbSet<TicketEvent> TicketEvents => Set<TicketEvent>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+    public DbSet<EmailQueue> EmailQueue => Set<EmailQueue>();
+    public DbSet<UserNotificationPref> UserNotificationPrefs => Set<UserNotificationPref>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -157,6 +160,27 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
             e.Property(x => x.FileName).HasMaxLength(300).IsRequired();
             e.Property(x => x.ContentType).HasMaxLength(150).IsRequired();
             e.HasQueryFilter(x => x.DeletedAt == null && (IsSuperAdmin || CompanyScope.Contains(x.CompanyId)));
+        });
+
+        // ---- Notifications (not tenant-scoped: templates are global, queue is system-owned) ----
+        b.Entity<EmailTemplate>(e =>
+        {
+            e.HasIndex(x => x.Key).IsUnique();
+            e.Property(x => x.Key).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Subject).HasMaxLength(300).IsRequired();
+            e.HasQueryFilter(x => x.DeletedAt == null);
+        });
+        b.Entity<EmailQueue>(e =>
+        {
+            e.HasIndex(x => x.Status);
+            e.Property(x => x.ToEmail).HasMaxLength(256).IsRequired();
+            e.Property(x => x.TemplateKey).HasMaxLength(100).IsRequired();
+            e.HasQueryFilter(x => x.DeletedAt == null);
+        });
+        b.Entity<UserNotificationPref>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.EventType }).IsUnique();
+            e.HasQueryFilter(x => x.DeletedAt == null);
         });
     }
 }

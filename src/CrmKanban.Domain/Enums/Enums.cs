@@ -48,6 +48,16 @@ public enum CommentSource
     Email = 1,
 }
 
+/// <summary>Lifecycle of a queued email (spec §11, §14). Sending happens in a background worker,
+/// never the request loop; failures retry until DeadLetter.</summary>
+public enum EmailStatus
+{
+    Pending = 0,
+    Sent = 1,
+    Failed = 2,      // transient failure, will retry
+    DeadLetter = 3,  // gave up after max attempts
+}
+
 /// <summary>Audit/report/mail source events on a ticket (spec §11, §14). Notifications are driven
 /// from these, not from mail calls sprinkled through business logic.</summary>
 public enum TicketEventType

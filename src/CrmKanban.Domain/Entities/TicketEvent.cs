@@ -28,4 +28,10 @@ public sealed class TicketEvent : Entity
     public TicketEventType EventType { get; private set; }
     public string? OldValue { get; private set; }
     public string? NewValue { get; private set; }
+
+    /// <summary>Set once the notification pipeline has fanned this event out to the email queue (spec
+    /// §14). The event row is the outbox: the worker processes rows where this is null, exactly once.</summary>
+    public DateTime? NotifiedAt { get; private set; }
+
+    public void MarkNotified(DateTime now) => NotifiedAt = now;
 }

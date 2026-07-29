@@ -30,6 +30,7 @@ try
     builder.Services.AddOpenApi();
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
+    builder.Services.AddHostedService<CrmKanban.Api.Notifications.NotificationWorker>();
 
     // Per-request caller identity from the JWT (overrides the anonymous default from AddInfrastructure).
     builder.Services.AddHttpContextAccessor();
