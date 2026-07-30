@@ -8,6 +8,9 @@ import Login from './screens/Login'
 import Shell from './screens/Shell'
 import Kanban from './screens/Kanban'
 import TicketDetail from './screens/TicketDetail'
+import PublicForm from './screens/PublicForm'
+import Settings from './screens/Settings'
+import Dashboard from './screens/Dashboard'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -16,12 +19,15 @@ const queryClient = new QueryClient({
 // SPA data router. Protected screens hang off Shell; more Faz 7 slices plug into its children.
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
+  { path: '/form/:slug', element: <PublicForm /> },
   {
     path: '/',
     element: <Shell />,
     children: [
       { index: true, element: <Kanban /> },
       { path: 'tickets/:id', element: <TicketDetail /> },
+      { path: 'reports', element: <Dashboard /> },
+      { path: 'settings', element: <Settings /> },
     ],
   },
 ])

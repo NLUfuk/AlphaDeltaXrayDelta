@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Link, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { Button } from '../ui/primitives'
 
@@ -11,7 +11,12 @@ export default function Shell() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="flex items-center justify-between border-b bg-white px-6 py-3">
-        <span className="font-semibold text-slate-800">CRM + Kanban</span>
+        <nav className="flex items-center gap-4 text-sm">
+          <span className="font-semibold text-slate-800">CRM + Kanban</span>
+          <Link to="/" className="text-slate-600 hover:text-blue-600">Pano</Link>
+          <Link to="/reports" className="text-slate-600 hover:text-blue-600">Raporlar</Link>
+          {user.isSuperAdmin && <Link to="/settings" className="text-slate-600 hover:text-blue-600">Ayarlar</Link>}
+        </nav>
         <div className="flex items-center gap-3 text-sm text-slate-600">
           <span>{user.name}</span>
           <Button className="bg-slate-200 text-slate-700 hover:bg-slate-300" onClick={logout}>

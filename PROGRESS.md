@@ -3,8 +3,8 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 2026-07-30 |
-| Aktif faz | Faz 7 (UI) sürüyor — login + kanban + ticket detay hazır |
-| Genel durum | Faz 0-6 tamam (78 test yeşil); Faz 7'de login, kanban (dnd→statü), ticket detay+yorum çalışıyor; frontend build+lint yeşil. Kalan: public form, ayar ekranı, dashboard |
+| Aktif faz | Faz 7 (UI) ekranları tamam — sıradaki: ayağa kaldırıp e2e test |
+| Genel durum | Faz 0-6 tamam (78 test yeşil); Faz 7 ekranları hazır (login, kanban, ticket detay, public form, ayarlar, dashboard+CSV); frontend build+lint yeşil. Kalan: dosya yükleme UI (presigned), e2e doğrulama |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
 | Spec | `crm-kanban-mimari.md` (Rev 2) — kod bununla senkron tutulur |
@@ -117,8 +117,10 @@
 - [x] Login ekranı + protected Shell (router: `/login`, `/`); frontend build+lint yeşil (1 benign fast-refresh uyarısı)
 - [x] Kanban panosu (`/tickets/kanban/{companyId}`): native HTML5 dnd → kart taşıma = statü değişimi (`/status`), mobilde kolonlar dikey yığılır = liste fallback (§17.8); TicketCard + statü/öncelik badge (§4.2)
 - [x] Ticket detay (`/tickets/:id`): başlık/gövde + statü/öncelik + yorumlar (iç not sarı, "düzenlendi" işareti) + yorum ekleme (staff'a iç not seçeneği); react-query cache+invalidation (§4.2)
-- [ ] Müşteri public formu (KVKK metni + branding config endpoint'inden)
-- [ ] Ayar ekranı (super admin), dashboard (rapor + CSV export), dosya yükleme (presigned)
+- [x] Müşteri public formu (`/form/:slug`): config'ten KVKK metni + branding, anonim submit, KVKK onay hard-gate; ticket no + kayıt bağlantısı bildirimi
+- [x] Ayar ekranı (`/settings`, super admin): jenerik ayarlar gruplu, satır bazında inline değer düzenle/kaydet (PUT); backend gate 403 döndürürse hata gösterilir
+- [x] Dashboard (`/reports`): şirket/global rapor tile'ları (toplam, ort. ilk yanıt/çözüm) + statü dağılımı + personel yükü + **CSV indir** (authed blob download); Shell'e nav (Pano/Raporlar/Ayarlar)
+- [ ] Dosya yükleme UI (presigned PUT) — form/yorumda; backend hazır, UI dilimi kaldı (teknik borç)
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
