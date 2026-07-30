@@ -63,3 +63,6 @@ Desktop.ini
 *.bak
 *.swp
 *~
+
+# UI reference template (design inspiration only, not app code)
+staradminuifiles/

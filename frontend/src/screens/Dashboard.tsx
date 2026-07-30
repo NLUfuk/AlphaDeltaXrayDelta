@@ -1,9 +1,11 @@
 import { useAuth } from '../lib/auth'
 import { statusCategory } from '../lib/messages'
 import { downloadCsv, useReport } from '../lib/reports'
-import { Badge, Button } from '../ui/primitives'
+import { Button, Card } from '../ui/primitives'
+import { BarList, TrendChart } from '../ui/charts'
 
-// Report dashboard (spec §15). Super admin sees the global report; an admin sees their company.
+// Report dashboard (spec §15), StarAdmin-inspired: stat tiles + charts. Super admin sees the global
+// report; an admin sees their company. Metrics branch on status category, never the display name (§4.3).
 export default function Dashboard() {
   const { user } = useAuth()
   const companyId = user?.isSuperAdmin ? null : (user?.companies[0]?.companyId ?? null)
@@ -12,58 +14,55 @@ export default function Dashboard() {
   if (isLoading) return <p className="text-slate-500">Yükleniyor…</p>
   if (error || !r) return <p className="text-red-600">Rapor yüklenemedi (yetki gerekebilir).</p>
 
+  // Open = not in a terminal category (Closed=4 / Cancelled=5).
+  const openCount = r.byStatusCategory.filter((c) => c.category !== 4 && c.category !== 5).reduce((n, c) => n + c.count, 0)
+  const statusRows = r.byStatusCategory.map((c) => ({ label: statusCategory(c.category).label, value: c.count, color: statusCategory(c.category).color }))
+  const staffRows = r.staffLoad.map((s) => ({ label: s.assignedToId ? s.assignedToId.slice(0, 8) : 'Atanmamış', value: s.openCount, color: '#714b67' }))
+
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-slate-800">{companyId ? 'Şirket Raporu' : 'Global Rapor'}</h1>
+        <div>
+          <h1 className="text-lg font-semibold text-ink">{companyId ? 'Şirket Raporu' : 'Global Rapor'}</h1>
+          <p className="text-sm text-slate-400">Ticket performans özeti</p>
+        </div>
         <Button variant="secondary" onClick={() => downloadCsv(companyId)}>CSV indir</Button>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <Tile label="Toplam ticket" value={r.totalTickets} />
-        <Tile label="Ort. ilk yanıt (saat)" value={r.avgFirstResponseHours ?? '—'} />
-        <Tile label="Ort. çözüm (saat)" value={r.avgResolutionHours ?? '—'} />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Tile label="Toplam ticket" value={r.totalTickets} accent="#2a78d6" />
+        <Tile label="Açık ticket" value={openCount} accent="#eda100" />
+        <Tile label="Ort. ilk yanıt (saat)" value={r.avgFirstResponseHours ?? '—'} accent="#1baf7a" />
+        <Tile label="Ort. çözüm (saat)" value={r.avgResolutionHours ?? '—'} accent="#4a3aa7" />
       </div>
 
-      <Section title="Statü dağılımı">
-        {r.byStatusCategory.map((c) => {
-          const cat = statusCategory(c.category)
-          return (
-            <div key={c.category} className="flex items-center gap-2 text-sm">
-              <Badge label={cat.label} color={cat.color} />
-              <span className="text-slate-600">{c.count}</span>
-            </div>
-          )
-        })}
-      </Section>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Statü dağılımı"><BarList rows={statusRows} /></Panel>
+        <Panel title="Açılış / kapanış trendi"><TrendChart data={r.trend} /></Panel>
+      </div>
 
-      <Section title="Personel yükü (açık ticket)">
-        {r.staffLoad.length === 0 && <span className="text-sm text-slate-400">Kayıt yok.</span>}
-        {r.staffLoad.map((s) => (
-          <div key={s.assignedToId ?? 'none'} className="flex justify-between text-sm text-slate-600">
-            <span>{s.assignedToId ?? 'Atanmamış'}</span>
-            <span>{s.openCount}</span>
-          </div>
-        ))}
-      </Section>
+      <Panel title="Personel yükü (açık ticket)"><BarList rows={staffRows} /></Panel>
     </div>
   )
 }
 
-function Tile({ label, value }: { label: string; value: number | string }) {
+function Tile({ label, value, accent }: { label: string; value: number | string; accent: string }) {
   return (
-    <div className="rounded-lg bg-white p-4 shadow-sm">
-      <div className="text-2xl font-semibold text-slate-800">{value}</div>
-      <div className="text-xs text-slate-400">{label}</div>
-    </div>
+    <Card className="flex items-center gap-3 p-4">
+      <span className="h-10 w-1.5 rounded-full" style={{ backgroundColor: accent }} />
+      <div>
+        <div className="text-2xl font-semibold text-ink tabular-nums">{value}</div>
+        <div className="text-xs text-slate-400">{label}</div>
+      </div>
+    </Card>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-2 rounded-lg bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">{title}</h2>
+    <Card className="p-5">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
       {children}
-    </section>
+    </Card>
   )
 }
