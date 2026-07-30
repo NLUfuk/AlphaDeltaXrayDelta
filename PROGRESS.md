@@ -3,8 +3,8 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 2026-07-30 |
-| Aktif faz | Faz 6 tamam — sıradaki: Faz 7 (UI) |
-| Genel durum | Faz 0-6 tamam, build+test yeşil (78 test: 16 domain + 62 application), `Settings` migration'ı da gerçek DB'ye uygulandı |
+| Aktif faz | Faz 7 (UI) başladı — foundation + login hazır |
+| Genel durum | Faz 0-6 tamam (78 test yeşil); Faz 7 UI iskeleti kuruldu (api client+auth+refresh, mesaj kataloğu §4.3, primitives §4.2, login+protected shell), frontend build+lint yeşil |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
 | Spec | `crm-kanban-mimari.md` (Rev 2) — kod bununla senkron tutulur |
@@ -109,6 +109,15 @@
 - [x] Çekirdek testler (+15, toplam 78): rapor scope/izolasyon + izin (cross-company forbidden, global super-admin-only) + metrik doğruluğu; KVKK maskeleme+istatistik korunumu+token revoke+gate; Settings gate/404/açık okuma; CSV escape/satır sayısı
 
 > **Faz 6 tamamlandı.** Faz 7-8 spec §17'de.
+
+### Faz 7 — UI ⚠️ (başladı)
+- [x] Foundation: axios client + Bearer header + 401'de tek-sefer refresh & retry + tek hata zarfı (`toApiError`, §4.3)
+- [x] Mesaj kataloğu (`lib/messages.ts`, §4.3): hata kodu→mesaj, statü **kategorisi**→etiket/renk (isme değil)
+- [x] Auth context (`lib/auth.tsx`): token localStorage, login/logout, `/me` ile hydrate; primitives (`ui/primitives.tsx` — Button/Input/Field/Alert/Badge, §4.2)
+- [x] Login ekranı + protected Shell (router: `/login`, `/`); frontend build+lint yeşil (1 benign fast-refresh uyarısı)
+- [ ] Müşteri public formu (KVKK metni + branding config endpoint'inden)
+- [ ] Kanban (dnd, izin kontrollü) + mobilde liste görünümü
+- [ ] Ticket detay + yorum/dosya, ayar ekranı (super admin), dashboard (rapor + CSV export)
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 

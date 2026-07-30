@@ -3,19 +3,26 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createBrowserRouter } from 'react-router-dom'
 import './index.css'
-import App from './App.tsx'
+import { AuthProvider } from './lib/auth'
+import Login from './screens/Login'
+import Shell, { Home } from './screens/Shell'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 })
 
-// SPA data router. Screens are added per phase (login → Faz 2, kanban → Faz 7).
-const router = createBrowserRouter([{ path: '/', element: <App /> }])
+// SPA data router. Protected screens hang off Shell; more Faz 7 slices plug into its children.
+const router = createBrowserRouter([
+  { path: '/login', element: <Login /> },
+  { path: '/', element: <Shell />, children: [{ index: true, element: <Home /> }] },
+])
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 )
