@@ -3,8 +3,8 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 2026-07-30 |
-| Aktif faz | Faz 7 (UI) ekranları tamam — sıradaki: ayağa kaldırıp e2e test |
-| Genel durum | Faz 0-6 tamam (78 test yeşil); Faz 7 ekranları hazır (login, kanban, ticket detay, public form, ayarlar, dashboard+CSV); frontend build+lint yeşil. Kalan: dosya yükleme UI (presigned), e2e doğrulama |
+| Aktif faz | Faz 7 (UI) — uygulama ayağa kalktı, backend e2e doğrulandı |
+| Genel durum | Faz 0-6 tamam (78 test); Faz 7 ekranları hazır; **uygulama çalışıyor** (API https://localhost:7084 + Vite proxy). Login/settings/reports/CSV canlı doğrulandı. Ayağa kaldırırken Faz 5 worker'ında startup crash bulundu ve düzeltildi (`5ec26d2`). Kalan: demo veri (şirket/ticket) olmadan kanban/ticket/public-form tıklanamıyor (bkz. #5); dosya yükleme UI |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
 | Spec | `crm-kanban-mimari.md` (Rev 2) — kod bununla senkron tutulur |
@@ -121,6 +121,8 @@
 - [x] Ayar ekranı (`/settings`, super admin): jenerik ayarlar gruplu, satır bazında inline değer düzenle/kaydet (PUT); backend gate 403 döndürürse hata gösterilir
 - [x] Dashboard (`/reports`): şirket/global rapor tile'ları (toplam, ort. ilk yanıt/çözüm) + statü dağılımı + personel yükü + **CSV indir** (authed blob download); Shell'e nav (Pano/Raporlar/Ayarlar)
 - [ ] Dosya yükleme UI (presigned PUT) — form/yorumda; backend hazır, UI dilimi kaldı (teknik borç)
+
+**E2E ayağa kaldırma (2026-07-30):** API https://localhost:7084 (https launch profile) + `npm run dev` (5173, `/api`→7084 proxy). Doğrulanan: süper admin login→JWT→/me, settings list/update(204)/unknown-key(404), global report + CSV (BOM'lu). **Bulunan bug:** `NotificationWorker` scoped `DbContextOptions`'ı root provider'dan çözüyordu → dev'de scope validation ile host startup crash. Scope içinde çözülerek düzeltildi (`5ec26d2`) — Faz 5 dev'de hiç `dotnet run` edilmemiş olmalı. **Test engeli:** seed yalnız süper admin + statü/permission/settings kuruyor; şirket/admin/ticket yok ve şirket oluşturma akışı da yok (#5) → kanban/ticket/public-form UI'ı gerçek veriyle denenemiyor. Demo seed veya #5 akışı gerekli.
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
