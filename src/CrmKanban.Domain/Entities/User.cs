@@ -31,6 +31,13 @@ public sealed class User : Entity
 
     public void PromoteToSuperAdmin() => IsSuperAdmin = true;
 
+    /// <summary>May create companies (spec §9/§18.8): super admin creates the admin *account* with this
+    /// flag set; the admin then opens their own company/companies. Needed because a fresh admin has no
+    /// Membership yet, so "is an admin" can't be read from a company role until the first company exists.</summary>
+    public bool CanCreateCompany { get; private set; }
+
+    public void AllowCompanyCreation() => CanCreateCompany = true;
+
     /// <summary>Forces a password change on next login (spec §9: seeded super admin must rotate).</summary>
     public bool MustChangePassword { get; private set; }
 

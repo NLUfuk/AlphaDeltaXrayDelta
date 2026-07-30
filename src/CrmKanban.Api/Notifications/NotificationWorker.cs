@@ -25,17 +25,17 @@ public sealed class NotificationWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var delay = TimeSpan.FromSeconds(_opt.PollSeconds);
-        // DbContextOptions is registered scoped (AddDbContext), so resolve it inside a scope — pulling it
-        // from the root provider trips scope validation in dev. The options object itself carries no
-        // scoped state, so one resolution is reused across ticks; each tick still builds its own context.
-        DbContextOptions<CrmDbContext> dbOptions;
-        using (var scope = services.CreateScope())
-            dbOptions = scope.ServiceProvider.GetRequiredService<DbContextOptions<CrmDbContext>>();
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                // A scope per tick: DbContextOptions is scoped and its captured service provider must stay
+                // alive while the context uses it, so the scope wraps the whole tick (resolving options from
+                // a scope we then dispose would leave the context pointing at a dead provider). The context
+                // itself is built with the System caller (like the seeder) so it sees every tenant's events.
+                using var scope = services.CreateScope();
+                var dbOptions = scope.ServiceProvider.GetRequiredService<DbContextOptions<CrmDbContext>>();
                 await using var db = new CrmDbContext(dbOptions, SystemCurrentUserService.System);
                 var service = new NotificationService(db, sender, clock, notifOptions);
                 await service.RunOnceAsync(stoppingToken);

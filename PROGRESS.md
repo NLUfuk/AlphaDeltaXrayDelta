@@ -3,8 +3,8 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 2026-07-30 |
-| Aktif faz | Faz 7 (UI) — uygulama ayağa kalktı, backend e2e doğrulandı |
-| Genel durum | Faz 0-6 tamam (78 test); Faz 7 ekranları hazır; **uygulama çalışıyor** (API https://localhost:7084 + Vite proxy). Login/settings/reports/CSV canlı doğrulandı. Ayağa kaldırırken Faz 5 worker'ında startup crash bulundu ve düzeltildi (`5ec26d2`). Kalan: demo veri (şirket/ticket) olmadan kanban/ticket/public-form tıklanamıyor (bkz. #5); dosya yükleme UI |
+| Aktif faz | Yönetim/Onboarding backend tamam — sıradaki: yönetim UI'ı, sonra kanban/ticket bağlama |
+| Genel durum | Faz 0-6 tamam; **onboarding+RBAC yönetim katmanı eklendi** (şirket/admin oluşturma, üye+kullanıcı+yetki listeleme, `AdminOnboarding` migration). 85 test yeşil. Tam zincir canlı doğrulandı: süper admin→admin oluştur→invite kabul→admin şirket açar→personel davet→yetki ata→public form→ticket→kanban→bildirim maili (açan+admin). Worker scope bug'ı tam düzeltildi |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
 | Spec | `crm-kanban-mimari.md` (Rev 2) — kod bununla senkron tutulur |
@@ -124,6 +124,17 @@
 
 **E2E ayağa kaldırma (2026-07-30):** API https://localhost:7084 (https launch profile) + `npm run dev` (5173, `/api`→7084 proxy). Doğrulanan: süper admin login→JWT→/me, settings list/update(204)/unknown-key(404), global report + CSV (BOM'lu). **Bulunan bug:** `NotificationWorker` scoped `DbContextOptions`'ı root provider'dan çözüyordu → dev'de scope validation ile host startup crash. Scope içinde çözülerek düzeltildi (`5ec26d2`) — Faz 5 dev'de hiç `dotnet run` edilmemiş olmalı. **Test engeli:** seed yalnız süper admin + statü/permission/settings kuruyor; şirket/admin/ticket yok ve şirket oluşturma akışı da yok (#5) → kanban/ticket/public-form UI'ı gerçek veriyle denenemiyor. Demo seed veya #5 akışı gerekli.
 
+### Yönetim + Onboarding (gap-close, §8/§9/§18.8) ✅ backend
+- [x] `User.CanCreateCompany` bayrağı: süper admin admin *hesabını* açar (bu bayrakla), admin kendi şirketini açar (`AdminOnboarding` migration)
+- [x] `UserService`: süper admin admin oluşturur (invited-pending + invite token) + kullanıcı listeleme (RBAC UI hedefi); self-servis admin yok (§18.5)
+- [x] `CompanyService`: şirket oluştur (admin=sahip+Admin membership; süper admin ownerAdminId ile), listele (membership'ten, taze JWT beklemeden), arşivle (§18.20), üye listele (atama/yetki picker'ı)
+- [x] `PermissionQueryService`: yetki kataloğu (gruplu) + bir kullanıcının efektif yetkileri (kutuları işaretlemek için) — görüntüleme atama ile aynı gate
+- [x] Endpoint'ler: `/api/users` (list + `admins`), `/api/companies` (list/create/{id}/archive/{id}/members), `/api/permissions` (GET katalog + `effective` + assign)
+- [x] Çekirdek testler (+7, toplam 85): şirket oluşturma bayrak/sahiplik/slug-çakışma/üye-scope, admin oluşturma süper-admin-only/invited+bayrak/dup-email
+- [ ] **UI kaldı:** admin oluşturma, şirket oluştur/listele, üye/kullanıcı listesi, yetki atama ekranı (checkbox matrisi)
+
+> **Not:** Bu katman tech debt #5'i kapatır. Public form + ticket + kanban + bildirim maili artık gerçek veriyle uçtan uca çalışıyor (ACME-1 canlı doğrulandı). Kalan bağlama işi: müşteri kendi ticket listesi/iptal-tamamla UI'ı, atama UI'ı, dosya yükleme UI'ı.
+
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
 - Teslim/demo tarihi (Faz 3 sonu demo öneriliyor).
@@ -176,6 +187,10 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 - **[Faz 6] Export = CSV (RFC 4180, bağımlılıksız); .xlsx ertelendi.** §18.14 "Excel/CSV". CSV native + Excel'de açılır (UTF-8 BOM). Gerçek .xlsx bağımlılık ister (ClosedXML/EPPlus) → istenene kadar yazılmaz (ponytail rung 4/5). (teknik borç #22)
 - **[Faz 6] KVKK silme = anonimleştirme (§16), hard delete değil.** `User.Anonymize` domain davranışı: email Id'den türetilir (unique kısıt korunur), ad maskeленir, PasswordHash temizlenir, deaktive. Ticket/olay/audit korunur → istatistik ve kanıt zinciri bozulmaz. Refresh token'lar revoke. **SuperAdmin only** (kullanıcı çok-şirketli olabilir; tek admin kimliği global silmesin — teknik borç #23). Süper admin anonimleştirilemez.
 - **[Faz 6] `kvkk.retention_days` saklanıyor ama otomatik purge YOK.** §16 "saklama süresi ayarlanabilir" — değer Settings'te; süreli anonimleştirme job'ı istenene kadar yazılmadı (ponytail). (teknik borç #24)
+- **[Yönetim] `User.CanCreateCompany` bayrağı — "admin kim" sorusunun veri-güdümlü cevabı.** Taze admin'in henüz membership'i (dolayısıyla rolü) yok; §9 "hesabı süper admin açar, şirketini admin açar" için "bu kullanıcı şirket açabilir" durumunu bir yere yazmak gerek. Bayrak doğru seam (tek kolon migration); alternatif "süper admin ilk şirketi de açsın" §18.8'e ("şirketi admin kendi açar") aykırıydı.
+- **[Yönetim] Şirket oluşturma permission-key'siz, rol/bayrak tabanlı.** `company.create` diye bir key yok; süper admin (bypass) veya `CanCreateCompany` olan kullanıcı açar. Sahiplik: admin kendi açtığının sahibi+Admin membership; süper admin `ownerAdminId` ile başkası adına açabilir. Slug global unique (form linki) → `IgnoreQueryFilters` ile kontrol.
+- **[Yönetim] Şirket listesi JWT scope'undan değil, membership'ten okunuyor.** Admin yeni şirket açınca JWT'sindeki `company_ids` bayat kalır; `ListAsync` membership'i userId ile sorgular → yeni şirket refresh beklemeden görünür. (JWT tazeleme ayrı konu; tenant *filtresi* hâlâ imzalı token'dan.)
+- **[Yönetim] Bildirim worker'ı: scope tick başına, DbContextOptions o scope ömründe kullanılıyor.** İlk düzeltme (`5ec26d2`) options'ı dispose edilmiş scope'tan alıyordu → her tick "disposed provider" hatası (host ayakta ama bildirim fan-out olmuyordu). Doğrusu: scope tüm tick'i sarar, context o scope içinde kullanılıp kapanır. Canlı doğrulandı (Created→açan+admin maili log sender'da).
 
 ## Bilinen sorunlar / teknik borç
 
@@ -185,7 +200,7 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 | 2 | Repo kök dizini adı `Yeni klasör` — ASCII dışı boşluklu; bazı CI/araçta yol sorunu çıkarabilir, yeniden adlandırılabilir. | Orta |
 | 3 | JWT signing key + süper admin kimlik dev'de user-secrets'ta (`Jwt:SigningKey`, `SuperAdmin:*`). **Prod'da env ile verilecek** — repoya girmez. Dev signing key kısa/örnek; prod'da güçlü key şart. | Yüksek |
 | 4 | Branch koruma / PR akışı tanımlı değil (`main` doğrudan push'a açık). | Düşük |
-| 5 | Süper admin'in **sıfırdan admin + ilk şirket** oluşturma akışı henüz yok. Mevcut davet akışı şirket-scope'lu (var olan şirkete personel/2.admin). Spec §9 "admin hesabını süper admin açar, admin şirketini kendi açar" → ayrı company-management endpoint'i (Faz 3 civarı). | Orta |
+| 5 | ~~Süper admin'in sıfırdan admin + ilk şirket oluşturma akışı yok~~ → **kapandı**: `User.CanCreateCompany` + `/api/users/admins` (admin oluştur) + `/api/companies` (admin şirket açar). Backend canlı doğrulandı; UI kaldı. | ✅ kapandı |
 | 6 | Başlangıçta migration+seed API startup'ta çalışıyor; çok-instance prod'da tek seferlik migration adımına taşınmalı. | Orta |
 | 7 | FluentValidation hata mesajları OS kültürüne göre (dev'de Türkçe) geliyor; i18n mesaj kataloğuyla (spec §4.3) birleştirilecek (Faz 7). | Düşük |
 | 8 | Ticket araması `EF.Functions.Like('%term%')` — sargable değil, büyük tablolarda tarama. v1 ölçeğinde kabul; ölçek büyürse full-text index. | Düşük |

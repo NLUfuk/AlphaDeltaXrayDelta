@@ -18,6 +18,9 @@ public static class DependencyInjection
         services.AddScoped<AuthService>();
         services.AddScoped<InvitationService>();
         services.AddScoped<PermissionAssignmentService>();
+        services.AddScoped<Authorization.PermissionQueryService>();
+        services.AddScoped<Companies.CompanyService>();
+        services.AddScoped<Users.UserService>();
 
         services.AddScoped<TicketAuthorizationService>();
         services.AddScoped<TicketCommandService>();
