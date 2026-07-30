@@ -1,7 +1,7 @@
 import { useAuth } from '../lib/auth'
 import { statusCategory } from '../lib/messages'
 import { downloadCsv, useReport } from '../lib/reports'
-import { Button, Card } from '../ui/primitives'
+import { Button, Card, Icon } from '../ui/primitives'
 import { BarList, TrendChart } from '../ui/charts'
 
 // Report dashboard (spec §15), StarAdmin-inspired: stat tiles + charts. Super admin sees the global
@@ -26,14 +26,14 @@ export default function Dashboard() {
           <h1 className="text-lg font-semibold text-ink">{companyId ? 'Şirket Raporu' : 'Global Rapor'}</h1>
           <p className="text-sm text-slate-400">Ticket performans özeti</p>
         </div>
-        <Button variant="secondary" onClick={() => downloadCsv(companyId)}>CSV indir</Button>
+        <Button variant="secondary" onClick={() => downloadCsv(companyId)}><Icon name="download" className="mr-1" />CSV indir</Button>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Tile label="Toplam ticket" value={r.totalTickets} accent="#2a78d6" />
-        <Tile label="Açık ticket" value={openCount} accent="#eda100" />
-        <Tile label="Ort. ilk yanıt (saat)" value={r.avgFirstResponseHours ?? '—'} accent="#1baf7a" />
-        <Tile label="Ort. çözüm (saat)" value={r.avgResolutionHours ?? '—'} accent="#4a3aa7" />
+        <Tile label="Toplam ticket" value={r.totalTickets} accent="#2a78d6" icon="ticket-outline" />
+        <Tile label="Açık ticket" value={openCount} accent="#eda100" icon="folder-open-outline" />
+        <Tile label="Ort. ilk yanıt (saat)" value={r.avgFirstResponseHours ?? '—'} accent="#1baf7a" icon="timer-outline" />
+        <Tile label="Ort. çözüm (saat)" value={r.avgResolutionHours ?? '—'} accent="#4a3aa7" icon="check-circle-outline" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -46,10 +46,12 @@ export default function Dashboard() {
   )
 }
 
-function Tile({ label, value, accent }: { label: string; value: number | string; accent: string }) {
+function Tile({ label, value, accent, icon }: { label: string; value: number | string; accent: string; icon: string }) {
   return (
     <Card className="flex items-center gap-3 p-4">
-      <span className="h-10 w-1.5 rounded-full" style={{ backgroundColor: accent }} />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl" style={{ backgroundColor: `${accent}1a`, color: accent }}>
+        <Icon name={icon} />
+      </span>
       <div>
         <div className="text-2xl font-semibold text-ink tabular-nums">{value}</div>
         <div className="text-xs text-slate-400">{label}</div>

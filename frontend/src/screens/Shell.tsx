@@ -1,17 +1,17 @@
 import { NavLink, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { Button } from '../ui/primitives'
+import { Button, Icon } from '../ui/primitives'
 
-type NavItem = { to: string; label: string; end?: boolean }
+type NavItem = { to: string; label: string; icon: string; end?: boolean }
 const NAV: NavItem[] = [
-  { to: '/', label: 'Pano', end: true },
-  { to: '/reports', label: 'Raporlar' },
-  { to: '/admin/companies', label: 'Şirketler' },
-  { to: '/admin/permissions', label: 'Yetkiler' },
+  { to: '/', label: 'Pano', icon: 'view-dashboard-outline', end: true },
+  { to: '/reports', label: 'Raporlar', icon: 'chart-line' },
+  { to: '/admin/companies', label: 'Şirketler', icon: 'domain' },
+  { to: '/admin/permissions', label: 'Yetkiler', icon: 'shield-key-outline' },
 ]
 const SUPER_NAV: NavItem[] = [
-  { to: '/admin/users', label: 'Kullanıcılar' },
-  { to: '/settings', label: 'Ayarlar' },
+  { to: '/admin/users', label: 'Kullanıcılar', icon: 'account-multiple-outline' },
+  { to: '/settings', label: 'Ayarlar', icon: 'cog-outline' },
 ]
 
 /** Protected layout (spec §17.8), Odoo-style app bar: brand + module tabs, active tab highlighted. */
@@ -33,11 +33,12 @@ export default function Shell() {
               to={it.to}
               end={it.end}
               className={({ isActive }) =>
-                `border-b-2 px-3 py-3 text-sm transition-colors ${
+                `flex items-center gap-1.5 border-b-2 px-3 py-3 text-sm transition-colors ${
                   isActive ? 'border-primary font-medium text-primary' : 'border-transparent text-slate-600 hover:text-primary'
                 }`
               }
             >
+              <Icon name={it.icon} className="text-base" />
               {it.label}
             </NavLink>
           ))}
@@ -47,7 +48,7 @@ export default function Shell() {
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
             {user.name.slice(0, 1).toUpperCase()}
           </span>
-          <Button variant="secondary" onClick={logout}>Çıkış</Button>
+          <Button variant="secondary" onClick={logout}><Icon name="logout" className="mr-1" />Çıkış</Button>
         </div>
       </header>
       <main className="p-6">

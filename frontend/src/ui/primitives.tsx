@@ -45,6 +45,11 @@ export function Alert({ children }: { children: ReactNode }) {
   return <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{children}</div>
 }
 
+// Material Design Icons (reused from the StarAdmin template's mdi webfont). Usage: <Icon name="cog" />.
+export function Icon({ name, className = '' }: { name: string; className?: string }) {
+  return <i className={`mdi mdi-${name} ${className}`} aria-hidden="true" />
+}
+
 export function Badge({ label, color }: { label: string; color: string }) {
   return (
     <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: color }}>
