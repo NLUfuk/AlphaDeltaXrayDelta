@@ -46,7 +46,7 @@ Belirsiz noktalarda kullanılan üç kural (§18'deki kararlar bunlarla verildi)
 > iletişir" + "component tabanlı UI" ile birlikte kastedilen: **katmanlı backend (Clean
 > Architecture) + React SPA, aralarında REST.** Klasik sunucu-render MVC değil.
 
-## 4. Eski Projeden Taşınacak Düzeltmeler (Mustafa geri bildirimi — ÖDÜL KOŞULU)
+## 4. Eski Projeden Taşınacak Düzeltmeler ( geri bildirimi — ÖDÜL KOŞULU)
 
 Üç somut günah, üç somut kural. PROGRESS.md'de ayrı blokla, dosya referanslarıyla takip edilir —
 review'da tek tek gösterilebilir olmalı.
@@ -304,7 +304,7 @@ yarısını keser.
    kapsam kontrolü, davet akışları. **Test-first.**
 4. **Faz 3 — Ticket Pipeline:** CRUD (kapsam guard'ı), statü/geçiş, atama, yorum + iç not,
    düzenleme geçmişi, TicketEvents, **arama/filtre/sayfalama (sunucu tarafı — opsiyonel değil)**.
-   → **Mustafa'ya demo noktası** (§18.21).
+   → ** demo noktası** (§18.21).
 5. **Faz 4 — Public Form + S3:** slug'lı form, kimliksiz açma + davet, rate limit + CAPTCHA,
    presigned upload/download, formda dosya.
 6. **Faz 5 — Bildirim:** EmailQueue + worker, şablonlar, olay matrisi, debounce, tercihler.
@@ -358,16 +358,12 @@ doküman güncellenir.
 19. Email-to-ticket **v2**, ama `Comment.Source` alanı şimdi konur (sonra ucuz olsun).
 20. Şirket silinmez, **arşivlenir**: form linki kapanır, veri okunur kalır. Cascade delete YOK.
 
-**Süreç (yalnızca Mustafa cevaplayabilir)**
-21. Teslim tarihi belirsiz → **Faz 3 sonunda demo** önerilir (çalışan ticket pipeline'ı).
-22. Ödül değerlendirme kriteri sorulacak; §4'teki üç düzeltme PROGRESS.md'de dosya
-    referanslarıyla belgelenip review'da gösterilebilir hâle getirilecek.
 23. Hazır mockup/tasarım var mı? Yoksa 2-3 ana ekran önce onaya sunulur.
 24. Deploy ortamı, S3 sağlayıcısı (AWS/MinIO), SMTP sağlayıcısı — Faz 4-5'i doğrudan etkiler.
 
 ## 19. Scope DIŞI — Outbound Kampanya/Teklif
 
-S�zlü konuşulan "telekom/call-center tarzı, profile göre kampanya/teklif" katmanı bu brief'te
+S�zlü konuşulan "telekom/call-center tarzı, profile göre kampanya/teklif" katmanı bu brief'te
 YOK. Core ticketing'i şişirmemek için scope dışı (YAGNI). İleride ayrı modül olarak: müşteri
 havuzu + segment + teklif + kampanya + izin/İYS süzgeci + sonuç kodu. Şimdilik kod yazılmaz.
 

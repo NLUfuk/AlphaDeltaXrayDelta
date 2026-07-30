@@ -21,9 +21,23 @@ public sealed class PublicFormService(
     ICaptchaValidator captcha,
     AttachmentService attachments,
     IClock clock,
+    Settings.SettingsService settings,
     IOptions<AuthOptions> authOptions)
 {
     private readonly AuthOptions _auth = authOptions.Value;
+
+    /// <summary>Config for rendering the anonymous form: company name + super-admin-editable KVKK text
+    /// and branding from the Settings store (spec §13, §16). No auth — the form is public.</summary>
+    public async Task<PublicFormConfig> GetConfigAsync(string slug, CancellationToken ct = default)
+    {
+        var company = await OpenCompanyBySlugAsync(slug, ct);
+        return new PublicFormConfig(
+            company.Name,
+            await settings.GetValueAsync("form.kvkk_text", ct) ?? "",
+            await settings.GetValueAsync("brand.system_name", ct) ?? "",
+            await settings.GetValueAsync("brand.primary_color", ct) ?? "#2563eb",
+            await settings.GetValueAsync("brand.logo_url", ct) is { Length: > 0 } logo ? logo : null);
+    }
 
     public async Task<PublicFormResult> SubmitAsync(string slug, PublicFormSubmitRequest request, CancellationToken ct = default)
     {

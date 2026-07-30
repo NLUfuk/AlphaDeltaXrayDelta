@@ -32,6 +32,7 @@ public interface IAppDbContext
     DbSet<EmailTemplate> EmailTemplates { get; }
     DbSet<EmailQueue> EmailQueue { get; }
     DbSet<UserNotificationPref> UserNotificationPrefs { get; }
+    DbSet<Setting> Settings { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

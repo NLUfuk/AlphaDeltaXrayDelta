@@ -17,6 +17,10 @@ namespace CrmKanban.Api.Controllers;
 [Route("api/public/form/{slug}")]
 public sealed class PublicFormController(PublicFormService publicForm) : ControllerBase
 {
+    [HttpGet]
+    public async Task<ActionResult<PublicFormConfig>> Config(string slug, CancellationToken ct) =>
+        Ok(await publicForm.GetConfigAsync(slug, ct));
+
     [HttpPost]
     public async Task<ActionResult<PublicFormResult>> Submit(string slug, PublicFormSubmitRequest request, CancellationToken ct) =>
         Ok(await publicForm.SubmitAsync(slug, request, ct));

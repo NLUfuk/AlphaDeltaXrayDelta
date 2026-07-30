@@ -39,6 +39,7 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
     public DbSet<EmailQueue> EmailQueue => Set<EmailQueue>();
     public DbSet<UserNotificationPref> UserNotificationPrefs => Set<UserNotificationPref>();
+    public DbSet<Setting> Settings => Set<Setting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -180,6 +181,16 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
         b.Entity<UserNotificationPref>(e =>
         {
             e.HasIndex(x => new { x.UserId, x.EventType }).IsUnique();
+            e.HasQueryFilter(x => x.DeletedAt == null);
+        });
+
+        // ---- Settings (global business params, super-admin managed — not tenant-scoped, §13) ----
+        b.Entity<Setting>(e =>
+        {
+            e.HasIndex(x => x.Key).IsUnique();
+            e.Property(x => x.Key).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Type).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Group).HasMaxLength(50).IsRequired();
             e.HasQueryFilter(x => x.DeletedAt == null);
         });
     }

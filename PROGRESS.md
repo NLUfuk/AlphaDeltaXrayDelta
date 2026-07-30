@@ -3,8 +3,8 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 2026-07-30 |
-| Aktif faz | Faz 5 tamam — sıradaki: Faz 6 (Ayarlar + Raporlar) |
-| Genel durum | Faz 0-5 tamam, build+test yeşil (63 test: 16 domain + 47 application), `TicketPipeline`+`Attachments`+`Notifications` migration'ları gerçek DB'ye uygulandı |
+| Aktif faz | Faz 6 tamam — sıradaki: Faz 7 (UI) |
+| Genel durum | Faz 0-6 tamam, build+test yeşil (78 test: 16 domain + 62 application), `Settings` migration'ı da gerçek DB'ye uygulandı |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
 | Spec | `crm-kanban-mimari.md` (Rev 2) — kod bununla senkron tutulur |
@@ -65,7 +65,7 @@
 - [x] `TicketPipeline` migration (Comment/CommentRevision/TicketEvent + Company.NextTicketNumber/Prefix) — gerçek SQL Server'a uygulandı
 - [x] Çekirdek testler (+10, toplam 45): iç-not sızmaması müşteri/staff (`CommentVisibilityTests`, §20 #1), statü/yorum yetkisi (`TicketAuthorizationTests`)
 
-> **Faz 3 tamamlandı — Mustafa'ya demo noktası (spec §18.21).** Faz 5-8 spec §17'de.
+> **Faz 3 tamamlandı — demo noktası (spec §18.21).** Faz 5-8 spec §17'de.
 
 ### Faz 4 — Public Form + S3 ✅
 - [x] Anonim public form (`PublicFormService`): `/api/public/form/{slug}` — slug→şirket, kimliksiz ticket açma; e-posta eşleşirse mevcut kullanıcıya bağlar, yoksa taslak müşteri + tek-kullanım davet token'ı (§9)
@@ -95,7 +95,22 @@
 
 > **Faz 5 tamamlandı.** Faz 6-8 spec §17'de.
 
-## Bir sonraki oturum — açık uçlar / Mustafa'ya sorulacaklar (spec §18.21-24)
+### Faz 6 — Ayarlar + Raporlar ✅
+- [x] Jenerik `Setting` KV store (Key/Value/Type/Group/UpdatedById, §11/§13/§18.3) — yeni ayar = DB satırı, kod değil; `Settings` migration gerçek DB'ye uygulandı
+- [x] `SettingsService`: `ListAsync`/`GetValueAsync`/`UpdateAsync` — global ayar = **SuperAdmin only** (§8) gate; `UpdateAsync` bilinmeyen key'de 404 (spam/typo guard); her değişiklik audit'li (`settings.update`)
+- [x] v1 ayar seti idempotent seed (`DefaultSettings`, 15 satır: ticket/notification/file/form/brand/system/kvkk grupları) — deterministik Id (SHA256[..16]), re-seed duplikasyonsuz
+- [x] Config split korundu: secret/infra (DB/S3/SMTP/JWT) hâlâ yalnız file/env; DB Settings yalnız iş parametreleri (§13)
+- [x] `ReportService`: şirket raporu (`report.company` + tenant scope) + global rapor (SuperAdmin/`report.global`); metrikler statü **kategorisine** bakar, isme değil (§4.3)
+- [x] Metrikler (§15): statü-kategori dağılımı, ort. ilk yanıt / çözüm süresi, personel yükü (open, terminal hariç), kategori kırılımı, açılış/kapanış trendi
+- [x] Excel/CSV export (§15/§18.14): RFC 4180 CSV (bağımlılıksız, UTF-8 BOM, Excel'de açılır); ticket-seviyesi satırlar, aynı scope/auth
+- [x] KVKK (§16): silme = **anonimleştirme** (`User.Anonymize` — kişisel alan maskesi, ticket/olay/istatistik korunur, audit zinciri bozulmaz); refresh token'lar revoke; SuperAdmin only; süper admin anonimleştirilemez
+- [x] KVKK metni + branding artık Settings'ten okunuyor: public form config endpoint (`GET /api/public/form/{slug}`) — Settings read-path'i canlı (write-only depo değil)
+- [x] Endpoint'ler: `/api/settings` (list/update, super admin) + `/api/reports/{company,global}` (+ `export.csv`) + `/api/kvkk/anonymize/{userId}`
+- [x] Çekirdek testler (+15, toplam 78): rapor scope/izolasyon + izin (cross-company forbidden, global super-admin-only) + metrik doğruluğu; KVKK maskeleme+istatistik korunumu+token revoke+gate; Settings gate/404/açık okuma; CSV escape/satır sayısı
+
+> **Faz 6 tamamlandı.** Faz 7-8 spec §17'de.
+
+## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
 - Teslim/demo tarihi (Faz 3 sonu demo öneriliyor).
 - ~~S3 sağlayıcı~~ → S3-uyumlu SDK, dev MinIO varsayımı seçildi (kod AWS/MinIO'da aynı; prod endpoint/credential env'den). Gerçek bucket sağlanınca e2e (teknik borç #11).
@@ -137,6 +152,16 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 - **[Faz 5] Bildirim mantığı Application'da (`NotificationService`), worker API composition root'ta.** Worker seeder gibi System-scope `CrmDbContext` kurup servisi elle new'ler (request-scoped `ICurrentUserService` HttpContext'siz background'da çözülemez). Hosting bağımlılığı Infrastructure'a girmedi (API'de zaten var — ponytail: platform özelliği).
 - **[Faz 5] `IEmailSender` seam: SMTP `System.Net.Mail` ile (yeni bağımlılık yok).** Dev'de log sender; prod SMTP config'ten seçilir (`Email:Provider`). SMTP kimlik secret → env/user-secrets. Sağlayıcı seçimi bloklamadı (dev sender ile uçtan uca çalışıyor).
 - **[Faz 5] Debounce = tick-içi tekilleştirme (ponytail ceiling).** Aynı (alıcı, ticket, olay) bir tick içinde tek mail. Gerçek zaman-pencereli çapraz-tip "tek özet mail" (§14) daha büyük değişiklik; mail gürültülü olursa yapılır.
+- **[Faz 6] Settings tek additive `Setting` KV tablosu, jenerik (Key/Value/Type/Group).** Spec §18.3 "bütün ayarlar → jenerik altyapı + kapalı v1 listesi" doğrudan bu. Yeni ayar = DB satırı/seed, kod değil. Faz 1 additive-migration kararı sürüyor (`Settings` migration).
+- **[Faz 6] SettingsService'te cache YOK (ponytail, SCOPE DISCIPLINE).** Spec §13 "cache'lenir, değişince invalidate" bir tasarım ipucu; ama Faz 6'da hot per-request okuyucu yok (KVKK metni form submit'te düşük frekans, unique Key index O(1)). Cache kanıtlanmamış eksende esneklik + invalidation/multi-instance hata yüzeyi getirir. Hot okuyucu çıkınca eklenir (teknik borç #20).
+- **[Faz 6] Var olan tipli Options (Ticket/Notification/File) Settings'e TAŞINMADI.** §13 bunları "iş parametresi = DB" sayıyor ama config'te çalışıyorlar ve bazıları hot path (reopen window, page size command service'te). Toplu async-DB'ye çevirmek imza değişimi. Settings store artık var (seam); her tüketici dokunulunca tek tek geçirilir (2. gerçek durumda). Şimdi taşımak under/over-engineering değil, gereksiz geniş diff. (teknik borç #21)
+- **[Faz 6] Global ayar = SuperAdmin only; `settings.manage` v1'de bağlanmadı.** v1 ayar setinin tamamı global (§13 listesi), §8 "global ayar = SuperAdmin". `settings.manage` permission key ileride per-şirket ayar yüzeyi için (§9 seam) duruyor; şimdi admin'e ayar yönetimi açılmadı.
+- **[Faz 6] Ayar güncelleme yalnız var olan key'i değiştirir (create yok).** Jenerik-lik "ayar eklemek = DB satırı/seed" demek; API'den keyfi key yaratmak değil. Bilinmeyen key → 404 (spam/typo guard). v1 key'leri seed'den gelir.
+- **[Faz 6] Rapor kaynağı = Tickets + statü kategorisi (TicketEvents değil).** §15 "kaynak TicketEvents" diyor ama v1 metrikleri (kategori dağılımı, ilk yanıt/çözüm süresi, personel yükü, trend) zaten ticket'taki zaman damgalarından (`FirstResponseAt`/`ResolvedAt`/`ClosedAt`, §12 ApplyStatus) ve mevcut statüden hesaplanabiliyor; olay tablosu tarama gereksiz. Olay-seviyesi metrik gerekirse (ör. statü-başına bekleme) TicketEvents eklenir.
+- **[Faz 6] Rapor agregasyonu bellek içi (ponytail ceiling).** Projeksiyon satırları çekilip LINQ ile toplanıyor (tarih farkları SQL'de değil). v1 ölçeğinde kabul; ticket hacmi satır çekimini pahalılaştırırsa GROUP BY SQL'e itilir. Scope (tenant filtresi + izin) SQL tarafında garanti — sızıntı riski yok.
+- **[Faz 6] Export = CSV (RFC 4180, bağımlılıksız); .xlsx ertelendi.** §18.14 "Excel/CSV". CSV native + Excel'de açılır (UTF-8 BOM). Gerçek .xlsx bağımlılık ister (ClosedXML/EPPlus) → istenene kadar yazılmaz (ponytail rung 4/5). (teknik borç #22)
+- **[Faz 6] KVKK silme = anonimleştirme (§16), hard delete değil.** `User.Anonymize` domain davranışı: email Id'den türetilir (unique kısıt korunur), ad maskeленir, PasswordHash temizlenir, deaktive. Ticket/olay/audit korunur → istatistik ve kanıt zinciri bozulmaz. Refresh token'lar revoke. **SuperAdmin only** (kullanıcı çok-şirketli olabilir; tek admin kimliği global silmesin — teknik borç #23). Süper admin anonimleştirilemez.
+- **[Faz 6] `kvkk.retention_days` saklanıyor ama otomatik purge YOK.** §16 "saklama süresi ayarlanabilir" — değer Settings'te; süreli anonimleştirme job'ı istenene kadar yazılmadı (ponytail). (teknik borç #24)
 
 ## Bilinen sorunlar / teknik borç
 
@@ -161,6 +186,11 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 | 17 | Bildirim debounce tick-içi tekilleştirme; gerçek zaman-pencereli çapraz-tip özet mail değil (§14). | Düşük |
 | 18 | EmailQueue retry backoff'suz (her tick tekrar dener); üstel backoff + next-retry zamanı eklenebilir. | Düşük |
 | 19 | Bildirim worker'ı migration+seed gibi tek-instance varsayar; çok-instance prod'da kuyruk çekişi için satır kilidi/`SKIP LOCKED` gerekir. | Orta |
+| 20 | SettingsService cache'siz (unique-key okuma). Hot per-request okuyucu (ör. her istekte branding/limit) çıkarsa cache + değişince invalidate; çok-instance'ta invalidation stratejisi gerekir. | Düşük |
+| 21 | Var olan tipli Options (Ticket/Notification/File) hâlâ config'ten; §13 gereği DB Settings'e taşınmalı. Seam hazır; her tüketici dokunulunca geçirilir. | Düşük |
+| 22 | Export yalnız CSV; gerçek `.xlsx` yok (bağımlılık ister). İstenirse ClosedXML/EPPlus ile eklenir. | Düşük |
+| 23 | KVKK anonimleştirme SuperAdmin only; per-şirket admin'in kendi müşterisinin talebini işlemesi yok (çok-şirketli kullanıcı kimlik çakışması). Kapsamlı çözüm: şirket-scope'lu maskeleme veya membership kaldırma. | Orta |
+| 24 | `kvkk.retention_days` saklanıyor ama otomatik saklama-süresi purge/anonimleştirme job'ı yok. | Düşük |
 
 ## Ortam gereksinimleri
 

@@ -27,6 +27,10 @@ public static class DependencyInjection
         services.AddScoped<Files.AttachmentService>();
         services.AddScoped<PublicForm.PublicFormService>();
 
+        services.AddScoped<Settings.SettingsService>();
+        services.AddScoped<Reports.ReportService>();
+        services.AddScoped<Kvkk.KvkkService>();
+
         return services;
     }
 }

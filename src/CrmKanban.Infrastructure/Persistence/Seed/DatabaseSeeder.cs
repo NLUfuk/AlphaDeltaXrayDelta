@@ -30,6 +30,7 @@ public sealed class DatabaseSeeder(
         await SeedStatusesAsync(db, ct);
         await SeedTransitionsAsync(db, ct);
         await SeedEmailTemplatesAsync(db, ct);
+        await SeedSettingsAsync(db, ct);
         await SeedSuperAdminAsync(db, ct);
 
         await db.SaveChangesAsync(ct);
@@ -85,6 +86,14 @@ public sealed class DatabaseSeeder(
         var have = existingKeys.ToHashSet();
         foreach (var t in DefaultEmailTemplates.All.Where(t => !have.Contains(t.Key)))
             db.EmailTemplates.Add(t);
+    }
+
+    private static async Task SeedSettingsAsync(CrmDbContext db, CancellationToken ct)
+    {
+        var existingKeys = await db.Settings.Select(s => s.Key).ToListAsync(ct);
+        var have = existingKeys.ToHashSet();
+        foreach (var s in DefaultSettings.All.Where(s => !have.Contains(s.Key)))
+            db.Settings.Add(s);
     }
 
     private async Task SeedSuperAdminAsync(CrmDbContext db, CancellationToken ct)

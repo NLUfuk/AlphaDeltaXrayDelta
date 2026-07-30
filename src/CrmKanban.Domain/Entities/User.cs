@@ -53,4 +53,19 @@ public sealed class User : Entity
         FirstName = firstName.Trim();
         LastName = lastName.Trim();
     }
+
+    /// <summary>
+    /// KVKK "right to erasure" as anonymization (spec §16): masks personal fields but keeps the row so
+    /// ticket history/statistics stay intact and the audit chain is unbroken — hard delete would break
+    /// both. Email is derived from the Id to preserve the global-unique constraint. The user can no
+    /// longer log in (password cleared, deactivated).
+    /// </summary>
+    public void Anonymize()
+    {
+        Email = $"anonymized-{Id:N}@anonymized.invalid";
+        FirstName = "Anonim";
+        LastName = "Kullanıcı";
+        PasswordHash = null;
+        IsActive = false;
+    }
 }

@@ -86,8 +86,9 @@ public class PublicFormServiceTests
         var authz = new TicketAuthorizationService(new Anonymous(), new FakePermissionService(), db);
         var attachments = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(),
             Options.Create(new Application.Files.FileOptions()));
+        var settings = new Application.Settings.SettingsService(db, new Anonymous());
         return new PublicFormService(db, new FakeCaptcha(captchaOk), attachments, new FixedClock(),
-            Options.Create(new AuthOptions()));
+            settings, Options.Create(new AuthOptions()));
     }
 
     private static PublicFormSubmitRequest Request(bool consent = true) =>
