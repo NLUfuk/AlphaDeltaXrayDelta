@@ -68,9 +68,7 @@ function CompanyCard({ company }: { company: Company }) {
           <span className="ml-2 text-xs text-slate-400">/{company.slug} · {company.ticketNumberPrefix}</span>
           {company.isArchived && <span className="ml-2 text-xs text-red-500">arşivli</span>}
         </div>
-        <Button className="bg-slate-200 text-slate-700 hover:bg-slate-300" onClick={() => setOpen(!open)}>
-          {open ? 'Gizle' : 'Üyeler'}
-        </Button>
+        <Button variant="secondary" onClick={() => setOpen(!open)}>{open ? 'Gizle' : 'Üyeler'}</Button>
       </div>
 
       {open && (

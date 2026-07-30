@@ -1,11 +1,19 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 
-// Atomic primitives (spec §4.2). Screens compose these; they never re-write button/input markup inline.
+// Atomic primitives (spec §4.2), Odoo-inspired: purple primary, understated surfaces, soft cards.
+// Screens compose these; they never re-write button/input markup inline.
 
-export function Button({ className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+type Variant = 'primary' | 'secondary' | 'danger'
+const VARIANTS: Record<Variant, string> = {
+  primary: 'bg-primary text-white hover:bg-primary-hover',
+  secondary: 'bg-white text-ink border border-line hover:bg-canvas',
+  danger: 'bg-red-600 text-white hover:bg-red-700',
+}
+
+export function Button({ variant = 'primary', className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   return (
     <button
-      className={`rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50 ${className}`}
+      className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${VARIANTS[variant]} ${className}`}
       {...props}
     />
   )
@@ -14,7 +22,7 @@ export function Button({ className = '', ...props }: ButtonHTMLAttributes<HTMLBu
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-blue-500 ${className}`}
+      className={`w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 ${className}`}
       {...props}
     />
   )
@@ -22,15 +30,19 @@ export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInpu
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="font-medium text-slate-700">{label}</span>
+    <label className="flex flex-1 flex-col gap-1">
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
       {children}
     </label>
   )
 }
 
+export function Card({ className = '', children }: { className?: string; children: ReactNode }) {
+  return <div className={`rounded-lg border border-line bg-white shadow-sm ${className}`}>{children}</div>
+}
+
 export function Alert({ children }: { children: ReactNode }) {
-  return <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{children}</div>
+  return <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{children}</div>
 }
 
 export function Badge({ label, color }: { label: string; color: string }) {

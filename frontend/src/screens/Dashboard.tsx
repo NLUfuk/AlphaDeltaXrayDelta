@@ -16,9 +16,7 @@ export default function Dashboard() {
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-slate-800">{companyId ? 'Şirket Raporu' : 'Global Rapor'}</h1>
-        <Button className="bg-slate-200 text-slate-700 hover:bg-slate-300" onClick={() => downloadCsv(companyId)}>
-          CSV indir
-        </Button>
+        <Button variant="secondary" onClick={() => downloadCsv(companyId)}>CSV indir</Button>
       </div>
 
       <div className="grid grid-cols-3 gap-3">

@@ -31,15 +31,16 @@ export default function Kanban() {
             key={col.statusId}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => drop(col.statusId)}
-            className="w-72 shrink-0 rounded-lg bg-slate-100 p-3 max-md:w-full"
+            className="flex w-72 shrink-0 flex-col rounded-lg border border-line bg-canvas max-md:w-full"
           >
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-700" style={{ color: cat.color }}>
+            <div className="flex items-center justify-between rounded-t-lg border-b-2 bg-white px-3 py-2" style={{ borderColor: cat.color }}>
+              <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cat.color }} />
                 {col.statusName}
               </span>
-              <span className="text-xs text-slate-400">{col.tickets.length}</span>
+              <span className="rounded-full bg-canvas px-2 text-xs text-slate-500">{col.tickets.length}</span>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 p-2">
               {col.tickets.map((t) => (
                 <TicketCard key={t.id} ticket={t} onDragStart={() => setDragId(t.id)} />
               ))}

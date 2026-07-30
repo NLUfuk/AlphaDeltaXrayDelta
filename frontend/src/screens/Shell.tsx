@@ -1,30 +1,53 @@
-import { Link, Navigate, Outlet } from 'react-router-dom'
+import { NavLink, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { Button } from '../ui/primitives'
 
-/** Protected layout (spec §17.8). Redirects to /login when unauthenticated; screens render in the outlet. */
+type NavItem = { to: string; label: string; end?: boolean }
+const NAV: NavItem[] = [
+  { to: '/', label: 'Pano', end: true },
+  { to: '/reports', label: 'Raporlar' },
+  { to: '/admin/companies', label: 'Şirketler' },
+  { to: '/admin/permissions', label: 'Yetkiler' },
+]
+const SUPER_NAV: NavItem[] = [
+  { to: '/admin/users', label: 'Kullanıcılar' },
+  { to: '/settings', label: 'Ayarlar' },
+]
+
+/** Protected layout (spec §17.8), Odoo-style app bar: brand + module tabs, active tab highlighted. */
 export default function Shell() {
   const { user, loading, logout } = useAuth()
   if (loading) return <div className="p-8 text-slate-500">Yükleniyor…</div>
   if (!user) return <Navigate to="/login" replace />
 
+  const items = user.isSuperAdmin ? [...NAV, ...SUPER_NAV] : NAV
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-3">
-        <nav className="flex items-center gap-4 text-sm">
-          <span className="font-semibold text-slate-800">CRM + Kanban</span>
-          <Link to="/" className="text-slate-600 hover:text-blue-600">Pano</Link>
-          <Link to="/reports" className="text-slate-600 hover:text-blue-600">Raporlar</Link>
-          <Link to="/admin/companies" className="text-slate-600 hover:text-blue-600">Şirketler</Link>
-          <Link to="/admin/permissions" className="text-slate-600 hover:text-blue-600">Yetkiler</Link>
-          {user.isSuperAdmin && <Link to="/admin/users" className="text-slate-600 hover:text-blue-600">Kullanıcılar</Link>}
-          {user.isSuperAdmin && <Link to="/settings" className="text-slate-600 hover:text-blue-600">Ayarlar</Link>}
+    <div className="min-h-screen">
+      <header className="flex items-center justify-between border-b border-line bg-white px-5 shadow-sm">
+        <nav className="flex items-center gap-1">
+          <span className="mr-3 font-semibold text-primary">CRM·Kanban</span>
+          {items.map((it) => (
+            <NavLink
+              key={it.to}
+              to={it.to}
+              end={it.end}
+              className={({ isActive }) =>
+                `border-b-2 px-3 py-3 text-sm transition-colors ${
+                  isActive ? 'border-primary font-medium text-primary' : 'border-transparent text-slate-600 hover:text-primary'
+                }`
+              }
+            >
+              {it.label}
+            </NavLink>
+          ))}
         </nav>
         <div className="flex items-center gap-3 text-sm text-slate-600">
-          <span>{user.name}</span>
-          <Button className="bg-slate-200 text-slate-700 hover:bg-slate-300" onClick={logout}>
-            Çıkış
-          </Button>
+          <span className="hidden sm:inline">{user.name}</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            {user.name.slice(0, 1).toUpperCase()}
+          </span>
+          <Button variant="secondary" onClick={logout}>Çıkış</Button>
         </div>
       </header>
       <main className="p-6">

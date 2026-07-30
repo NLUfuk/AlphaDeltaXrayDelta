@@ -51,7 +51,7 @@ export default function Permissions() {
                     </span>
                     <span className="flex gap-2">
                       <Button className="px-2 py-1 text-xs" onClick={() => act(p.key, 0)}>Ver</Button>
-                      <Button className="bg-red-600 px-2 py-1 text-xs hover:bg-red-700" onClick={() => act(p.key, 1)}>Reddet</Button>
+                      <Button variant="danger" className="px-2 py-1 text-xs" onClick={() => act(p.key, 1)}>Reddet</Button>
                     </span>
                   </div>
                 ))}

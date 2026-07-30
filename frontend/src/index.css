@@ -1,1 +1,17 @@
 @import 'tailwindcss';
+
+/* Odoo-inspired theme: purple primary + teal accent, light canvas, soft cards. */
+@theme {
+  --color-primary: #714b67;
+  --color-primary-hover: #5b3c53;
+  --color-accent: #017e84;
+  --color-canvas: #f6f6f7;
+  --color-ink: #2b2b33;
+  --color-line: #dee2e6;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
