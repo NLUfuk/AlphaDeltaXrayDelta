@@ -71,6 +71,7 @@ public static class DependencyInjection
             SuperAdminEmail: config["SuperAdmin:Email"] ?? Environment.GetEnvironmentVariable("SUPERADMIN_EMAIL"),
             SuperAdminPassword: config["SuperAdmin:Password"] ?? Environment.GetEnvironmentVariable("SUPERADMIN_PASSWORD")));
         services.AddScoped<DatabaseSeeder>();
+        services.AddScoped<DevSeeder>();
 
         return services;
     }

@@ -86,6 +86,15 @@ public sealed class TicketQueryService(
             byStatus[s.Id].Select(t => ToListItem(t, statusById)).ToList())).ToList();
     }
 
+    /// <summary>The global status catalog (id + name + category), for status dropdowns and the customer
+    /// cancel/complete actions. v1 statuses are global (CompanyId null); any authenticated caller may read.</summary>
+    public async Task<IReadOnlyList<StatusDto>> ListStatusesAsync(CancellationToken ct = default) =>
+        await db.TicketStatuses.IgnoreQueryFilters()
+            .Where(s => s.CompanyId == null && s.DeletedAt == null)
+            .OrderBy(s => s.Order)
+            .Select(s => new StatusDto(s.Id, s.Name, s.Category, s.Color, s.Order, s.IsTerminal))
+            .ToListAsync(ct);
+
     // ---- helpers ----
 
     private static IQueryable<Ticket> ApplyFilters(IQueryable<Ticket> q, TicketListQuery query)

@@ -77,6 +77,37 @@ export function useChangeStatus(companyId: string | undefined) {
   })
 }
 
+export type Status = { id: string; name: string; category: number; color: string; order: number; isTerminal: boolean }
+
+export function useStatuses() {
+  return useQuery({ queryKey: ['statuses'], queryFn: async () => (await api.get<Status[]>('/tickets/statuses')).data })
+}
+
+// Detail-side mutations: invalidate both the ticket detail and the company's kanban.
+function useTicketMutation<V>(ticketId: string, companyId: string | undefined, fn: (v: V) => Promise<unknown>) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ticket', ticketId] })
+      if (companyId) qc.invalidateQueries({ queryKey: ['kanban', companyId] })
+    },
+  })
+}
+
+export function useChangeTicketStatus(ticketId: string, companyId: string | undefined) {
+  return useTicketMutation<string>(ticketId, companyId, (targetStatusId) =>
+    api.post(`/tickets/${ticketId}/status`, { targetStatusId }))
+}
+export function useAssignTicket(ticketId: string, companyId: string | undefined) {
+  return useTicketMutation<string | null>(ticketId, companyId, (assigneeUserId) =>
+    api.post(`/tickets/${ticketId}/assign`, { assigneeUserId }))
+}
+export function useSetTicketPriority(ticketId: string, companyId: string | undefined) {
+  return useTicketMutation<number>(ticketId, companyId, (priority) =>
+    api.post(`/tickets/${ticketId}/priority`, { priority }))
+}
+
 export function useAddComment(ticketId: string) {
   const qc = useQueryClient()
   return useMutation({

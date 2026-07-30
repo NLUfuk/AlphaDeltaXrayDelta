@@ -26,6 +26,10 @@ public sealed class TicketsController(
     public async Task<ActionResult<IReadOnlyList<KanbanColumn>>> Kanban(Guid companyId, [FromQuery] TicketListQuery query, CancellationToken ct) =>
         Ok(await queries.KanbanAsync(companyId, query, ct));
 
+    [HttpGet("statuses")]
+    public async Task<ActionResult<IReadOnlyList<StatusDto>>> Statuses(CancellationToken ct) =>
+        Ok(await queries.ListStatusesAsync(ct));
+
     [HttpPost]
     public async Task<ActionResult<object>> Create(CreateTicketRequest request, CancellationToken ct)
     {

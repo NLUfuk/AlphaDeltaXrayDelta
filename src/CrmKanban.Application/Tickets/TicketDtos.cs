@@ -42,6 +42,8 @@ public sealed record TicketDetail(
     DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt,
     DateTime CreatedAt, IReadOnlyList<CommentDto> Comments, IReadOnlyList<AttachmentDto> Attachments);
 
+public sealed record StatusDto(Guid Id, string Name, StatusCategory Category, string Color, int Order, bool IsTerminal);
+
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
 
 public sealed record KanbanColumn(Guid StatusId, string StatusName, StatusCategory Category, string Color, int Order, IReadOnlyList<TicketListItem> Tickets);

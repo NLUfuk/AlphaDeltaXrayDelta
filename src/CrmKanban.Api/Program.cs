@@ -79,6 +79,8 @@ try
         var db = scope.ServiceProvider.GetRequiredService<CrmDbContext>();
         await db.Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync();
+        if (builder.Environment.IsDevelopment())
+            await scope.ServiceProvider.GetRequiredService<DevSeeder>().SeedAsync();
     }
 
     app.UseMiddleware<ExceptionHandlingMiddleware>();
