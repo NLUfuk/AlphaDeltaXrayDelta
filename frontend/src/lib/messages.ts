@@ -28,3 +28,15 @@ export const STATUS_CATEGORIES = [
 export function statusCategory(value: number) {
   return STATUS_CATEGORIES[value] ?? { key: 'unknown', label: '—', color: '#6b7280' }
 }
+
+// Priority enum (Low/Normal/High/Urgent) → label + color, indexed by numeric value.
+export const PRIORITIES = [
+  { label: 'Düşük', color: '#6b7280' },
+  { label: 'Normal', color: '#2563eb' },
+  { label: 'Yüksek', color: '#d97706' },
+  { label: 'Acil', color: '#dc2626' },
+] as const
+
+export function priority(value: number) {
+  return PRIORITIES[value] ?? { label: '—', color: '#6b7280' }
+}

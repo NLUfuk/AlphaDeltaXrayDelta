@@ -25,14 +25,3 @@ export default function Shell() {
     </div>
   )
 }
-
-/** Placeholder home until the kanban/dashboard screens land (next Faz 7 slices). */
-export function Home() {
-  const { user } = useAuth()
-  return (
-    <div className="text-slate-600">
-      <p>Hoş geldin, {user?.name}.</p>
-      <p className="text-sm text-slate-400">Ekranlar (kanban, ticket, ayarlar, dashboard) sıradaki dilimlerde.</p>
-    </div>
-  )
-}

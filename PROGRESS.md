@@ -3,8 +3,8 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 2026-07-30 |
-| Aktif faz | Faz 7 (UI) başladı — foundation + login hazır |
-| Genel durum | Faz 0-6 tamam (78 test yeşil); Faz 7 UI iskeleti kuruldu (api client+auth+refresh, mesaj kataloğu §4.3, primitives §4.2, login+protected shell), frontend build+lint yeşil |
+| Aktif faz | Faz 7 (UI) sürüyor — login + kanban + ticket detay hazır |
+| Genel durum | Faz 0-6 tamam (78 test yeşil); Faz 7'de login, kanban (dnd→statü), ticket detay+yorum çalışıyor; frontend build+lint yeşil. Kalan: public form, ayar ekranı, dashboard |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
 | Spec | `crm-kanban-mimari.md` (Rev 2) — kod bununla senkron tutulur |
@@ -115,9 +115,10 @@
 - [x] Mesaj kataloğu (`lib/messages.ts`, §4.3): hata kodu→mesaj, statü **kategorisi**→etiket/renk (isme değil)
 - [x] Auth context (`lib/auth.tsx`): token localStorage, login/logout, `/me` ile hydrate; primitives (`ui/primitives.tsx` — Button/Input/Field/Alert/Badge, §4.2)
 - [x] Login ekranı + protected Shell (router: `/login`, `/`); frontend build+lint yeşil (1 benign fast-refresh uyarısı)
+- [x] Kanban panosu (`/tickets/kanban/{companyId}`): native HTML5 dnd → kart taşıma = statü değişimi (`/status`), mobilde kolonlar dikey yığılır = liste fallback (§17.8); TicketCard + statü/öncelik badge (§4.2)
+- [x] Ticket detay (`/tickets/:id`): başlık/gövde + statü/öncelik + yorumlar (iç not sarı, "düzenlendi" işareti) + yorum ekleme (staff'a iç not seçeneği); react-query cache+invalidation (§4.2)
 - [ ] Müşteri public formu (KVKK metni + branding config endpoint'inden)
-- [ ] Kanban (dnd, izin kontrollü) + mobilde liste görünümü
-- [ ] Ticket detay + yorum/dosya, ayar ekranı (super admin), dashboard (rapor + CSV export)
+- [ ] Ayar ekranı (super admin), dashboard (rapor + CSV export), dosya yükleme (presigned)
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
