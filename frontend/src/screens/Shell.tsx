@@ -15,6 +15,9 @@ export default function Shell() {
           <span className="font-semibold text-slate-800">CRM + Kanban</span>
           <Link to="/" className="text-slate-600 hover:text-blue-600">Pano</Link>
           <Link to="/reports" className="text-slate-600 hover:text-blue-600">Raporlar</Link>
+          <Link to="/admin/companies" className="text-slate-600 hover:text-blue-600">Şirketler</Link>
+          <Link to="/admin/permissions" className="text-slate-600 hover:text-blue-600">Yetkiler</Link>
+          {user.isSuperAdmin && <Link to="/admin/users" className="text-slate-600 hover:text-blue-600">Kullanıcılar</Link>}
           {user.isSuperAdmin && <Link to="/settings" className="text-slate-600 hover:text-blue-600">Ayarlar</Link>}
         </nav>
         <div className="flex items-center gap-3 text-sm text-slate-600">

@@ -11,6 +11,9 @@ import TicketDetail from './screens/TicketDetail'
 import PublicForm from './screens/PublicForm'
 import Settings from './screens/Settings'
 import Dashboard from './screens/Dashboard'
+import AdminUsers from './screens/admin/AdminUsers'
+import Companies from './screens/admin/Companies'
+import Permissions from './screens/admin/Permissions'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -28,6 +31,9 @@ const router = createBrowserRouter([
       { path: 'tickets/:id', element: <TicketDetail /> },
       { path: 'reports', element: <Dashboard /> },
       { path: 'settings', element: <Settings /> },
+      { path: 'admin/users', element: <AdminUsers /> },
+      { path: 'admin/companies', element: <Companies /> },
+      { path: 'admin/permissions', element: <Permissions /> },
     ],
   },
 ])

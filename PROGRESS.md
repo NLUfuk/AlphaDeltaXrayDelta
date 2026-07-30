@@ -131,9 +131,9 @@
 - [x] `PermissionQueryService`: yetki kataloğu (gruplu) + bir kullanıcının efektif yetkileri (kutuları işaretlemek için) — görüntüleme atama ile aynı gate
 - [x] Endpoint'ler: `/api/users` (list + `admins`), `/api/companies` (list/create/{id}/archive/{id}/members), `/api/permissions` (GET katalog + `effective` + assign)
 - [x] Çekirdek testler (+7, toplam 85): şirket oluşturma bayrak/sahiplik/slug-çakışma/üye-scope, admin oluşturma süper-admin-only/invited+bayrak/dup-email
-- [ ] **UI kaldı:** admin oluşturma, şirket oluştur/listele, üye/kullanıcı listesi, yetki atama ekranı (checkbox matrisi)
+- [x] **Yönetim UI'ı:** `/admin/users` (admin oluştur + kullanıcı listesi, invite token gösterimi), `/admin/companies` (şirket oluştur/listele + üye listesi + personel/2.admin davet), `/admin/permissions` (şirket→üye seç, yetki kataloğu checkbox + Ver/Reddet, efektif durum badge'i); Shell nav güncellendi
 
-> **Not:** Bu katman tech debt #5'i kapatır. Public form + ticket + kanban + bildirim maili artık gerçek veriyle uçtan uca çalışıyor (ACME-1 canlı doğrulandı). Kalan bağlama işi: müşteri kendi ticket listesi/iptal-tamamla UI'ı, atama UI'ı, dosya yükleme UI'ı.
+> **Not:** Bu katman tech debt #5'i kapatır. Public form + ticket + kanban + bildirim maili artık gerçek veriyle uçtan uca çalışıyor (ACME-1 canlı doğrulandı). Onboarding+RBAC hem backend hem UI tamam. Kalan bağlama işi: müşteri kendi ticket listesi/iptal-tamamla UI'ı, ticket atama UI'ı (member listesi hazır), dosya yükleme UI'ı.
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
