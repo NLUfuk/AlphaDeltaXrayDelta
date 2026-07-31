@@ -22,9 +22,11 @@ public sealed class PublicFormService(
     AttachmentService attachments,
     IClock clock,
     Settings.SettingsService settings,
-    IOptions<AuthOptions> authOptions)
+    IOptions<AuthOptions> authOptions,
+    IOptions<AppOptions> appOptions)
 {
     private readonly AuthOptions _auth = authOptions.Value;
+    private readonly AppOptions _app = appOptions.Value;
 
     /// <summary>Config for rendering the anonymous form: company name + super-admin-editable KVKK text
     /// and branding from the Settings store (spec §13, §16). No auth — the form is public.</summary>
@@ -55,25 +57,42 @@ public sealed class PublicFormService(
 
         var status = await InitialStatusAsync(company.Id, ct);
         var ticket = new Ticket(company.Id, company.AllocateTicketNumber(), user.Id, status.Id, request.Title, request.Body);
+        // Zero-trust intake (spec §10): a first-time (unknown) customer's ticket is held for manual
+        // approval before it enters the pool; a known customer (existing user) goes straight in.
+        if (inviteToken is not null)
+            ticket.MarkPendingApproval();
         db.Tickets.Add(ticket);
         db.TicketEvents.Add(new TicketEvent(company.Id, ticket.Id, user.Id, TicketEventType.Created, null, ticket.Number));
 
         if (request.Attachments is { Count: > 0 } files)
         {
-            foreach (var a in attachments.BuildAttachments(company.Id, ticket.Id, commentId: null, files, user.Id))
+            foreach (var a in attachments.BuildPublicAttachments(company.Id, ticket.Id, files, user.Id))
                 db.Attachments.Add(a);
         }
 
+        // First-time customer: email the account-activation link. Clicking it verifies the address and
+        // lets them set a password (spec §9). Known customers already have an account — no email.
+        if (inviteToken is not null)
+            InviteEmail.Enqueue(db, _app.PublicBaseUrl, email, "account_invite", inviteToken,
+                new Dictionary<string, string>
+                {
+                    ["name"] = $"{request.FirstName} {request.LastName}".Trim(),
+                    ["companyName"] = company.Name,
+                });
+
         await db.SaveChangesAsync(ct);
-        return new PublicFormResult(ticket.Number, inviteToken);
+        return new PublicFormResult(ticket.Number, inviteToken is not null);
     }
 
-    /// <summary>Presigned PUT for a file attached to the first form, before the ticket exists. Anonymous;
-    /// the slug must resolve to an open company so keys can't be spammed under arbitrary prefixes.</summary>
-    public async Task<UploadUrlResult> CreateUploadUrlAsync(string slug, UploadUrlRequest request, CancellationToken ct = default)
+    /// <summary>Zero-trust upload of a file for the first form, before the ticket exists (spec §10). The
+    /// bytes stream through the API and are inspected (extension + content-type + magic bytes, pdf/txt/
+    /// doc/docx only) before storage. Anonymous; the slug must resolve to an open company so keys can't
+    /// be spammed under arbitrary prefixes.</summary>
+    public async Task<AttachmentDescriptor> UploadAsync(
+        string slug, string fileName, string contentType, Stream content, CancellationToken ct = default)
     {
         var company = await OpenCompanyBySlugAsync(slug, ct);
-        return attachments.CreateUploadUrl($"public/{company.Id:N}", request);
+        return await attachments.StorePublicUploadAsync($"public/{company.Id:N}", fileName, contentType, content, ct);
     }
 
     private async Task<Company> OpenCompanyBySlugAsync(string slug, CancellationToken ct)
@@ -107,9 +126,7 @@ public sealed class PublicFormService(
     }
 
     private async Task<TicketStatus> InitialStatusAsync(Guid companyId, CancellationToken ct) =>
-        await db.TicketStatuses.IgnoreQueryFilters()
-            .Where(s => (s.CompanyId == companyId || s.CompanyId == null) && s.Category == StatusCategory.Open)
-            .OrderBy(s => s.Order).FirstOrDefaultAsync(ct)
+        (await Tickets.StatusSet.EffectiveAsync(db, companyId, ct)).FirstOrDefault(s => s.Category == StatusCategory.Open)
         ?? throw new NotFoundException("status.no_initial", "No initial (Open) status is configured.");
 
     private static string HashToken(string raw)

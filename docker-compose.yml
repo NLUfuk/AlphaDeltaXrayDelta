@@ -1,0 +1,93 @@
+# One-command stack for CRM+Kanban: API (.NET 10) + MSSQL 2022 + MinIO (S3) + nginx SPA.
+# Copy .env.example to .env and set the secrets before `docker compose up --build`.
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_PID: Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  # One-shot: create the private bucket the API expects.
+  createbucket:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${S3_ACCESS_KEY} ${S3_SECRET_KEY} &&
+      mc mb --ignore-existing local/${S3_BUCKET} &&
+      echo 'bucket ready';
+      "
+
+  api:
+    build:
+      context: .
+      dockerfile: src/CrmKanban.Api/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Server=db;Database=CrmKanban;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY}
+      Jwt__Issuer: ${JWT_ISSUER:-CrmKanban}
+      Jwt__Audience: ${JWT_AUDIENCE:-CrmKanban}
+      S3__ServiceUrl: "http://minio:9000"
+      S3__BucketName: ${S3_BUCKET}
+      S3__AccessKey: ${S3_ACCESS_KEY}
+      S3__SecretKey: ${S3_SECRET_KEY}
+      S3__ForcePathStyle: "true"
+      SuperAdmin__Email: ${SUPERADMIN_EMAIL}
+      SuperAdmin__Password: ${SUPERADMIN_PASSWORD}
+      Email__Provider: ${EMAIL_PROVIDER:-log}
+      # Origin used to build activation/invite links in outbound email — must match how users reach the app.
+      App__PublicBaseUrl: ${APP_PUBLIC_BASE_URL:-http://localhost:8080}
+      # Demo data (two companies, tickets across every column, sample customers). Off for real production.
+      Seed__Demo: ${SEED_DEMO:-false}
+    expose:
+      - "8080"
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  mssql-data:
+  minio-data:

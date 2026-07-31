@@ -36,6 +36,7 @@ public static class DependencyInjection
         // Auth / authorization services
         services.Configure<JwtOptions>(config.GetSection(JwtOptions.SectionName));
         services.Configure<AuthOptions>(config.GetSection("Auth"));
+        services.Configure<CrmKanban.Application.AppOptions>(config.GetSection("App"));
         services.Configure<CrmKanban.Application.Tickets.TicketOptions>(config.GetSection("Tickets"));
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, PasswordHasherAdapter>();

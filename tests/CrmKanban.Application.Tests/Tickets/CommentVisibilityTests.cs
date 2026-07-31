@@ -38,6 +38,7 @@ public class CommentVisibilityTests
     {
         public string PresignPut(string key, string contentType, TimeSpan expiry) => $"https://storage.test/put/{key}";
         public string PresignGet(string key, TimeSpan expiry) => $"https://storage.test/get/{key}";
+        public Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class FixedClock : IClock

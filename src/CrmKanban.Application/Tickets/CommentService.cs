@@ -59,13 +59,15 @@ public sealed class CommentService(IAppDbContext db, TicketAuthorizationService 
         await db.SaveChangesAsync(ct);
     }
 
+    // Ignore the tenant filter and gate via authz.ResolveAsync (opener or in-company) — a customer has
+    // no company scope, so the filter would 404 their own ticket. Matches the read path (GetDetailAsync).
     private async Task<Ticket> LoadTicketAsync(Guid ticketId, CancellationToken ct) =>
-        await db.Tickets.FirstOrDefaultAsync(t => t.Id == ticketId, ct)
+        await db.Tickets.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == ticketId && t.DeletedAt == null, ct)
         ?? throw new NotFoundException("ticket.not_found", "Ticket not found.");
 
     private async Task<(Comment Comment, Ticket Ticket)> LoadCommentAsync(Guid commentId, CancellationToken ct)
     {
-        var comment = await db.Comments.FirstOrDefaultAsync(c => c.Id == commentId, ct)
+        var comment = await db.Comments.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == commentId && c.DeletedAt == null, ct)
             ?? throw new NotFoundException("comment.not_found", "Comment not found.");
         var ticket = await LoadTicketAsync(comment.TicketId, ct);
         return (comment, ticket);

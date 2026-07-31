@@ -35,8 +35,15 @@ public class AttachmentServiceTests
 
     private sealed class FakeFileStorage : IFileStorage
     {
+        public readonly Dictionary<string, byte[]> Stored = new();
         public string PresignPut(string key, string contentType, TimeSpan expiry) => $"https://storage.test/put/{key}";
         public string PresignGet(string key, TimeSpan expiry) => $"https://storage.test/get/{key}";
+        public async Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default)
+        {
+            using var ms = new MemoryStream();
+            await content.CopyToAsync(ms, ct);
+            Stored[key] = ms.ToArray();
+        }
     }
 
     private sealed class FixedClock : IClock
@@ -55,6 +62,37 @@ public class AttachmentServiceTests
     private static CrmDbContext NewDb(ICurrentUserService user) =>
         new(new DbContextOptionsBuilder<CrmDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options, user);
+
+    [Fact]
+    public async Task Public_upload_inspects_bytes_and_stores_a_valid_pdf()
+    {
+        using var db = NewDb(new FakeUser(Guid.NewGuid(), true));
+        var storage = new FakeFileStorage();
+        var authz = new TicketAuthorizationService(new FakeUser(Guid.NewGuid(), true), new FakePermissionService(), db);
+        var svc = new AttachmentService(db, storage, authz, new FixedClock(), Options.Create(Opt));
+
+        var pdf = "%PDF-1.7\nhello"u8.ToArray();
+        var descriptor = await svc.StorePublicUploadAsync("public/x", "teklif.pdf", "application/pdf", new MemoryStream(pdf));
+
+        descriptor.Size.Should().Be(pdf.Length, "size is measured server-side, not trusted from the client");
+        descriptor.ContentType.Should().Be("application/pdf");
+        storage.Stored.Should().ContainKey(descriptor.Key);
+        storage.Stored[descriptor.Key].Should().Equal(pdf);
+    }
+
+    [Fact]
+    public async Task Public_upload_rejects_a_file_that_is_not_a_real_document()
+    {
+        using var db = NewDb(new FakeUser(Guid.NewGuid(), true));
+        var svc = new AttachmentService(db, new FakeFileStorage(),
+            new TicketAuthorizationService(new FakeUser(Guid.NewGuid(), true), new FakePermissionService(), db),
+            new FixedClock(), Options.Create(Opt));
+
+        var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A };
+        var act = () => svc.StorePublicUploadAsync("public/x", "photo.png", "image/png", new MemoryStream(png));
+
+        (await act.Should().ThrowAsync<BadRequestException>()).Which.Code.Should().Be("attachment.type_not_allowed");
+    }
 
     [Fact]
     public void Disallowed_content_type_is_rejected()

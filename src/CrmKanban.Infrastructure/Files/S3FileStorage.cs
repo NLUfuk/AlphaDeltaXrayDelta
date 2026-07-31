@@ -32,4 +32,14 @@ public sealed class S3FileStorage(IAmazonS3 client, IOptions<S3Options> options)
             Verb = HttpVerb.GET,
             Expires = DateTime.UtcNow.Add(expiry),
         });
+
+    public async Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default) =>
+        await client.PutObjectAsync(new PutObjectRequest
+        {
+            BucketName = _bucket,
+            Key = key,
+            InputStream = content,
+            ContentType = contentType,
+            AutoCloseStream = false,
+        }, ct);
 }

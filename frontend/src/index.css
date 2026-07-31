@@ -1,17 +1,22 @@
 @import 'tailwindcss';
 
-/* Odoo-inspired theme: purple primary + teal accent, light canvas, soft cards. */
+/* Minimalist, modern theme: near-neutral slate canvas, a single restrained indigo accent,
+   hairline borders instead of heavy shadows, generous whitespace. */
 @theme {
-  --color-primary: #714b67;
-  --color-primary-hover: #5b3c53;
-  --color-accent: #017e84;
-  --color-canvas: #f6f6f7;
-  --color-ink: #2b2b33;
-  --color-line: #dee2e6;
+  --color-primary: #4f46e5;        /* indigo-600 */
+  --color-primary-hover: #4338ca;  /* indigo-700 */
+  --color-accent: #0ea5e9;         /* sky-500 */
+  --color-canvas: #f8fafc;         /* slate-50 */
+  --color-surface: #ffffff;
+  --color-ink: #0f172a;            /* slate-900 */
+  --color-muted: #64748b;          /* slate-500 */
+  --color-line: #e8ebf0;
 }
 
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }

@@ -5,10 +5,23 @@
 const ERRORS: Record<string, string> = {
   'auth.required': 'Oturum açmanız gerekiyor.',
   'auth.invalid_credentials': 'E-posta veya parola hatalı.',
+  'invite.invalid': 'Bu bağlantı geçersiz veya süresi dolmuş. Yeni bir bağlantı isteyin.',
+  'invite.already_member': 'Bu kullanıcı zaten şirkete kayıtlı.',
   'validation.failed': 'Girdiğiniz bilgileri kontrol edin.',
   'network.error': 'Sunucuya ulaşılamadı.',
   'settings.forbidden': 'Bu işlem için yetkiniz yok.',
   'report.forbidden': 'Bu rapora erişiminiz yok.',
+  'status.manage_forbidden': 'Sütunları yönetme yetkiniz yok.',
+  'status.in_use': 'Bu sütunda talep var; önce taşıyın veya kapatın.',
+  'status.last_open': 'En az bir açılış sütunu kalmalı.',
+  'status.name_required': 'Sütun adı gerekli.',
+  'status.reorder_mismatch': 'Sıralama her sütunu tam bir kez içermeli.',
+  'attachment.type_not_allowed': 'Yalnız PDF, TXT, DOC ve DOCX dosyaları kabul edilir.',
+  'attachment.type_mismatch': 'Dosya türü uzantısıyla uyuşmuyor.',
+  'attachment.content_mismatch': 'Dosya içeriği geçerli bir belge değil.',
+  'attachment.too_large': 'Dosya boyutu izin verilen sınırın dışında.',
+  'attachment.too_many': 'Çok fazla dosya eklediniz.',
+  'attachment.empty': 'Boş dosya yüklenemez.',
 }
 
 export function errorMessage(code: string, serverMessage?: string): string {

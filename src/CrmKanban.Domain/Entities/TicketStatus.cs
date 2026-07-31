@@ -30,4 +30,11 @@ public sealed class TicketStatus : Entity
     public string Color { get; private set; } = null!;
     public int Order { get; private set; }
     public bool IsTerminal { get; private set; }
+
+    // Admin-editable presentation (spec §12): a company can rename/recolor and reorder its own
+    // columns. Category/IsTerminal are set at creation and not mutated here — changing a status's
+    // category mid-life would rewrite reporting semantics and transition legality (out of v1 scope).
+    public void Rename(string name) => Name = name.Trim();
+    public void Recolor(string color) => Color = color.Trim();
+    public void MoveTo(int order) => Order = order;
 }

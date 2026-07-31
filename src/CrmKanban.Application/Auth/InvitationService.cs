@@ -19,9 +19,11 @@ public sealed class InvitationService(
     IClock clock,
     ICurrentUserService currentUser,
     IPermissionService permissions,
-    IOptions<AuthOptions> authOptions)
+    IOptions<AuthOptions> authOptions,
+    IOptions<AppOptions> appOptions)
 {
     private readonly AuthOptions _auth = authOptions.Value;
+    private readonly AppOptions _app = appOptions.Value;
 
     public async Task<InviteResult> InviteUserAsync(InviteUserRequest request, CancellationToken ct = default)
     {
@@ -64,6 +66,17 @@ public sealed class InvitationService(
         var raw = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
         var invitation = new Invitation(user.Id, HashToken(raw), now.AddDays(_auth.InviteTokenDays), inviterUserId);
         db.Invitations.Add(invitation);
+
+        var companyName = await db.Companies.IgnoreQueryFilters()
+            .Where(c => c.Id == request.CompanyId).Select(c => c.Name).FirstOrDefaultAsync(ct) ?? "";
+        InviteEmail.Enqueue(db, _app.PublicBaseUrl, email, "staff_invite", raw,
+            new Dictionary<string, string>
+            {
+                ["name"] = $"{request.FirstName} {request.LastName}".Trim(),
+                ["companyName"] = companyName,
+                ["role"] = request.Role.ToString(),
+            });
+
         await db.SaveChangesAsync(ct);
 
         return new InviteResult(user.Id, raw, invitation.ExpiresAt);

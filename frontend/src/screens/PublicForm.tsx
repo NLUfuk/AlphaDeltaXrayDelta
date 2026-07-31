@@ -3,12 +3,16 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api, toApiError } from '../lib/api'
 import { errorMessage } from '../lib/messages'
-import { Alert, Button, Field, Input } from '../ui/primitives'
+import { Alert, Button, Field, Icon, Input } from '../ui/primitives'
 
 type FormConfig = { companyName: string; kvkkText: string; brandName: string; primaryColor: string; logoUrl: string | null }
+type Descriptor = { key: string; fileName: string; contentType: string; size: number }
 
-// Anonymous public ticket form (spec §10). Reads super-admin-editable KVKK text + branding from the
-// config endpoint (which sources the Settings store), then submits. KVKK consent is a hard gate.
+const ACCEPT = '.pdf,.txt,.doc,.docx'
+
+// Anonymous public ticket form (spec §10). Branding + KVKK text come from the config endpoint. Files
+// are uploaded through the API, which inspects the bytes (pdf/txt/doc/docx only) before storing —
+// nothing else a customer picks is accepted. A first-time customer's ticket is held for staff approval.
 export default function PublicForm() {
   const { slug = '' } = useParams()
   const { data: cfg, isLoading } = useQuery({
@@ -18,12 +22,36 @@ export default function PublicForm() {
 
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', title: '', body: '' })
   const [consent, setConsent] = useState(false)
+  const [files, setFiles] = useState<Descriptor[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<string | null>(null)
+  const [result, setResult] = useState<{ ticketNumber: string; newAccount: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   function set(k: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
+  }
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    setError(null)
+    setUploading(true)
+    try {
+      for (const file of picked) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const { data } = await api.post<Descriptor>(`/public/form/${slug}/upload`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        setFiles((prev) => [...prev, data])
+      }
+    } catch (err) {
+      const { code, message } = toApiError(err)
+      setError(errorMessage(code, message))
+    } finally {
+      setUploading(false)
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -31,8 +59,8 @@ export default function PublicForm() {
     setError(null)
     setBusy(true)
     try {
-      const { data } = await api.post(`/public/form/${slug}`, { ...form, kvkkConsent: consent })
-      setResult(data.ticketNumber)
+      const { data } = await api.post(`/public/form/${slug}`, { ...form, kvkkConsent: consent, attachments: files })
+      setResult({ ticketNumber: data.ticketNumber, newAccount: !!data.newAccount })
     } catch (err) {
       const { code, message } = toApiError(err)
       setError(errorMessage(code, message))
@@ -41,20 +69,25 @@ export default function PublicForm() {
     }
   }
 
-  if (isLoading) return <p className="p-8 text-slate-500">Yükleniyor…</p>
+  if (isLoading) return <p className="p-8 text-muted">Yükleniyor…</p>
+  const accent = cfg?.primaryColor ?? '#4f46e5'
 
   return (
     <div className="mx-auto max-w-lg p-6">
-      <h1 className="text-xl font-semibold" style={{ color: cfg?.primaryColor }}>
-        {cfg?.brandName} — {cfg?.companyName}
-      </h1>
+      <h1 className="text-xl font-semibold" style={{ color: accent }}>{cfg?.brandName} — {cfg?.companyName}</h1>
 
       {result ? (
-        <Alert>
-          <span className="text-green-700">Talebiniz alındı. Ticket no: <b>{result}</b>. E-postanıza kayıt bağlantısı gönderildi.</span>
-        </Alert>
+        <div className="mt-4 rounded-xl border border-line bg-surface p-6">
+          <Icon name="check-circle-outline" className="text-3xl text-emerald-500" />
+          <p className="mt-2 text-ink">Talebiniz alındı. Ticket no: <b>{result.ticketNumber}</b>.</p>
+          <p className="mt-1 text-sm text-muted">
+            {result.newAccount
+              ? 'Talebiniz ekibimizin onayının ardından işleme alınacaktır. Hesabınızı etkinleştirip taleplerinizi takip edebilmeniz için e-postanıza bir bağlantı gönderdik.'
+              : 'Talebiniz mevcut hesabınıza eklendi. Giriş yaparak takip edebilirsiniz.'}
+          </p>
+        </div>
       ) : (
-        <form onSubmit={submit} className="mt-4 space-y-3 rounded-lg bg-white p-6 shadow">
+        <form onSubmit={submit} className="mt-4 space-y-3 rounded-xl border border-line bg-surface p-6">
           {error && <Alert>{error}</Alert>}
           <div className="flex gap-3">
             <Field label="Ad"><Input value={form.firstName} onChange={set('firstName')} required /></Field>
@@ -64,12 +97,31 @@ export default function PublicForm() {
           <Field label="Konu"><Input value={form.title} onChange={set('title')} required /></Field>
           <Field label="Açıklama"><Input value={form.body} onChange={set('body')} required /></Field>
 
-          <label className="flex items-start gap-2 text-xs text-slate-600">
+          <div>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-line px-3 py-2 text-sm text-muted hover:border-primary">
+              <Icon name="paperclip" />
+              <span>{uploading ? 'Yükleniyor…' : 'Dosya ekle (yalnız PDF, TXT, DOC, DOCX)'}</span>
+              <input type="file" accept={ACCEPT} multiple onChange={onPick} disabled={uploading} className="hidden" />
+            </label>
+            {files.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {files.map((f, i) => (
+                  <li key={f.key} className="flex items-center gap-2 text-xs text-ink">
+                    <Icon name="file-document-outline" className="text-muted" />
+                    <span className="flex-1 truncate">{f.fileName}</span>
+                    <button type="button" onClick={() => setFiles(files.filter((_, j) => j !== i))} className="text-muted hover:text-red-600"><Icon name="close" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <label className="flex items-start gap-2 text-xs text-muted">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
             <span>{cfg?.kvkkText}</span>
           </label>
 
-          <Button type="submit" className="w-full" disabled={busy || !consent}>
+          <Button type="submit" className="w-full" disabled={busy || uploading || !consent} style={{ backgroundColor: accent }}>
             {busy ? 'Gönderiliyor…' : 'Talep oluştur'}
           </Button>
         </form>

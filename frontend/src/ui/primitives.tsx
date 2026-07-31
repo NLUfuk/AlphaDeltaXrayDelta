@@ -1,19 +1,19 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 
-// Atomic primitives (spec §4.2), Odoo-inspired: purple primary, understated surfaces, soft cards.
+// Atomic primitives (spec §4.2): minimalist — one indigo accent, hairline borders, soft surfaces.
 // Screens compose these; they never re-write button/input markup inline.
 
 type Variant = 'primary' | 'secondary' | 'danger'
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-primary text-white hover:bg-primary-hover',
-  secondary: 'bg-white text-ink border border-line hover:bg-canvas',
+  secondary: 'bg-surface text-ink border border-line hover:bg-canvas',
   danger: 'bg-red-600 text-white hover:bg-red-700',
 }
 
 export function Button({ variant = 'primary', className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${VARIANTS[variant]} ${className}`}
       {...props}
     />
   )
@@ -38,7 +38,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 }
 
 export function Card({ className = '', children }: { className?: string; children: ReactNode }) {
-  return <div className={`rounded-lg border border-line bg-white shadow-sm ${className}`}>{children}</div>
+  return <div className={`rounded-xl border border-line bg-surface ${className}`}>{children}</div>
 }
 
 export function Alert({ children }: { children: ReactNode }) {

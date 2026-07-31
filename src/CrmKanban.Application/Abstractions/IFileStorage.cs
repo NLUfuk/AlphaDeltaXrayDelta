@@ -13,4 +13,9 @@ public interface IFileStorage
 
     /// <summary>Short-lived presigned GET for reading a private object (spec §12).</summary>
     string PresignGet(string key, TimeSpan expiry);
+
+    /// <summary>Server-side upload: the bytes flow through the API so they can be inspected before
+    /// storage (zero-trust intake, spec §10). Used for the anonymous public path; authenticated staff
+    /// keep the direct presigned PUT.</summary>
+    Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default);
 }

@@ -47,6 +47,27 @@ public sealed class Ticket : Entity
     public DateTime? ResolvedAt { get; private set; }
     public DateTime? ClosedAt { get; private set; }
 
+    /// <summary>Moderation state (spec §10 zero-trust intake). Defaults to Approved so existing rows,
+    /// staff-created tickets, and known-customer submissions need no gate.</summary>
+    public TicketApprovalState ApprovalState { get; private set; } = TicketApprovalState.Approved;
+
+    /// <summary>Hold a first-time public submission out of the pool until a staff member approves it.</summary>
+    public void MarkPendingApproval() => ApprovalState = TicketApprovalState.Pending;
+
+    public void Approve()
+    {
+        if (ApprovalState != TicketApprovalState.Pending)
+            throw new DomainException("ticket.approve.not_pending", "Only a pending ticket can be approved.");
+        ApprovalState = TicketApprovalState.Approved;
+    }
+
+    public void Reject()
+    {
+        if (ApprovalState != TicketApprovalState.Pending)
+            throw new DomainException("ticket.reject.not_pending", "Only a pending ticket can be rejected.");
+        ApprovalState = TicketApprovalState.Rejected;
+    }
+
     public void Assign(Guid assigneeUserId) => AssignedToId = assigneeUserId;
 
     public void Unassign() => AssignedToId = null;
@@ -54,6 +75,11 @@ public sealed class Ticket : Entity
     public void SetPriority(Priority priority) => Priority = priority;
 
     public void SetCategory(Guid? categoryId) => CategoryId = categoryId;
+
+    /// <summary>Repoint the ticket at an equivalent status during a status-set migration (same category,
+    /// e.g. when a company forks the global column set into its own). Not a workflow move — no state
+    /// machine, no reporting timestamps; identity remap only.</summary>
+    public void MigrateStatus(Guid newStatusId) => StatusId = newStatusId;
 
     public void Edit(string title, string body)
     {

@@ -19,6 +19,9 @@ public static class PermissionKeys
 
     public const string SettingsManage = "settings.manage";
 
+    /// <summary>Manage a company's kanban columns (statuses): add/rename/recolor/reorder/remove.</summary>
+    public const string StatusManage = "status.manage";
+
     public const string UserInvite = "user.invite";
     public const string PermissionAssign = "permission.assign";
 
@@ -26,7 +29,7 @@ public static class PermissionKeys
     public static readonly IReadOnlyList<string> All =
     [
         TicketView, TicketEdit, TicketDelete, TicketAssign, TicketStatusChange,
-        CommentInternal, ReportCompany, ReportGlobal, SettingsManage,
+        CommentInternal, ReportCompany, ReportGlobal, SettingsManage, StatusManage,
         UserInvite, PermissionAssign,
     ];
 }

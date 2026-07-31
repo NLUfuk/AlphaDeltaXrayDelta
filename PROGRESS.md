@@ -2,9 +2,9 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 2026-07-30 |
-| Aktif faz | Yönetim/Onboarding backend tamam — sıradaki: yönetim UI'ı, sonra kanban/ticket bağlama |
-| Genel durum | Faz 0-6 tamam; **onboarding+RBAC yönetim katmanı eklendi** (şirket/admin oluşturma, üye+kullanıcı+yetki listeleme, `AdminOnboarding` migration). 85 test yeşil. Tam zincir canlı doğrulandı: süper admin→admin oluştur→invite kabul→admin şirket açar→personel davet→yetki ata→public form→ticket→kanban→bildirim maili (açan+admin). Worker scope bug'ı tam düzeltildi |
+| Son güncelleme | 2026-07-31 |
+| Aktif faz | **Canlı — Docker stack ayakta (8080)** — Faz 0-8 + Faz 9 (email doğrulama akışı + müşteri yüzeyi + drag-drop düzeltme + demo seed) tamam |
+| Genel durum | Faz 0-8 + onboarding/RBAC + Faz 9 tamam. **Faz 9 (2026-07-31):** (1) müşteri self-registration e-posta doğrulama akışı uçtan uca bağlandı — public form yeni müşteride `account_invite` mailini kuyruğa atıyor, `/invite` ekranı token'la şifre belirleyip hesabı aktive ediyor (personel daveti de `staff_invite` maili gönderiyor); (2) müşteri yüzeyi: `Home` dispatcher (personel→kanban, müşteri→Taleplerim), `CustomerTickets` listesi, müşteri-sade nav; (3) **bug fix:** müşteri yazma yolu (`CommentService`/`TicketCommandService` ticket load) tenant filtresiyle yüklüyordu → müşterinin şirket scope'u yok → kendi ticket'ına yorum/iptal 404; `IgnoreQueryFilters + authz` deseniyle düzeltildi; (4) kanban drag-drop: `dataTransfer` set (Firefox), `onDragEnd` temizliği, kendi kolonuna no-op drop engeli, sürükleme görsel geri bildirimi; (5) CRM-tadında demo seed (teklif/talep + müşteri-personel yorum thread'leri) + `Seed:Demo` bayrağıyla Production'da da çalıştırılabilir. **96 test yeşil** (+3 müşteri yazma-yolu). Docker stack `up.ps1` ile ayağa kaldırıldı, e2e doğrulandı (login/public-form→mail→invite→müşteri yorum) |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
 | Spec | `crm-kanban-mimari.md` (Rev 2) — kod bununla senkron tutulur |
@@ -122,7 +122,33 @@
 - [x] Dashboard (`/reports`): şirket/global rapor tile'ları (toplam, ort. ilk yanıt/çözüm) + statü dağılımı + personel yükü + **CSV indir** (authed blob download); Shell'e nav (Pano/Raporlar/Ayarlar)
 - [x] Ticket detay aksiyonları bağlandı: staff için STATÜ/ATANAN/ÖNCELİK dropdown'ları (`/status`,`/assign`,`/priority`); müşteri için İptal/Tamamlandı butonları (terminal değilse); statü kataloğu endpoint'i (`GET /api/tickets/statuses`)
 - [x] Dev-only demo seed (`DevSeeder`, yalnız Development, idempotent): demo şirket + admin(`admin@demo.local`/`Demo!2026Pass`) + personel + müşteriler + 6 statüye yayılmış 10 ticket → kanban/dashboard dolu görünüyor
-- [ ] Dosya yükleme UI (presigned PUT) — form/yorumda; backend hazır, UI dilimi kaldı (teknik borç)
+- [x] Public form dosya yükleme UI — **zero-trust'a geçirildi** (backend'e byte akışı + magic-byte doğrulama, yalnız pdf/txt/doc/docx); form'da çoklu dosya ekleme + kaldırma
+- [ ] Personel/yorum tarafı dosya yükleme UI (presigned PUT) — backend hazır, staff UI dilimi kaldı (teknik borç)
+
+### Faz 7b — Kanban sütun yönetimi (per-şirket) ✅ (2026-07-31)
+- [x] Domain: `TicketStatus` mutatörleri (Rename/Recolor/MoveTo), `Ticket.MigrateStatus` (kimlik remap, state-machine'siz), `PermissionKeys.StatusManage` + Admin baseline
+- [x] `StatusManagementService`: istenilen konuma ekleme (Order kaydırma), yeniden sıralama, ad/renk güncelleme, silme (kullanımda/son-açık guard'ı). İlk özelleştirmede global set **fork** + şirketin ticket'ları klona **migrasyon** (ticket orphan olmaz)
+- [x] Yeni sütun otomatik transition zincirleme (spec §12 kuralı: non-terminal ↔ tüm sütunlar; terminal yalnız hedef) → staff kartı içine/dışına sürükleyebilir
+- [x] `StatusSet.EffectiveAsync` tek predicate ("kendi seti varsa o, yoksa global") — kanban + statü dropdown + initial-status tek yerden okur
+- [x] Endpoint'ler: `/api/companies/{companyId}/statuses` (list/create/update/reorder/delete); `/api/tickets/statuses?companyId=` company-aware
+- [x] UI: `/admin/columns` — konum seçerek ekle, renk/ad inline düzenle, yukarı/aşağı sırala, sil; şirket seçici (çok-şirketli/süper admin)
+- [x] Testler (+6): fork+migrasyon, konuma ekleme, transition zincirleme, reorder, kullanımda-silme reddi, yetki gate
+
+### Faz 7c — Public form zero-trust intake + moderasyon ✅ (2026-07-31)
+- [x] `Ticket.ApprovalState` (Approved/Pending/Rejected, default Approved) + `TicketApprovalState` migration (mevcut/staff ticket'ları Approved)
+- [x] İlk-kez (bilinmeyen e-posta) müşteri → ticket **Pending**; bilinen müşteri direkt havuza. Kanban + staff listesi Pending/Rejected'ı **dışlar**; müşteri kendi ticket'ını her durumda görür
+- [x] Moderasyon: `/api/tickets/moderation/{companyId}` (staff-only) + `/approve` + `/reject` (ticket.edit gate → Admin/SuperAdmin); UI `/moderation` + kanban'da "onay bekliyor" rozeti
+- [x] Zero-trust upload: `IFileStorage.PutAsync` (S3'e server-side yükleme), `PublicFileValidator` (uzantı + content-type + **magic byte** eşleşmesi; pdf=%PDF, docx=PK zip, doc=OLE2, txt=NUL/kontrol-karakter sniff), boyut **sunucuda** ölçülür (client bildirimi güvenilmez)
+- [x] Public upload endpoint `POST /api/public/form/{slug}/upload` (IFormFile, 11MB request limit) — presigned public path kaldırıldı; staff presigned path korundu
+- [x] Testler (+12): PublicFileValidator (7: pdf/txt/doc/docx kabul, png/mismatch/NUL/oversize red), StorePublicUpload (2), moderasyon (4: kanban dışlama, approve, reject, non-pending red), public form Pending/Approved (2), + attachment build (public set)
+
+### Faz 8 — Deploy (Docker Compose) ⚠️ (artefaktlar hazır, imaj build daemon'suz doğrulanmadı)
+- [x] `src/CrmKanban.Api/Dockerfile` (multi-stage .NET 10 SDK→aspnet, non-root, http:8080)
+- [x] `frontend/Dockerfile` (node build → nginx) + `frontend/nginx.conf` (SPA fallback + `/api`→api:8080 reverse proxy, same-origin)
+- [x] `docker-compose.yml`: db (mssql 2022 Express, healthcheck) + minio (+ createbucket one-shot) + api (depends healthy) + web (nginx)
+- [x] `.env.example` (tüm secret'lar), `appsettings.Production.json` (non-secret; Captcha kapalı — provider'sız fail-closed uyarısı), `.dockerignore`, README deploy bölümü
+- [x] Doğrulanan: `dotnet publish -c Release` (Dockerfile'ın komutu) + frontend `npm run build` (Dockerfile'ın komutu) + `docker compose config`
+- [ ] **`docker compose build/up` gerçek imaj build'i çalıştırılmadı** — bu ortamda Docker daemon (Desktop Linux engine) kapalı. İlk deploy'da imaj build + e2e stack testi yapılmalı (teknik borç #25)
 
 **E2E ayağa kaldırma (2026-07-30):** API https://localhost:7084 (https launch profile) + `npm run dev` (5173, `/api`→7084 proxy). Doğrulanan: süper admin login→JWT→/me, settings list/update(204)/unknown-key(404), global report + CSV (BOM'lu). **Bulunan bug:** `NotificationWorker` scoped `DbContextOptions`'ı root provider'dan çözüyordu → dev'de scope validation ile host startup crash. Scope içinde çözülerek düzeltildi (`5ec26d2`) — Faz 5 dev'de hiç `dotnet run` edilmemiş olmalı. **Test engeli:** seed yalnız süper admin + statü/permission/settings kuruyor; şirket/admin/ticket yok ve şirket oluşturma akışı da yok (#5) → kanban/ticket/public-form UI'ı gerçek veriyle denenemiyor. Demo seed veya #5 akışı gerekli.
 
@@ -136,6 +162,21 @@
 - [x] **Yönetim UI'ı:** `/admin/users` (admin oluştur + kullanıcı listesi, invite token gösterimi), `/admin/companies` (şirket oluştur/listele + üye listesi + personel/2.admin davet), `/admin/permissions` (şirket→üye seç, yetki kataloğu checkbox + Ver/Reddet, efektif durum badge'i); Shell nav güncellendi
 
 > **Not:** Bu katman tech debt #5'i kapatır. Public form + ticket + kanban + bildirim maili artık gerçek veriyle uçtan uca çalışıyor (ACME-1 canlı doğrulandı). Onboarding+RBAC hem backend hem UI tamam. Kalan bağlama işi: müşteri kendi ticket listesi/iptal-tamamla UI'ı, ticket atama UI'ı (member listesi hazır), dosya yükleme UI'ı.
+
+### Faz 9 — Email doğrulama akışı + müşteri yüzeyi + drag-drop + demo seed ✅ (2026-07-31)
+- [x] **Müşteri e-posta doğrulama / self-registration (uçtan uca):** public form yeni (bilinmeyen) müşteride, mevcut davet token'ını artık gerçekten mailliyor — `InviteEmail.Enqueue` ortak yardımcısı `EmailQueue`'ya `account_invite` satırı atar, notification worker gönderir. `/invite?token=...` ekranı (`AcceptInvite.tsx`) şifre belirler → `/api/invitations/accept` → hesap aktive (token sahipliği = e-posta doğrulaması). Personel daveti de aynı mekanizmayla `staff_invite` mailler.
+- [x] **Güvenlik:** raw invite token artık API cevabında dönmüyor (`PublicFormResult.InviteToken`→`NewAccount:bool`); token yalnız e-postayla çıkıyor.
+- [x] **Link base URL:** `AppOptions.PublicBaseUrl` (`App__PublicBaseUrl`, docker'da `http://localhost:8080`) — maildeki mutlak link.
+- [x] **Müşteri yüzeyi:** `Home` dispatcher index'te (personel→`Kanban`, müşteri→`CustomerTickets`); `CustomerTickets` = müşterinin kendi talep listesi (`GET /tickets`, OpenedById-scope); `TicketDetail` zaten müşteri yorum + İptal/Tamamlandı destekliyordu; Shell nav müşteride yalnız "Taleplerim".
+- [x] **Bug fix (core, test-first):** `CommentService.LoadTicketAsync`/`LoadCommentAsync` ve `TicketCommandService.LoadAsync` ticket'ı tenant query filter ile yüklüyordu; müşterinin şirket scope'u olmadığından kendi ticket'ına yorum/iptal/tamamla **404** dönüyordu. `GetDetailAsync` deseniyle `IgnoreQueryFilters()` + `DeletedAt==null` + `authz.ResolveAsync` (opener/in-company geçidi) olarak düzeltildi. Çapraz-tenant hâlâ 403 (izolasyon authz'da korunuyor). +3 test: müşteri kendi ticket'ına yorum/iptal yapabilir, yabancı yapamaz (403).
+- [x] **Kanban drag-drop etkileşimi:** `TicketCard` — `onDragStart`'ta `dataTransfer.setData` + `effectAllowed='move'` (Firefox drop'u için şart), `onDragEnd` temizliği, sürüklenen kartta opacity/ring; `Kanban` — sürükleme kaynağı statüsü izleniyor, karta kendi kolonuna bırakılırsa sunucuya no-op status çağrısı gitmiyor.
+- [x] **CRM demo seed:** `DevSeeder` zenginleştirildi — teklif/talep dilinde başlıklar + gövde + müşteri↔personel yorum thread'leri (iki şirket: tekstil/mermer). `Program.cs` artık `Seed:Demo=true` ile Production'da da demo seed'i çalıştırıyor (`docker-compose` `SEED_DEMO`, default false). Idempotent (slug varsa atlar).
+- [x] **Doğrulama (canlı, 8080):** `up.ps1` ile stack ayakta; tekstil admin login→kanban seed görünür; public form (yeni müşteri)→`account_invite` maili log'da link'le→`/invite` şifre→müşteri login→"Taleplerim"→ticket yorum (200). 96 test yeşil, frontend build temiz.
+
+**Karar/Varsayım (Faz 9):**
+- *Kayıt modeli:* Kullanıcı onayıyla "şirket formu üzerinden" seçildi (mimari çok-kiracılı; müşteri bir şirkete talep açarak doğar). Bağımsız global `/register` yapılmadı — hangi şirkete bağlanacağı belirsiz olurdu; istenirse küçük bir ek (flag).
+- *Neden mevcut davet akışını maillemek, yeni e-posta-doğrulama entity'si değil:* spec §9 zaten "klasik register + invite link" diyor; Invitation + AcceptInvite hazırdı, tek eksik mail gönderimiydi. Ayrı `EmailVerificationToken` tablosu ikinci bir tek-kullanım-token mekanizması olurdu (over-engineering). Token sahipliği zaten adresi doğruluyor.
+- *Bug fix kapsamı:* Müşteri yüzeyi eklenince ortaya çıkan latent hata; istenen özellik (müşteri iletişimi) bu düzeltme olmadan çalışmıyordu → SCOPE DISCIPLINE "yanlış/eksik olan bitişik düzeltme" istisnası kapsamında yapıldı.
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
@@ -194,6 +235,15 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 - **[Yönetim] Şirket listesi JWT scope'undan değil, membership'ten okunuyor.** Admin yeni şirket açınca JWT'sindeki `company_ids` bayat kalır; `ListAsync` membership'i userId ile sorgular → yeni şirket refresh beklemeden görünür. (JWT tazeleme ayrı konu; tenant *filtresi* hâlâ imzalı token'dan.)
 - **[Yönetim] Bildirim worker'ı: scope tick başına, DbContextOptions o scope ömründe kullanılıyor.** İlk düzeltme (`5ec26d2`) options'ı dispose edilmiş scope'tan alıyordu → her tick "disposed provider" hatası (host ayakta ama bildirim fan-out olmuyordu). Doğrusu: scope tüm tick'i sarar, context o scope içinde kullanılıp kapanır. Canlı doğrulandı (Created→açan+admin maili log sender'da).
 
+- **[Faz 7b] Per-şirket sütun = ilk özelleştirmede global set'i FORK + ticket migrasyonu (klonlama).** Kullanıcı "per-şirket özel sütunlar" seçti. Seçenek A "company statuses global order'a interleave" reddedildi: global Order'lar paylaşımlı (0-5), tek şirketten değiştirilemez; fraktal/rescale ordering karmaşık ve kırılgan. Seçenek B "önce boş own-set, tek sütun ekleyince global'ler kaybolur" reddedildi: mevcut ticket'lar (global StatusId'de) kanban'dan düşerdi. Seçilen: ilk mutasyonda global set tam klonlanır (yeni GUID'ler, aynı category/color/order/terminal), transition grafiği maplenir, şirketin ticket'ları `MigrateStatus` ile klona taşınır. Sonrası tüm ordering lokal → istenilen konuma ekleme temiz, orphan yok. `StatusSet.EffectiveAsync` ("own varsa own, yoksa global") tek predicate; kanban/dropdown/initial-status oradan okur. ponytail ceiling: fork geri alınamaz (global'e dönüş yok) — v1'de gerek yok.
+- **[Faz 7b] Yeni sütun transition zincirleme = seed mesh kuralının kopyası, ama biraz daha izinli.** Non-terminal sütun → diğer TÜM sütunlar (non-terminal + terminal); her non-terminal → yeni sütun. Seed "New'e geri dönülemez" nüansını (New target değil) per-şirket board'da uygulamadım — özel board'da tam sürükleme esnekliği daha değerli. State machine zaten test edilmiş; yeni sütun sadece edge ekliyor.
+- **[Faz 7b] Sütun yönetimi `status.manage` permission key + Admin baseline.** Alternatif "membership Admin rolü kontrolü" reddedildi: yetki data-katmanında, RBAC UI'ında görünür ve grant/deny edilebilir olmalı (CLAUDE.md). SuperAdmin bypass. Silme guard'ları: sütunda ticket varsa (`status.in_use` 409), son Open sütunuysa (`status.last_open` 409) — initial-status hep bulunmalı.
+- **[Faz 7c] "İlk-kez müşteri" = yeni User (invite token üretilen).** `PublicFormService.ResolveCustomerAsync` yeni kullanıcıda inviteToken döner; o durumda `ticket.MarkPendingApproval()`. Bilinen e-posta (mevcut User) → Approved, direkt havuz. Basit ve doğru: "ilk defa havuza giren" = daha önce hesabı olmayan.
+- **[Faz 7c] Moderasyon = ticket-seviyesi ApprovalState, ayrı kuyruk tablosu değil.** Default Approved → migration mevcut/staff ticket'larını otomatik geçirir (column defaultValue 0), geri-uyumlu. Kanban/liste `ApprovalState == Approved` filtreler; moderasyon view `Pending`. Approve/Reject yeni TicketEvent tipi EKLEMEDİ (bildirim matrisine dokunmamak için) — Created olayı submit'te zaten yazılıyor, admin "yeni talep" maili alıp moderasyona gidiyor. ponytail ceiling: Rejected müşteriye "reddedildi" bildirimi yok; Created makbuzu pending ticket için de gidiyor (kabul edildi).
+- **[Faz 7c] Zero-trust = public upload backend'e alındı (presigned DEĞİL), byte denetimi.** Kullanıcı "backend'e al + magic-byte" seçti. Presigned PUT sunucuya byte göstermez (tech debt #13). Public path artık `IFileStorage.PutAsync` ile API üstünden akıyor; `PublicFileValidator` uzantı+content-type+magic byte üçlüsünü eşliyor, boyut sunucuda cap'li MemoryStream ile ÖLÇÜLÜYOR (client Size'ı güvenilmez). Yalnız pdf/txt/doc/docx. Staff attachment yolu presigned kaldı (scope: "müşteri tarafından"). Magic tablosu + testleri `PublicFileValidator`'da birlikte (config'e bölmedim — güvenlik politikası, kod). ponytail ceiling: docx = PK-zip imzası + .docx uzantısı (içindeki `[Content_Types].xml` denetlenmiyor); txt = NUL/kontrol-karakter sniff, tam UTF-8 decode değil.
+- **[UI] Minimalist/modern token seti (indigo/slate), Odoo moru bırakıldı.** `index.css` @theme token'ları tek yerden tüm app'i çeviriyor (primary indigo-600, canvas slate-50, hairline border, gölge yerine border). Public form marka rengi hâlâ Settings'ten override. Tüm 11 ekran yeniden yazılmadı — paylaşılan token + primitives + Shell + dokunulan/yeni ekranlar; sistemik etki token'dan geliyor (SCOPE DISCIPLINE: geniş diff yerine kök).
+- **[Faz 8] Deploy = Docker Compose (api+mssql+minio+nginx), kullanıcı seçti.** API imajı plain HTTP:8080 (TLS reverse-proxy'de); nginx SPA'yı serve + `/api`'yi proxy'ler (same-origin, CORS yok). Migration+seed startup'ta (tek-instance; multi-instance için tech debt #6). Secret'lar `.env`/orchestrator'dan, dosyada değil. `docker compose build` bu ortamda çalıştırılamadı (daemon kapalı) — Dockerfile komutları (`dotnet publish -c Release`, `npm run build`) ve `docker compose config` ayrı ayrı doğrulandı; gerçek imaj build ilk deploy'da (tech debt #25).
+
 ## Bilinen sorunlar / teknik borç
 
 | # | Açıklama | Öncelik |
@@ -222,6 +272,11 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 | 22 | Export yalnız CSV; gerçek `.xlsx` yok (bağımlılık ister). İstenirse ClosedXML/EPPlus ile eklenir. | Düşük |
 | 23 | KVKK anonimleştirme SuperAdmin only; per-şirket admin'in kendi müşterisinin talebini işlemesi yok (çok-şirketli kullanıcı kimlik çakışması). Kapsamlı çözüm: şirket-scope'lu maskeleme veya membership kaldırma. | Orta |
 | 24 | `kvkk.retention_days` saklanıyor ama otomatik saklama-süresi purge/anonimleştirme job'ı yok. | Düşük |
+| 25 | Docker imajları bu ortamda build edilmedi (daemon kapalı); Dockerfile komutları + compose config ayrı doğrulandı. İlk deploy'da `docker compose up --build` + e2e stack (login→public form→moderasyon→kanban→upload indir) testi. | Orta |
+| 26 | docx magic doğrulaması PK-zip imzası + uzantı ile; içindeki `[Content_Types].xml`/word/ yapısı denetlenmiyor (herhangi bir zip .docx sayılır). Gerçek OOXML doğrulama gerekirse zip entry kontrolü eklenir. | Düşük |
+| 27 | Approve/Reject için TicketEvent tipi yok → moderasyon aksiyonları audit/bildirim üretmiyor; Rejected müşteriye bildirilmiyor, Created makbuzu pending ticket için de gidiyor. Gerekirse `Approved`/`Rejected` event tipi + matris girdisi. | Düşük |
+| 28 | Sütun fork geri alınamaz (şirket global default'a dönemez) ve fork sonrası yeni global default sütun o şirkete yansımaz. v1'de gerek yok; "varsayılana sıfırla" istenirse eklenir. | Düşük |
+| 29 | DevSeeder yeni ApprovalState/pending ticket veya per-şirket sütun demo verisi kurmuyor; demo hep Approved + global set. Moderasyon/sütun akışını demoda görmek için seed'e birkaç pending + örnek özel sütun eklenebilir. | Düşük |
 
 ## Ortam gereksinimleri
 

@@ -79,7 +79,9 @@ try
         var db = scope.ServiceProvider.GetRequiredService<CrmDbContext>();
         await db.Database.MigrateAsync();
         await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync();
-        if (builder.Environment.IsDevelopment())
+        // Demo data: always in Development, and on demand elsewhere via Seed:Demo=true (e.g. a review
+        // deployment where you want the kanban/reports populated). Off by default in production.
+        if (builder.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Seed:Demo"))
             await scope.ServiceProvider.GetRequiredService<DevSeeder>().SeedAsync();
     }
 

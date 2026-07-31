@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<TicketAuthorizationService>();
         services.AddScoped<TicketCommandService>();
         services.AddScoped<TicketQueryService>();
+        services.AddScoped<StatusManagementService>();
         services.AddScoped<CommentService>();
 
         services.AddScoped<Files.AttachmentService>();

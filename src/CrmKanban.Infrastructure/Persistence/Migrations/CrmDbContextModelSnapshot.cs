@@ -582,6 +582,9 @@ namespace CrmKanban.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("ApprovalState")
+                        .HasColumnType("int");
+
                     b.Property<Guid?>("AssignedToId")
                         .HasColumnType("uniqueidentifier");
 

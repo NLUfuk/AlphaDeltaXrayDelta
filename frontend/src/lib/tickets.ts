@@ -53,6 +53,16 @@ export type TicketDetail = {
   attachments: { id: string; fileName: string }[]
 }
 
+export type Paged<T> = { items: T[]; total: number; page: number; pageSize: number }
+
+// The logged-in customer's own tickets (backend scopes GET /tickets by OpenedById for non-staff).
+export function useMyTickets() {
+  return useQuery({
+    queryKey: ['my-tickets'],
+    queryFn: async () => (await api.get<Paged<TicketListItem>>('/tickets')).data,
+  })
+}
+
 export function useKanban(companyId: string | undefined) {
   return useQuery({
     queryKey: ['kanban', companyId],
@@ -79,9 +89,74 @@ export function useChangeStatus(companyId: string | undefined) {
 
 export type Status = { id: string; name: string; category: number; color: string; order: number; isTerminal: boolean }
 
-export function useStatuses() {
-  return useQuery({ queryKey: ['statuses'], queryFn: async () => (await api.get<Status[]>('/tickets/statuses')).data })
+export function useStatuses(companyId?: string) {
+  return useQuery({
+    queryKey: ['statuses', companyId ?? null],
+    queryFn: async () =>
+      (await api.get<Status[]>('/tickets/statuses', { params: companyId ? { companyId } : undefined })).data,
+  })
 }
+
+// ---- kanban column management (admin, spec §12/§18.9) ----
+export type StatusColumn = Status & { editable: boolean }
+
+export function useColumns(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['columns', companyId],
+    enabled: !!companyId,
+    queryFn: async () => (await api.get<StatusColumn[]>(`/companies/${companyId}/statuses`)).data,
+  })
+}
+
+function useColumnMutation<V>(companyId: string | undefined, fn: (v: V) => Promise<unknown>) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['columns', companyId] })
+      qc.invalidateQueries({ queryKey: ['kanban', companyId] })
+      qc.invalidateQueries({ queryKey: ['statuses'] })
+    },
+  })
+}
+
+export function useCreateColumn(companyId: string | undefined) {
+  return useColumnMutation<{ name: string; category: number; color: string; position: number }>(companyId, (v) =>
+    api.post(`/companies/${companyId}/statuses`, v))
+}
+export function useUpdateColumn(companyId: string | undefined) {
+  return useColumnMutation<{ id: string; name?: string; color?: string }>(companyId, ({ id, ...body }) =>
+    api.put(`/companies/${companyId}/statuses/${id}`, body))
+}
+export function useReorderColumns(companyId: string | undefined) {
+  return useColumnMutation<string[]>(companyId, (orderedStatusIds) =>
+    api.post(`/companies/${companyId}/statuses/reorder`, { orderedStatusIds }))
+}
+export function useDeleteColumn(companyId: string | undefined) {
+  return useColumnMutation<string>(companyId, (id) => api.delete(`/companies/${companyId}/statuses/${id}`))
+}
+
+// ---- moderation queue (zero-trust intake, spec §10) ----
+export function useModeration(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ['moderation', companyId],
+    enabled: !!companyId,
+    queryFn: async () => (await api.get<TicketListItem[]>(`/tickets/moderation/${companyId}`)).data,
+  })
+}
+
+function useModerationMutation(companyId: string | undefined, action: 'approve' | 'reject') {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (ticketId: string) => api.post(`/tickets/${ticketId}/${action}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['moderation', companyId] })
+      qc.invalidateQueries({ queryKey: ['kanban', companyId] })
+    },
+  })
+}
+export const useApproveTicket = (companyId: string | undefined) => useModerationMutation(companyId, 'approve')
+export const useRejectTicket = (companyId: string | undefined) => useModerationMutation(companyId, 'reject')
 
 // Detail-side mutations: invalidate both the ticket detail and the company's kanban.
 function useTicketMutation<V>(ticketId: string, companyId: string | undefined, fn: (v: V) => Promise<unknown>) {

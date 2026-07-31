@@ -27,8 +27,28 @@ public sealed class TicketsController(
         Ok(await queries.KanbanAsync(companyId, query, ct));
 
     [HttpGet("statuses")]
-    public async Task<ActionResult<IReadOnlyList<StatusDto>>> Statuses(CancellationToken ct) =>
-        Ok(await queries.ListStatusesAsync(ct));
+    public async Task<ActionResult<IReadOnlyList<StatusDto>>> Statuses([FromQuery] Guid? companyId, CancellationToken ct) =>
+        Ok(await queries.ListStatusesAsync(companyId, ct));
+
+    // ---- moderation (zero-trust public intake, spec §10) ----
+
+    [HttpGet("moderation/{companyId:guid}")]
+    public async Task<ActionResult<IReadOnlyList<TicketListItem>>> Moderation(Guid companyId, CancellationToken ct) =>
+        Ok(await queries.ModerationQueueAsync(companyId, ct));
+
+    [HttpPost("{id:guid}/approve")]
+    public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
+    {
+        await commands.ApproveAsync(id, ct);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/reject")]
+    public async Task<IActionResult> Reject(Guid id, CancellationToken ct)
+    {
+        await commands.RejectAsync(id, ct);
+        return NoContent();
+    }
 
     [HttpPost]
     public async Task<ActionResult<object>> Create(CreateTicketRequest request, CancellationToken ct)

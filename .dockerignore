@@ -1,0 +1,17 @@
+# Keep the build context small and reproducible.
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+.git/
+.github/
+.vs/
+.idea/
+.vscode/
+tests/
+staradminuifiles/
+**/*.user
+.env
+.env.*
+!.env.example
+*.md

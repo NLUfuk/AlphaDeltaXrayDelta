@@ -13,7 +13,7 @@ export default function TicketDetail() {
   const { user } = useAuth()
   const isStaff = !!user && (user.isSuperAdmin || user.companies.length > 0)
   const { data: ticket, isLoading, error } = useTicket(id)
-  const { data: statuses } = useStatuses()
+  const { data: statuses } = useStatuses(ticket?.companyId)
   const { data: members } = useMembers(isStaff ? ticket?.companyId : undefined)
 
   const changeStatus = useChangeTicketStatus(id, ticket?.companyId)

@@ -34,6 +34,17 @@ public static class DefaultEmailTemplates
         T("11111111-0000-0000-0000-000000000006", "ticket_assigned",
             "{{ticketNumber}} size atandı",
             "<p><b>{{ticketNumber}}</b> ({{title}}) talebi size atandı.</p>"),
+
+        // Account activation for a first-time customer who submitted the public form (spec §9). Clicking
+        // the link proves they own the address (email verification) and lets them set a password.
+        T("11111111-0000-0000-0000-000000000007", "account_invite",
+            "{{companyName}} — hesabınızı etkinleştirin",
+            "<p>Merhaba {{name}},</p><p><b>{{companyName}}</b> için talebiniz alındı. Taleplerinizi takip edip yanıt yazabilmeniz için hesabınızı etkinleştirin ve bir parola belirleyin:</p><p><a href=\"{{link}}\">Hesabımı etkinleştir</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
+
+        // Staff invitation — same one-time link, activates the account and sets a password (spec §9).
+        T("11111111-0000-0000-0000-000000000008", "staff_invite",
+            "{{companyName}} ekibine davet edildiniz",
+            "<p>Merhaba {{name}},</p><p><b>{{companyName}}</b> ekibine davet edildiniz. Parolanızı belirleyip hesabınızı etkinleştirmek için:</p><p><a href=\"{{link}}\">Daveti kabul et</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
     ];
 
     private static EmailTemplate T(string id, string key, string subject, string body) =>

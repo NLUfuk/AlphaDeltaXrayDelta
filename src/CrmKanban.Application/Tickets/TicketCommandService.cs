@@ -131,6 +131,29 @@ public sealed class TicketCommandService(
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Approve a pending public submission into the pool (spec §10). Staff-only; requires
+    /// ticket.edit (Admin/SuperAdmin by default), so triage stays with people who can act on it.</summary>
+    public async Task ApproveAsync(Guid ticketId, CancellationToken ct = default)
+    {
+        var ticket = await LoadPendingAsync(ticketId, ct);
+        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketEdit);
+
+        ticket.Approve();
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Reject a pending submission (spec §10): it stays out of every pool. Staff-only, ticket.edit.</summary>
+    public async Task RejectAsync(Guid ticketId, CancellationToken ct = default)
+    {
+        var ticket = await LoadPendingAsync(ticketId, ct);
+        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketEdit);
+
+        ticket.Reject();
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task DeleteAsync(Guid ticketId, CancellationToken ct = default)
     {
         var ticket = await LoadAsync(ticketId, ct);
@@ -144,18 +167,23 @@ public sealed class TicketCommandService(
 
     // ---- helpers ----
 
+    // Load ignoring the tenant filter, then let authz.ResolveAsync enforce the caller's relationship.
+    // A customer has no company scope, so the filter would hide their own ticket — the read path
+    // (GetDetailAsync) already loads this way; ResolveAsync is the real gate (opener or in-company).
     private async Task<Ticket> LoadAsync(Guid ticketId, CancellationToken ct) =>
-        await db.Tickets.FirstOrDefaultAsync(t => t.Id == ticketId, ct)
+        await db.Tickets.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == ticketId && t.DeletedAt == null, ct)
         ?? throw new NotFoundException("ticket.not_found", "Ticket not found.");
+
+    private async Task<Ticket> LoadPendingAsync(Guid ticketId, CancellationToken ct) =>
+        await db.Tickets.FirstOrDefaultAsync(t => t.Id == ticketId && t.ApprovalState == TicketApprovalState.Pending, ct)
+        ?? throw new NotFoundException("ticket.not_found", "No pending ticket with this id.");
 
     private async Task<TicketStatus> StatusAsync(Guid statusId, CancellationToken ct) =>
         await db.TicketStatuses.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == statusId, ct)
         ?? throw new NotFoundException("status.not_found", "Status not found.");
 
     private async Task<TicketStatus> InitialStatusAsync(Guid companyId, CancellationToken ct) =>
-        await db.TicketStatuses.IgnoreQueryFilters()
-            .Where(s => (s.CompanyId == companyId || s.CompanyId == null) && s.Category == StatusCategory.Open)
-            .OrderBy(s => s.Order).FirstOrDefaultAsync(ct)
+        (await StatusSet.EffectiveAsync(db, companyId, ct)).FirstOrDefault(s => s.Category == StatusCategory.Open)
         ?? throw new NotFoundException("status.no_initial", "No initial (Open) status is configured.");
 
     private static TicketEvent Event(Ticket t, Guid actorId, TicketEventType type, string? oldV, string? newV) =>

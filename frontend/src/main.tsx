@@ -7,14 +7,17 @@ import './index.css'
 import { AuthProvider } from './lib/auth'
 import Login from './screens/Login'
 import Shell from './screens/Shell'
-import Kanban from './screens/Kanban'
+import Home from './screens/Home'
 import TicketDetail from './screens/TicketDetail'
 import PublicForm from './screens/PublicForm'
+import AcceptInvite from './screens/AcceptInvite'
 import Settings from './screens/Settings'
 import Dashboard from './screens/Dashboard'
 import AdminUsers from './screens/admin/AdminUsers'
 import Companies from './screens/admin/Companies'
 import Permissions from './screens/admin/Permissions'
+import Columns from './screens/admin/Columns'
+import Moderation from './screens/Moderation'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -23,13 +26,16 @@ const queryClient = new QueryClient({
 // SPA data router. Protected screens hang off Shell; more Faz 7 slices plug into its children.
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
+  { path: '/invite', element: <AcceptInvite /> },
   { path: '/form/:slug', element: <PublicForm /> },
   {
     path: '/',
     element: <Shell />,
     children: [
-      { index: true, element: <Kanban /> },
+      { index: true, element: <Home /> },
       { path: 'tickets/:id', element: <TicketDetail /> },
+      { path: 'moderation', element: <Moderation /> },
+      { path: 'admin/columns', element: <Columns /> },
       { path: 'reports', element: <Dashboard /> },
       { path: 'settings', element: <Settings /> },
       { path: 'admin/users', element: <AdminUsers /> },

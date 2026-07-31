@@ -15,6 +15,19 @@ public enum StatusCategory
     Cancelled = 5,
 }
 
+/// <summary>
+/// Moderation state of a ticket. Default Approved: staff-created tickets and known-customer
+/// submissions go straight into the pool. A first-time (unknown) public submission lands Pending
+/// and is hidden from the kanban/staff pool until a staff member approves it (zero-trust intake);
+/// Rejected is a soft dismissal that stays out of every pool.
+/// </summary>
+public enum TicketApprovalState
+{
+    Approved = 0,
+    Pending = 1,
+    Rejected = 2,
+}
+
 /// <summary>Ticket priority — 4 levels, default Normal, set by staff not customer (spec §18.17).</summary>
 public enum Priority
 {

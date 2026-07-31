@@ -45,6 +45,32 @@ public sealed class AttachmentService(
         return CreateUploadUrl($"{ticket.CompanyId:N}/{ticket.Id:N}", request);
     }
 
+    /// <summary>Zero-trust public upload (spec §10): buffer the bytes through the API (capped at the
+    /// size limit — the client's declared size is never trusted), inspect extension + content-type +
+    /// magic bytes, and only then store. Returns a descriptor the form submit links. Restricted to
+    /// pdf/txt/doc/docx; nothing else a customer sends is accepted.</summary>
+    public async Task<AttachmentDescriptor> StorePublicUploadAsync(
+        string keyPrefix, string fileName, string declaredContentType, Stream content, CancellationToken ct = default)
+    {
+        // Read up to the limit + 1 byte; if we hit the extra byte the file is over the limit.
+        using var buffer = new MemoryStream();
+        var cap = _opt.MaxSizeBytes + 1;
+        var chunk = new byte[81920];
+        int read;
+        while (buffer.Length < cap && (read = await content.ReadAsync(chunk.AsMemory(), ct)) > 0)
+            buffer.Write(chunk, 0, read);
+
+        var size = buffer.Length;
+        var head = buffer.GetBuffer().AsSpan(0, (int)Math.Min(size, 4096));
+        PublicFileValidator.Validate(fileName, declaredContentType, head, size, _opt.MaxSizeBytes);
+
+        var storedContentType = PublicFileValidator.CanonicalContentType(fileName);
+        var key = $"{keyPrefix.Trim('/')}/{Guid.NewGuid():N}/{Sanitize(fileName)}";
+        buffer.Position = 0;
+        await storage.PutAsync(key, buffer, storedContentType, ct);
+        return new AttachmentDescriptor(key, Sanitize(fileName), storedContentType, size);
+    }
+
     /// <summary>Re-validate a batch a client claims to have uploaded, then materialize the rows.</summary>
     public IReadOnlyList<Attachment> BuildAttachments(
         Guid companyId, Guid ticketId, Guid? commentId,
@@ -57,6 +83,25 @@ public sealed class AttachmentService(
         {
             ValidateFile(f.ContentType, f.Size);
             return new Attachment(companyId, ticketId, commentId, f.Key, f.FileName, f.ContentType, f.Size, uploadedById);
+        }).ToList();
+    }
+
+    /// <summary>Materialize public-form attachments (spec §10). Defense-in-depth: the bytes were already
+    /// inspected at upload; here we re-check count and that each object carries an allowed public
+    /// content-type before linking it to the ticket.</summary>
+    public IReadOnlyList<Attachment> BuildPublicAttachments(
+        Guid companyId, Guid ticketId, IReadOnlyCollection<AttachmentDescriptor> files, Guid uploadedById)
+    {
+        if (files.Count > _opt.MaxPerAttachTarget)
+            throw new BadRequestException("attachment.too_many", $"At most {_opt.MaxPerAttachTarget} files are allowed.");
+
+        return files.Select(f =>
+        {
+            if (f.Size <= 0 || f.Size > _opt.MaxSizeBytes)
+                throw new BadRequestException("attachment.too_large", "File size is out of range.");
+            if (!PublicFileValidator.AllowedContentTypes.Contains(f.ContentType))
+                throw new BadRequestException("attachment.type_not_allowed", "Only PDF, TXT, DOC and DOCX files are accepted.");
+            return new Attachment(companyId, ticketId, commentId: null, f.Key, f.FileName, f.ContentType, f.Size, uploadedById);
         }).ToList();
     }
 

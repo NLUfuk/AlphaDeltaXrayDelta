@@ -25,9 +25,10 @@ public sealed class TicketQueryService(
 
     public async Task<PagedResult<TicketListItem>> ListAsync(TicketListQuery query, CancellationToken ct = default)
     {
-        // Staff: the tenant filter already limits to their companies. Customer: their own tickets only.
+        // Staff: the tenant filter already limits to their companies; only approved tickets are in the
+        // pool (pending intake is moderated separately). Customer: their own tickets, any state.
         var baseQuery = IsStaff
-            ? db.Tickets.AsQueryable()
+            ? db.Tickets.Where(t => t.ApprovalState == TicketApprovalState.Approved)
             : db.Tickets.IgnoreQueryFilters().Where(t => t.OpenedById == RequireUserId() && t.DeletedAt == null);
 
         baseQuery = ApplyFilters(baseQuery, query);
@@ -73,11 +74,10 @@ public sealed class TicketQueryService(
         if (!IsStaff)
             throw new ForbiddenException("kanban.forbidden", "The kanban board is staff-only.");
 
-        var statuses = await db.TicketStatuses.IgnoreQueryFilters()
-            .Where(s => (s.CompanyId == companyId || s.CompanyId == null) && s.DeletedAt == null)
-            .OrderBy(s => s.Order).ToListAsync(ct);
+        var statuses = await StatusSet.EffectiveAsync(db, companyId, ct);
 
-        var tickets = await ApplyFilters(db.Tickets.Where(t => t.CompanyId == companyId), query)
+        var tickets = await ApplyFilters(
+                db.Tickets.Where(t => t.CompanyId == companyId && t.ApprovalState == TicketApprovalState.Approved), query)
             .OrderByDescending(t => t.CreatedAt).ToListAsync(ct);
 
         var byStatus = tickets.ToLookup(t => t.StatusId);
@@ -86,14 +86,32 @@ public sealed class TicketQueryService(
             byStatus[s.Id].Select(t => ToListItem(t, statusById)).ToList())).ToList();
     }
 
-    /// <summary>The global status catalog (id + name + category), for status dropdowns and the customer
-    /// cancel/complete actions. v1 statuses are global (CompanyId null); any authenticated caller may read.</summary>
-    public async Task<IReadOnlyList<StatusDto>> ListStatusesAsync(CancellationToken ct = default) =>
-        await db.TicketStatuses.IgnoreQueryFilters()
-            .Where(s => s.CompanyId == null && s.DeletedAt == null)
-            .OrderBy(s => s.Order)
-            .Select(s => new StatusDto(s.Id, s.Name, s.Category, s.Color, s.Order, s.IsTerminal))
-            .ToListAsync(ct);
+    /// <summary>Tickets awaiting moderation (spec §10 zero-trust intake): first-time public submissions
+    /// held out of the pool. Staff-only; tenant filter scopes to the caller's company.</summary>
+    public async Task<IReadOnlyList<TicketListItem>> ModerationQueueAsync(Guid companyId, CancellationToken ct = default)
+    {
+        if (!IsStaff)
+            throw new ForbiddenException("moderation.forbidden", "The moderation queue is staff-only.");
+
+        var joined = from t in db.Tickets.Where(t => t.CompanyId == companyId && t.ApprovalState == TicketApprovalState.Pending)
+                     join s in db.TicketStatuses.IgnoreQueryFilters() on t.StatusId equals s.Id
+                     orderby t.CreatedAt
+                     select new TicketListItem(t.Id, t.Number, t.Title, t.StatusId, s.Name, s.Category,
+                         s.Color, t.Priority, t.AssignedToId, t.CategoryId, t.CreatedAt);
+        return await joined.ToListAsync(ct);
+    }
+
+    /// <summary>The status catalog for dropdowns and the customer cancel/complete actions. With a
+    /// companyId it returns that company's effective set (its own columns if customized, else global);
+    /// without one, the global defaults. Any authenticated caller may read.</summary>
+    public async Task<IReadOnlyList<StatusDto>> ListStatusesAsync(Guid? companyId = null, CancellationToken ct = default)
+    {
+        var set = companyId is { } cid
+            ? await StatusSet.EffectiveAsync(db, cid, ct)
+            : await db.TicketStatuses.IgnoreQueryFilters()
+                .Where(s => s.CompanyId == null && s.DeletedAt == null).OrderBy(s => s.Order).ToListAsync(ct);
+        return set.Select(s => new StatusDto(s.Id, s.Name, s.Category, s.Color, s.Order, s.IsTerminal)).ToList();
+    }
 
     // ---- helpers ----
 

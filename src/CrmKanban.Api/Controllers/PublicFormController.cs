@@ -25,7 +25,16 @@ public sealed class PublicFormController(PublicFormService publicForm) : Control
     public async Task<ActionResult<PublicFormResult>> Submit(string slug, PublicFormSubmitRequest request, CancellationToken ct) =>
         Ok(await publicForm.SubmitAsync(slug, request, ct));
 
-    [HttpPost("upload-url")]
-    public async Task<ActionResult<UploadUrlResult>> UploadUrl(string slug, UploadUrlRequest request, CancellationToken ct) =>
-        Ok(await publicForm.CreateUploadUrlAsync(slug, request, ct));
+    /// <summary>Zero-trust file upload (spec §10): the bytes pass through the API and are inspected
+    /// (extension + content-type + magic bytes; pdf/txt/doc/docx only) before storage. The returned
+    /// descriptor is what the submit call links. Capped at 11 MB (10 MB limit + envelope).</summary>
+    [HttpPost("upload")]
+    [RequestSizeLimit(11 * 1024 * 1024)]
+    public async Task<ActionResult<AttachmentDescriptor>> Upload(string slug, IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { code = "attachment.empty", message = "No file was provided." });
+        await using var stream = file.OpenReadStream();
+        return Ok(await publicForm.UploadAsync(slug, file.FileName, file.ContentType, stream, ct));
+    }
 }

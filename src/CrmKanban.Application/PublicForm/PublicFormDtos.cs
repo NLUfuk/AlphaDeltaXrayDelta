@@ -16,8 +16,10 @@ public sealed record PublicFormSubmitRequest(
     string? CaptchaToken = null,
     IReadOnlyList<AttachmentDescriptor>? Attachments = null);
 
-/// <summary>Result of a submission. InviteToken is returned only until email ships (Faz 5), like invites.</summary>
-public sealed record PublicFormResult(string TicketNumber, string? InviteToken);
+/// <summary>Result of a submission. <see cref="NewAccount"/> is true when this was a first-time
+/// customer: the activation link was emailed to them (the raw token never leaves the server via the
+/// API — spec §9). Known customers get their ticket linked to the existing account, no email.</summary>
+public sealed record PublicFormResult(string TicketNumber, bool NewAccount);
 
 /// <summary>What the anonymous form needs to render (spec §10, §13, §16): the company name plus the
 /// super-admin-editable KVKK text and branding, read from the DB Settings store.</summary>

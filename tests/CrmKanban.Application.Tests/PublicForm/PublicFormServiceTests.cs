@@ -45,6 +45,7 @@ public class PublicFormServiceTests
     {
         public string PresignPut(string key, string contentType, TimeSpan expiry) => "https://storage.test/put";
         public string PresignGet(string key, TimeSpan expiry) => "https://storage.test/get";
+        public Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class FakePermissionService : IPermissionService
@@ -88,7 +89,7 @@ public class PublicFormServiceTests
             Options.Create(new Application.Files.FileOptions()));
         var settings = new Application.Settings.SettingsService(db, new Anonymous());
         return new PublicFormService(db, new FakeCaptcha(captchaOk), attachments, new FixedClock(),
-            settings, Options.Create(new AuthOptions()));
+            settings, Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
     }
 
     private static PublicFormSubmitRequest Request(bool consent = true) =>
@@ -103,7 +104,7 @@ public class PublicFormServiceTests
         var result = await ServiceFor(options).SubmitAsync(Slug, Request());
 
         result.TicketNumber.Should().StartWith("ACME-");
-        result.InviteToken.Should().NotBeNullOrEmpty("a brand-new customer must get a set-password link");
+        result.NewAccount.Should().BeTrue("a brand-new customer gets an activation email");
 
         await using var read = new CrmDbContext(options, new SuperAdmin());
         var ticket = await read.Tickets.SingleAsync();
@@ -113,6 +114,11 @@ public class PublicFormServiceTests
         ticket.OpenedById.Should().Be(user.Id);
         user.IsInvitedPending.Should().BeTrue();
         (await read.Invitations.CountAsync()).Should().Be(1);
+        // The activation link is emailed (not returned to the client): exactly one queued invite.
+        var mail = await read.EmailQueue.SingleAsync();
+        mail.TemplateKey.Should().Be("account_invite");
+        mail.ToEmail.Should().Be("jane@example.com");
+        mail.Payload.Should().Contain("/invite?token=");
     }
 
     [Fact]
@@ -132,10 +138,42 @@ public class PublicFormServiceTests
 
         var result = await ServiceFor(options).SubmitAsync(Slug, Request());
 
-        result.InviteToken.Should().BeNull("a known user already has an account");
+        result.NewAccount.Should().BeFalse("a known user already has an account");
         await using var read = new CrmDbContext(options, new SuperAdmin());
         (await read.Tickets.SingleAsync()).OpenedById.Should().Be(existingUserId);
         (await read.Invitations.CountAsync()).Should().Be(0);
+        (await read.EmailQueue.CountAsync()).Should().Be(0, "no activation email for an existing account");
+    }
+
+    [Fact]
+    public async Task Submit_by_a_first_time_customer_is_held_for_approval()
+    {
+        var options = Store();
+        await SeedCompanyAsync(options);
+
+        await ServiceFor(options).SubmitAsync(Slug, Request());
+
+        await using var read = new CrmDbContext(options, new SuperAdmin());
+        (await read.Tickets.SingleAsync()).ApprovalState.Should().Be(TicketApprovalState.Pending);
+    }
+
+    [Fact]
+    public async Task Submit_by_a_known_customer_enters_the_pool_directly()
+    {
+        var options = Store();
+        await SeedCompanyAsync(options);
+        await using (var seed = new CrmDbContext(options, new SuperAdmin()))
+        {
+            var u = new User("jane@example.com", "Jane", "Doe");
+            u.SetPasswordHash("hash");
+            seed.Users.Add(u);
+            await seed.SaveChangesAsync();
+        }
+
+        await ServiceFor(options).SubmitAsync(Slug, Request());
+
+        await using var read = new CrmDbContext(options, new SuperAdmin());
+        (await read.Tickets.SingleAsync()).ApprovalState.Should().Be(TicketApprovalState.Approved);
     }
 
     [Fact]
