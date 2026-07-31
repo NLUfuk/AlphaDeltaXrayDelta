@@ -41,6 +41,15 @@ public sealed class PublicFormService(
             await settings.GetValueAsync("brand.logo_url", ct) is { Length: > 0 } logo ? logo : null);
     }
 
+    /// <summary>Active companies a customer can pick from the portal (register / new message). Only id,
+    /// name, slug are exposed — no tenant data. Anonymous; the endpoint is rate-limited.</summary>
+    public async Task<IReadOnlyList<PublicCompanyDto>> ListOpenCompaniesAsync(CancellationToken ct = default) =>
+        await db.Companies.IgnoreQueryFilters()
+            .Where(c => c.IsActive && c.ArchivedAt == null) // IsArchived is computed → not SQL-translatable
+            .OrderBy(c => c.Name)
+            .Select(c => new PublicCompanyDto(c.Id, c.Name, c.Slug))
+            .ToListAsync(ct);
+
     public async Task<PublicFormResult> SubmitAsync(string slug, PublicFormSubmitRequest request, CancellationToken ct = default)
     {
         if (!await captcha.ValidateAsync(request.CaptchaToken, ct))
@@ -118,20 +127,12 @@ public sealed class PublicFormService(
         user.Deactivate(); // activated when they set a password via the invite link
         db.Users.Add(user);
 
-        var raw = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-        // Mirror of InvitationService token hashing (opaque, single-use, stored hashed — spec §9).
-        // ponytail: 3rd copy of SHA256 token hashing (refresh/invite/here); extract a TokenHasher when auth is next touched.
-        db.Invitations.Add(new Invitation(user.Id, HashToken(raw), now.AddDays(_auth.InviteTokenDays), invitedById: null));
+        var raw = Auth.TokenHasher.NewRawToken();
+        db.Invitations.Add(new Invitation(user.Id, Auth.TokenHasher.Hash(raw), now.AddDays(_auth.InviteTokenDays), invitedById: null));
         return (user, raw);
     }
 
     private async Task<TicketStatus> InitialStatusAsync(Guid companyId, CancellationToken ct) =>
         (await Tickets.StatusSet.EffectiveAsync(db, companyId, ct)).FirstOrDefault(s => s.Category == StatusCategory.Open)
         ?? throw new NotFoundException("status.no_initial", "No initial (Open) status is configured.");
-
-    private static string HashToken(string raw)
-    {
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw));
-        return Convert.ToHexStringLower(bytes);
-    }
 }

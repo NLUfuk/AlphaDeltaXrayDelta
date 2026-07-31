@@ -21,6 +21,9 @@ public sealed record PublicFormSubmitRequest(
 /// API — spec §9). Known customers get their ticket linked to the existing account, no email.</summary>
 public sealed record PublicFormResult(string TicketNumber, bool NewAccount);
 
+/// <summary>A selectable company for the public register/portal picker: only id, name, slug are public.</summary>
+public sealed record PublicCompanyDto(Guid Id, string Name, string Slug);
+
 /// <summary>What the anonymous form needs to render (spec §10, §13, §16): the company name plus the
 /// super-admin-editable KVKK text and branding, read from the DB Settings store.</summary>
 public sealed record PublicFormConfig(

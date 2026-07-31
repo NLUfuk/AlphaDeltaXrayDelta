@@ -3,7 +3,7 @@
 | Alan | Değer |
 |---|---|
 | Son güncelleme | 2026-07-31 |
-| Aktif faz | **Canlı — Docker stack ayakta (8080)** — Faz 0-8 + Faz 9 (email doğrulama akışı + müşteri yüzeyi + drag-drop düzeltme + demo seed) tamam |
+| Aktif faz | **Canlı — Docker stack ayakta (8080)** — Faz 0-10 tamam (Faz 10: müşteri portalı — self-service kayıt + şirket seçip mesaj). Sıradaki: Faz 11 MonsterASP.NET deploy (planlandı) |
 | Genel durum | Faz 0-8 + onboarding/RBAC + Faz 9 tamam. **Faz 9 (2026-07-31):** (1) müşteri self-registration e-posta doğrulama akışı uçtan uca bağlandı — public form yeni müşteride `account_invite` mailini kuyruğa atıyor, `/invite` ekranı token'la şifre belirleyip hesabı aktive ediyor (personel daveti de `staff_invite` maili gönderiyor); (2) müşteri yüzeyi: `Home` dispatcher (personel→kanban, müşteri→Taleplerim), `CustomerTickets` listesi, müşteri-sade nav; (3) **bug fix:** müşteri yazma yolu (`CommentService`/`TicketCommandService` ticket load) tenant filtresiyle yüklüyordu → müşterinin şirket scope'u yok → kendi ticket'ına yorum/iptal 404; `IgnoreQueryFilters + authz` deseniyle düzeltildi; (4) kanban drag-drop: `dataTransfer` set (Firefox), `onDragEnd` temizliği, kendi kolonuna no-op drop engeli, sürükleme görsel geri bildirimi; (5) CRM-tadında demo seed (teklif/talep + müşteri-personel yorum thread'leri) + `Seed:Demo` bayrağıyla Production'da da çalıştırılabilir. **96 test yeşil** (+3 müşteri yazma-yolu). Docker stack `up.ps1` ile ayağa kaldırıldı, e2e doğrulandı (login/public-form→mail→invite→müşteri yorum) |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
@@ -177,6 +177,24 @@
 - *Kayıt modeli:* Kullanıcı onayıyla "şirket formu üzerinden" seçildi (mimari çok-kiracılı; müşteri bir şirkete talep açarak doğar). Bağımsız global `/register` yapılmadı — hangi şirkete bağlanacağı belirsiz olurdu; istenirse küçük bir ek (flag).
 - *Neden mevcut davet akışını maillemek, yeni e-posta-doğrulama entity'si değil:* spec §9 zaten "klasik register + invite link" diyor; Invitation + AcceptInvite hazırdı, tek eksik mail gönderimiydi. Ayrı `EmailVerificationToken` tablosu ikinci bir tek-kullanım-token mekanizması olurdu (over-engineering). Token sahipliği zaten adresi doğruluyor.
 - *Bug fix kapsamı:* Müşteri yüzeyi eklenince ortaya çıkan latent hata; istenen özellik (müşteri iletişimi) bu düzeltme olmadan çalışmıyordu → SCOPE DISCIPLINE "yanlış/eksik olan bitişik düzeltme" istisnası kapsamında yapıldı.
+
+### Faz 10 — Müşteri portalı (self-service kayıt + şirket seçip mesaj) ✅ (2026-07-31)
+- [x] **Self-service kayıt:** `POST /api/auth/register` (anonim, rate-limitli, nötr 204 — enumeration yok) → `AuthService.RegisterAsync` inactive hesap + `Invitation` token + `account_verify` maili. Şifre kayıt adımında DEĞİL, mevcut `/invite` linkinde belirlenir (en az kod, akışı yeniden kullanır). Frontend `Register.tsx` (`/register`) + Login'e "Kayıt ol" linki.
+- [x] **Public şirket listesi:** `GET /api/public/companies` (anonim) → aktif/arşivsiz şirketler `(id,name,slug)` — kayıt/mesaj için seçici besler. `PublicFormService.ListOpenCompaniesAsync`.
+- [x] **Müşteri şirket seçip mesaj:** `POST /api/tickets/customer` (yetkili) → `TicketCommandService.CreateAsCustomerAsync`: üyelik gerekmez, seçilen aktif şirkette ticket açar (OpenedById=müşteri, doğrulanmış hesap → `Approved`). Frontend `CustomerTickets` içinde "Yeni mesaj" bestecisi (firma dropdown + konu + mesaj).
+- [x] **Gerçek SMTP plumbing:** `docker-compose`/`​.env.example`'a `EMAIL_HOST/PORT/USE_SSL/USERNAME/PASSWORD/FROM`. Gmail App Password ile gerçek gönderim (`SmtpEmailSender` hazır). Kullanıcı `.env`'de doldurup `EMAIL_PROVIDER=smtp` yapınca gerçek mail gider.
+- [x] **Temizlik:** `TokenHasher` ortak helper'ı (refresh dışı 3 kopya token-hash birleşti) — Faz 9'daki ponytail borcu kapandı; `PublicFormService`/`InvitationService` bunu kullanıyor.
+- [x] **Bug fix:** `ListOpenCompaniesAsync` `!c.IsArchived` (hesaplanan property) SQL'e çevrilemiyordu → **500** (InMemory testi yakalamadı, gerçek SQL Server yakaladı). `c.ArchivedAt == null` ile düzeltildi. Ders: computed property'leri EF Where'de kullanma.
+- [x] **Doğrulama (canlı, 8080, e2e API + UI):** register→`account_verify` mail (log'da link)→`/invite` şifre→müşteri login (companies=0)→`/public/companies` (3 firma)→şirket seçip `POST /tickets/customer` (TEKSTIL-13)→"Taleplerim"de görünür. UI: `/register` ekranı + besteci dropdown (3 firma) render doğrulandı. **99 test yeşil** (+3: 2 register + 1 customer-ticket).
+
+**Karar/Varsayım (Faz 10):**
+- *Şifre kayıtta değil, doğrulama linkinde:* mevcut `/invite` set-password akışını aynen kullanır (yeni verify-only endpoint'i yok). Kullanıcı "kayıtta şifre" isterse: `RegisterRequest`'e şifre + `POST /api/auth/verify-email` (yalnız activate) — küçük ek.
+- *Doğrulanmış müşteri ticket'ı `Approved`:* anonim formun zero-trust `Pending`'inin aksine — doğrulama güveni kurdu, portal akıcı kalsın.
+- *Public şirket listesi açık enumerasyon:* public-talep CRM'i için kabul; rate-limitli.
+- *`CreateAsCustomerAsync` herhangi bir yetkili kullanıcıya açık:* müşteri o şirketin müşterisi olur; üyelik istemez (staff `CreateAsync` kullanır). Amaçlanan portal davranışı.
+
+### Deploy (Faz 11 — planlandı, henüz yapılmadı): MonsterASP.NET
+Plan `~/.claude/plans/concurrent-crunching-teacup.md`. Özet: (1) SPA'yı API `wwwroot`'una (tek IIS site, nginx yerine `UseStaticFiles`+`MapFallbackToFile`); (2) self-contained `win-x64` publish (.NET 10 runtime host'ta yoksa diye); (3) ücretsiz MSSQL connection string; (4) dosya için Cloudflare R2/B2 (S3-uyumlu) veya erteleme; (5) Gmail SMTP; (6) secret'lar host env'de. Özellik yeşil olduğu için sıra deploy'da.
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 

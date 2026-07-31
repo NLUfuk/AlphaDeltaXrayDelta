@@ -3,6 +3,7 @@ using CrmKanban.Application.Auth;
 using CrmKanban.Application.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace CrmKanban.Api.Controllers;
 
@@ -14,6 +15,17 @@ public sealed class AuthController(AuthService auth, ICurrentUserService current
     [HttpPost("login")]
     public async Task<ActionResult<AuthResult>> Login(LoginRequest request, CancellationToken ct) =>
         Ok(await auth.LoginAsync(request, ct));
+
+    /// <summary>Self-service customer registration (spec §18.5). Rate-limited like the public form.
+    /// Always 204 (no enumeration): the caller is told to check their email regardless.</summary>
+    [AllowAnonymous]
+    [EnableRateLimiting("public-form")]
+    [HttpPost("register")]
+    public async Task<IActionResult> Register(RegisterRequest request, CancellationToken ct)
+    {
+        await auth.RegisterAsync(request, ct);
+        return NoContent();
+    }
 
     [AllowAnonymous]
     [HttpPost("refresh")]

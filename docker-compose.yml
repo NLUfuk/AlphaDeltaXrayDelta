@@ -72,6 +72,12 @@ services:
       SuperAdmin__Email: ${SUPERADMIN_EMAIL}
       SuperAdmin__Password: ${SUPERADMIN_PASSWORD}
       Email__Provider: ${EMAIL_PROVIDER:-log}
+      Email__Host: ${EMAIL_HOST:-}
+      Email__Port: ${EMAIL_PORT:-587}
+      Email__UseSsl: ${EMAIL_USE_SSL:-true}
+      Email__Username: ${EMAIL_USERNAME:-}
+      Email__Password: ${EMAIL_PASSWORD:-}
+      Email__From: ${EMAIL_FROM:-no-reply@crm-kanban.local}
       # Origin used to build activation/invite links in outbound email — must match how users reach the app.
       App__PublicBaseUrl: ${APP_PUBLIC_BASE_URL:-http://localhost:8080}
       # Demo data (two companies, tickets across every column, sample customers). Off for real production.

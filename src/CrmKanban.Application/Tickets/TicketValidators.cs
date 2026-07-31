@@ -13,6 +13,16 @@ public sealed class CreateTicketRequestValidator : AbstractValidator<CreateTicke
     }
 }
 
+public sealed class CustomerCreateTicketRequestValidator : AbstractValidator<CustomerCreateTicketRequest>
+{
+    public CustomerCreateTicketRequestValidator()
+    {
+        RuleFor(x => x.CompanyId).NotEmpty();
+        RuleFor(x => x.Title).NotEmpty().MaximumLength(300);
+        RuleFor(x => x.Body).NotEmpty();
+    }
+}
+
 public sealed class EditTicketRequestValidator : AbstractValidator<EditTicketRequest>
 {
     public EditTicketRequestValidator()

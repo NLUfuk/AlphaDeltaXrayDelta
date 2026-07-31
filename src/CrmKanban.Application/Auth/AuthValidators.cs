@@ -16,6 +16,16 @@ public sealed class RefreshRequestValidator : AbstractValidator<RefreshRequest>
     public RefreshRequestValidator() => RuleFor(x => x.RefreshToken).NotEmpty();
 }
 
+public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest>
+{
+    public RegisterRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
+    }
+}
+
 internal static class PasswordRules
 {
     public static IRuleBuilderOptions<T, string> StrongPassword<T>(this IRuleBuilder<T, string> rule) =>

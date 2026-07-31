@@ -6,6 +6,10 @@ namespace CrmKanban.Application.Tickets;
 public sealed record CreateTicketRequest(
     Guid CompanyId, string Title, string Body, Priority Priority = Priority.Normal, Guid? CategoryId = null);
 
+/// <summary>A logged-in customer opening a request to a company they picked from the portal (spec §18.5).
+/// No priority/category — those are staff-set; the customer only chooses the company and writes.</summary>
+public sealed record CustomerCreateTicketRequest(Guid CompanyId, string Title, string Body);
+
 public sealed record EditTicketRequest(string Title, string Body);
 
 public sealed record AssignTicketRequest(Guid? AssigneeUserId);

@@ -53,7 +53,8 @@ public class AuthServiceTests
         db.SaveChanges();
 
         var clock = new FakeClock(new DateTime(2026, 7, 29, 12, 0, 0, DateTimeKind.Utc));
-        var svc = new AuthService(db, new FakeJwt(), hasher, clock, Options.Create(new AuthOptions()));
+        var svc = new AuthService(db, new FakeJwt(), hasher, clock,
+            Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
         return (svc, db, clock);
     }
 
@@ -115,5 +116,34 @@ public class AuthServiceTests
         await svc.ChangePasswordAsync(user.Id, new ChangePasswordRequest("Passw0rd!", "NewPassw0rd!"));
 
         (await db.RefreshTokens.IgnoreQueryFilters().CountAsync(t => t.RevokedAt == null)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Register_new_email_creates_a_pending_account_and_queues_a_verification_email()
+    {
+        var (svc, db, _) = Build(out _);
+
+        await svc.RegisterAsync(new RegisterRequest("new@x.io", "New", "Person"));
+
+        var user = await db.Users.IgnoreQueryFilters().SingleAsync(u => u.Email == "new@x.io");
+        user.IsActive.Should().BeFalse("account is inactive until the emailed link is used");
+        user.IsInvitedPending.Should().BeTrue("no password set yet — set on the activation link");
+        (await db.Invitations.IgnoreQueryFilters().CountAsync(i => i.UserId == user.Id)).Should().Be(1);
+        var mail = await db.EmailQueue.IgnoreQueryFilters().SingleAsync();
+        mail.TemplateKey.Should().Be("account_verify");
+        mail.ToEmail.Should().Be("new@x.io");
+        mail.Payload.Should().Contain("/invite?token=");
+    }
+
+    [Fact]
+    public async Task Register_with_an_existing_active_email_is_a_silent_noop_no_enumeration()
+    {
+        var (svc, db, _) = Build(out _); // "u@x.io" already exists and is active
+
+        await svc.RegisterAsync(new RegisterRequest("u@x.io", "U", "X"));
+
+        (await db.Users.IgnoreQueryFilters().CountAsync(u => u.Email == "u@x.io")).Should().Be(1, "no duplicate account");
+        (await db.Invitations.IgnoreQueryFilters().CountAsync()).Should().Be(0, "no token issued");
+        (await db.EmailQueue.IgnoreQueryFilters().CountAsync()).Should().Be(0, "no email — nothing leaks that the account exists");
     }
 }

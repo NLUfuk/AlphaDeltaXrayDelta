@@ -4,6 +4,10 @@ namespace CrmKanban.Application.Auth;
 
 public sealed record LoginRequest(string Email, string Password);
 
+/// <summary>Self-service customer registration (spec §18.5). The password is set later, on the emailed
+/// activation link (reuses the invite/accept flow) — so only identity + name are collected here.</summary>
+public sealed record RegisterRequest(string Email, string FirstName, string LastName);
+
 public sealed record RefreshRequest(string RefreshToken);
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);

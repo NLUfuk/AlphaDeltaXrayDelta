@@ -11,6 +11,7 @@ import Home from './screens/Home'
 import TicketDetail from './screens/TicketDetail'
 import PublicForm from './screens/PublicForm'
 import AcceptInvite from './screens/AcceptInvite'
+import Register from './screens/Register'
 import Settings from './screens/Settings'
 import Dashboard from './screens/Dashboard'
 import AdminUsers from './screens/admin/AdminUsers'
@@ -26,6 +27,7 @@ const queryClient = new QueryClient({
 // SPA data router. Protected screens hang off Shell; more Faz 7 slices plug into its children.
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
+  { path: '/register', element: <Register /> },
   { path: '/invite', element: <AcceptInvite /> },
   { path: '/form/:slug', element: <PublicForm /> },
   {

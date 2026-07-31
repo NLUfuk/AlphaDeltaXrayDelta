@@ -41,6 +41,11 @@ public static class DefaultEmailTemplates
             "{{companyName}} — hesabınızı etkinleştirin",
             "<p>Merhaba {{name}},</p><p><b>{{companyName}}</b> için talebiniz alındı. Taleplerinizi takip edip yanıt yazabilmeniz için hesabınızı etkinleştirin ve bir parola belirleyin:</p><p><a href=\"{{link}}\">Hesabımı etkinleştir</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
 
+        // Self-service registration: verify the address + set a password via the one-time link (spec §18.5).
+        T("11111111-0000-0000-0000-000000000009", "account_verify",
+            "Hesabınızı etkinleştirin",
+            "<p>Merhaba {{name}},</p><p>Kaydınızı tamamlamak, e-posta adresinizi doğrulamak ve bir parola belirlemek için:</p><p><a href=\"{{link}}\">Hesabımı etkinleştir</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
+
         // Staff invitation — same one-time link, activates the account and sets a password (spec §9).
         T("11111111-0000-0000-0000-000000000008", "staff_invite",
             "{{companyName}} ekibine davet edildiniz",

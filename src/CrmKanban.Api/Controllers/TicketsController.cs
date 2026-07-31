@@ -57,6 +57,15 @@ public sealed class TicketsController(
         return CreatedAtAction(nameof(Get), new { id }, new { id });
     }
 
+    /// <summary>A logged-in customer opens a request to a company they picked from the portal (spec §18.5).
+    /// Any authenticated user may call it; no company membership required (unlike <see cref="Create"/>).</summary>
+    [HttpPost("customer")]
+    public async Task<ActionResult<object>> CreateAsCustomer(CustomerCreateTicketRequest request, CancellationToken ct)
+    {
+        var id = await commands.CreateAsCustomerAsync(request, ct);
+        return CreatedAtAction(nameof(Get), new { id }, new { id });
+    }
+
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Edit(Guid id, EditTicketRequest request, CancellationToken ct)
     {

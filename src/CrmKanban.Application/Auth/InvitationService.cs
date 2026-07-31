@@ -63,8 +63,8 @@ public sealed class InvitationService(
             return new InviteResult(user.Id, RawToken: "", ExpiresAt: now);
         }
 
-        var raw = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-        var invitation = new Invitation(user.Id, HashToken(raw), now.AddDays(_auth.InviteTokenDays), inviterUserId);
+        var raw = TokenHasher.NewRawToken();
+        var invitation = new Invitation(user.Id, TokenHasher.Hash(raw), now.AddDays(_auth.InviteTokenDays), inviterUserId);
         db.Invitations.Add(invitation);
 
         var companyName = await db.Companies.IgnoreQueryFilters()
@@ -84,7 +84,7 @@ public sealed class InvitationService(
 
     public async Task AcceptInviteAsync(AcceptInviteRequest request, CancellationToken ct = default)
     {
-        var hash = HashToken(request.Token);
+        var hash = TokenHasher.Hash(request.Token);
         var invitation = await db.Invitations.IgnoreQueryFilters().FirstOrDefaultAsync(i => i.TokenHash == hash, ct);
         var now = clock.UtcNow;
         if (invitation is null || !invitation.IsPending(now))
@@ -97,12 +97,5 @@ public sealed class InvitationService(
         user.Activate();
         invitation.Accept(now);
         await db.SaveChangesAsync(ct);
-    }
-
-    // Invite tokens are opaque, single-use, and stored hashed (like refresh tokens) — spec §9.
-    private static string HashToken(string raw)
-    {
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw));
-        return Convert.ToHexStringLower(bytes);
     }
 }

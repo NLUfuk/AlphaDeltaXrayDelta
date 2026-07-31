@@ -1,33 +1,41 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { priority, statusCategory } from '../lib/messages'
+import { toApiError } from '../lib/api'
+import { errorMessage, priority, statusCategory } from '../lib/messages'
+import { useCreateCustomerTicket, usePublicCompanies } from '../lib/public'
 import { useMyTickets } from '../lib/tickets'
-import { Badge } from '../ui/primitives'
+import { Alert, Badge, Button, Field, Icon, Input } from '../ui/primitives'
 
-// A customer's own ticket list (spec §17.4). Customers aren't company members, so they get this flat
-// list (OpenedById-scoped server-side) instead of the staff kanban. Each row opens the detail, where
-// they can comment, cancel, or mark complete.
+// A customer's own ticket list (spec §17.4) + a "new message" composer that opens a request to a
+// company they pick from the public list. Customers aren't company members, so this is their portal.
 export default function CustomerTickets() {
   const { data, isLoading, error } = useMyTickets()
+  const [composing, setComposing] = useState(false)
+
   if (isLoading) return <p className="text-muted">Yükleniyor…</p>
   if (error) return <p className="text-red-600">Talepler yüklenemedi.</p>
   const items = data?.items ?? []
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <h1 className="text-lg font-semibold text-ink">Taleplerim</h1>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted">Henüz bir talebiniz yok.</p>
+      <header className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold text-ink">Taleplerim</h1>
+        <Button onClick={() => setComposing((v) => !v)}>
+          <Icon name={composing ? 'close' : 'plus'} className="mr-1" />{composing ? 'Vazgeç' : 'Yeni mesaj'}
+        </Button>
+      </header>
+
+      {composing && <NewMessage onDone={() => setComposing(false)} />}
+
+      {items.length === 0 && !composing ? (
+        <p className="text-sm text-muted">Henüz bir talebiniz yok. “Yeni mesaj” ile bir firmaya yazın.</p>
       ) : (
         <div className="space-y-2">
           {items.map((t) => {
             const cat = statusCategory(t.category)
             const p = priority(t.priority)
             return (
-              <Link
-                key={t.id}
-                to={`/tickets/${t.id}`}
-                className="block rounded-lg border border-line bg-white p-4 shadow-sm transition hover:border-primary"
-              >
+              <Link key={t.id} to={`/tickets/${t.id}`} className="block rounded-lg border border-line bg-white p-4 shadow-sm transition hover:border-primary">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-slate-400">{t.number}</span>
                   <div className="flex gap-2">
@@ -43,5 +51,54 @@ export default function CustomerTickets() {
         </div>
       )}
     </div>
+  )
+}
+
+function NewMessage({ onDone }: { onDone: () => void }) {
+  const { data: companies } = usePublicCompanies()
+  const create = useCreateCustomerTicket()
+  const [form, setForm] = useState({ companyId: '', title: '', body: '' })
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    try {
+      await create.mutateAsync(form)
+      onDone()
+    } catch (err) {
+      const { code, message } = toApiError(err)
+      setError(errorMessage(code, message))
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-line bg-surface p-5">
+      {error && <Alert>{error}</Alert>}
+      <Field label="Firma">
+        <select
+          value={form.companyId}
+          onChange={(e) => setForm({ ...form, companyId: e.target.value })}
+          required
+          className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+        >
+          <option value="" disabled>Firma seçin…</option>
+          {companies?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </Field>
+      <Field label="Konu"><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field>
+      <Field label="Mesaj">
+        <textarea
+          value={form.body}
+          onChange={(e) => setForm({ ...form, body: e.target.value })}
+          required
+          rows={4}
+          className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+        />
+      </Field>
+      <Button type="submit" disabled={create.isPending || !form.companyId}>
+        <Icon name="send" className="mr-1" />{create.isPending ? 'Gönderiliyor…' : 'Gönder'}
+      </Button>
+    </form>
   )
 }

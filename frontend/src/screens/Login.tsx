@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { toApiError } from '../lib/api'
 import { errorMessage } from '../lib/messages'
@@ -42,6 +42,9 @@ export default function Login() {
         <Button type="submit" className="w-full" disabled={busy}>
           {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
         </Button>
+        <p className="text-center text-sm text-slate-500">
+          Hesabın yok mu? <Link to="/register" className="font-medium text-primary hover:underline">Kayıt ol</Link>
+        </p>
       </form>
     </div>
   )

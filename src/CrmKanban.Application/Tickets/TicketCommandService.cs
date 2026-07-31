@@ -46,6 +46,27 @@ public sealed class TicketCommandService(
         return ticket.Id;
     }
 
+    /// <summary>A logged-in customer opens a request to a company they picked from the portal (spec §18.5).
+    /// Any authenticated user may do this (they become that company's customer for the ticket) — unlike
+    /// <see cref="CreateAsync"/>, no membership is required. The company must be active/not archived. A
+    /// verified account is trusted, so the ticket enters the pool directly (no zero-trust hold).</summary>
+    public async Task<Guid> CreateAsCustomerAsync(CustomerCreateTicketRequest request, CancellationToken ct = default)
+    {
+        var userId = currentUser.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+        var company = await db.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == request.CompanyId, ct)
+            ?? throw new NotFoundException("company.not_found", "Company not found.");
+        if (company.IsArchived || !company.IsActive)
+            throw new ConflictException("company.form_closed", "This company is not accepting requests.");
+
+        var initialStatus = await InitialStatusAsync(request.CompanyId, ct);
+        var ticket = new Ticket(request.CompanyId, company.AllocateTicketNumber(), userId,
+            initialStatus.Id, request.Title, request.Body);
+        db.Tickets.Add(ticket);
+        db.TicketEvents.Add(new TicketEvent(request.CompanyId, ticket.Id, userId, TicketEventType.Created, null, ticket.Number));
+        await db.SaveChangesAsync(ct);
+        return ticket.Id;
+    }
+
     public async Task EditAsync(Guid ticketId, EditTicketRequest request, CancellationToken ct = default)
     {
         var ticket = await LoadAsync(ticketId, ct);

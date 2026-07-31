@@ -110,6 +110,31 @@ public class CustomerWriteAccessTests
     }
 
     [Fact]
+    public async Task Customer_can_open_a_ticket_to_a_company_they_picked()
+    {
+        var options = Store();
+        Guid companyId;
+        await using (var seed = new CrmDbContext(options, new FakeCurrentUser(Guid.NewGuid(), isSuperAdmin: true)))
+        {
+            seed.TicketStatuses.Add(new TicketStatus("Açık", StatusCategory.Open, "#000", 1, isTerminal: false, id: OpenStatusId));
+            var company = new Company("Acme", "acme", Guid.NewGuid());
+            seed.Companies.Add(company);
+            await seed.SaveChangesAsync();
+            companyId = company.Id;
+        }
+        var customer = new FakeCurrentUser(CustomerId, isSuperAdmin: false); // not a member of Acme
+
+        var ticketId = await ServicesFor(options, customer).Commands
+            .CreateAsCustomerAsync(new CustomerCreateTicketRequest(companyId, "Fiyat listesi", "Toptan fiyat rica ederim."));
+
+        await using var read = new CrmDbContext(options, new FakeCurrentUser(Guid.NewGuid(), isSuperAdmin: true));
+        var ticket = await read.Tickets.IgnoreQueryFilters().SingleAsync(t => t.Id == ticketId);
+        ticket.OpenedById.Should().Be(CustomerId);
+        ticket.CompanyId.Should().Be(companyId);
+        ticket.ApprovalState.Should().Be(TicketApprovalState.Approved, "a verified customer's ticket enters the pool directly");
+    }
+
+    [Fact]
     public async Task A_stranger_cannot_comment_on_a_ticket_they_did_not_open()
     {
         var options = Store();

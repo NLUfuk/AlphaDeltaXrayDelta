@@ -6,7 +6,7 @@ Agent doğrulama listesi. Her madde bağımsız olarak test edilebilir olmalı.
 
 ## 1. Kimlik Doğrulama (Auth)
 
-- [x] Kullanıcı kayıt (register) ekranı ve endpoint'i — müşteri kaydı public form `/form/:slug` üzerinden (§18.5 self-servis yalnız müşteri); `/invite` şifre-belirleme ekranı
+- [x] Kullanıcı kayıt (register) ekranı ve endpoint'i — bağımsız `/register` (email+ad) + `POST /api/auth/register`; ayrıca public form `/form/:slug` yolu. `/invite` şifre-belirleme ekranı
 - [x] Giriş (login) / çıkış (logout) — 8080'de doğrulandı
 - [x] E-posta doğrulama ile hesap aktivasyonu — public form → `account_invite` maili → `/invite` token ile aktivasyon (token sahipliği = e-posta doğrulaması). E2e doğrulandı
 - [ ] Şifre sıfırlama / şifre değiştirme akışı — change-password var; **forgot-password** akışı yok (açık iş)

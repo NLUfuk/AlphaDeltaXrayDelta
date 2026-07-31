@@ -16,9 +16,38 @@ public sealed class AuthService(
     IJwtTokenService jwt,
     IPasswordHasher passwordHasher,
     IClock clock,
-    IOptions<AuthOptions> authOptions)
+    IOptions<AuthOptions> authOptions,
+    IOptions<AppOptions> appOptions)
 {
     private readonly AuthOptions _auth = authOptions.Value;
+    private readonly AppOptions _app = appOptions.Value;
+
+    /// <summary>Self-service customer registration (spec §18.5). Creates an inactive account and emails
+    /// an activation link; the password is set when they click it (the existing invite/accept flow).
+    /// Never reveals whether the email already exists (uniform response) — an already-active account is
+    /// silently ignored, a pending one is re-sent a fresh link.</summary>
+    public async Task RegisterAsync(RegisterRequest request, CancellationToken ct = default)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var now = clock.UtcNow;
+        var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == email, ct);
+
+        if (user is { IsActive: true })
+            return; // account exists and is usable — say nothing (anti-enumeration); they can log in
+
+        if (user is null)
+        {
+            user = new User(email, request.FirstName, request.LastName);
+            user.Deactivate(); // activated when they set a password via the emailed link
+            db.Users.Add(user);
+        }
+
+        var raw = TokenHasher.NewRawToken();
+        db.Invitations.Add(new Invitation(user.Id, TokenHasher.Hash(raw), now.AddDays(_auth.InviteTokenDays), invitedById: null));
+        InviteEmail.Enqueue(db, _app.PublicBaseUrl, email, "account_verify", raw,
+            new Dictionary<string, string> { ["name"] = $"{request.FirstName} {request.LastName}".Trim() });
+        await db.SaveChangesAsync(ct);
+    }
 
     public async Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
