@@ -10,6 +10,8 @@
 .vscode/
 tests/
 staradminuifiles/
+# SPA is served by nginx in Docker; the copy publish.ps1 puts here is only for MonsterASP.NET single-site.
+src/CrmKanban.Api/wwwroot/
 **/*.user
 .env
 .env.*

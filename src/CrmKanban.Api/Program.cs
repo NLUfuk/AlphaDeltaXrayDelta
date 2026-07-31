@@ -85,6 +85,18 @@ try
             await scope.ServiceProvider.GetRequiredService<DevSeeder>().SeedAsync();
     }
 
+    // Behind a reverse proxy (IIS/ASP.NET Core Module on MonsterASP.NET, or nginx in Docker) so the
+    // real client scheme/IP arrive in X-Forwarded-*; trust them (proxy identity isn't known on shared
+    // hosting, so the known-list is cleared).
+    var forwarded = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
+    {
+        ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                         | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto,
+    };
+    forwarded.KnownIPNetworks.Clear();
+    forwarded.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwarded);
+
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseSerilogRequestLogging();
 
@@ -93,6 +105,12 @@ try
         app.MapOpenApi();
     }
 
+    // Single-site hosting (spec §17.8, deploy): when the SPA build is copied into wwwroot (MonsterASP.NET),
+    // ASP.NET serves it and falls back to index.html for client routes. In Docker nginx does this and
+    // wwwroot is empty, so these are no-ops there. HTTPS redirect only when not already forwarded https
+    // (behind a TLS-terminating proxy the X-Forwarded-Proto is already https → no redirect loop).
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
     app.UseHttpsRedirection();
     app.UseAuthentication();
     app.UseAuthorization();
@@ -100,6 +118,7 @@ try
 
     app.MapControllers();
     app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+    app.MapFallbackToFile("index.html"); // SPA client-side routes (404 if no wwwroot, e.g. Docker API)
 
     app.Run();
 }
