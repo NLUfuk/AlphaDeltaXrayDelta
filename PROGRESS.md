@@ -193,8 +193,14 @@
 - *Public şirket listesi açık enumerasyon:* public-talep CRM'i için kabul; rate-limitli.
 - *`CreateAsCustomerAsync` herhangi bir yetkili kullanıcıya açık:* müşteri o şirketin müşterisi olur; üyelik istemez (staff `CreateAsync` kullanır). Amaçlanan portal davranışı.
 
-### Deploy (Faz 11 — planlandı, henüz yapılmadı): MonsterASP.NET
-Plan `~/.claude/plans/concurrent-crunching-teacup.md`. Özet: (1) SPA'yı API `wwwroot`'una (tek IIS site, nginx yerine `UseStaticFiles`+`MapFallbackToFile`); (2) self-contained `win-x64` publish (.NET 10 runtime host'ta yoksa diye); (3) ücretsiz MSSQL connection string; (4) dosya için Cloudflare R2/B2 (S3-uyumlu) veya erteleme; (5) Gmail SMTP; (6) secret'lar host env'de. Özellik yeşil olduğu için sıra deploy'da.
+### Faz 11 — MonsterASP.NET deploy hazırlığı ✅ (kod/artefakt hazır; upload kullanıcıda)
+Plan `~/.claude/plans/concurrent-crunching-teacup.md`. Yapıldı:
+- [x] `Program.cs`: tek-site hosting — `UseStaticFiles`+`UseDefaultFiles`+`MapFallbackToFile("index.html")` (SPA wwwroot'tan) + `UseForwardedHeaders` (IIS/nginx proxy arkasında şema/IP). Docker'da wwwroot boş → no-op (nginx sunar); `.dockerignore`'da wwwroot hariç.
+- [x] `publish.ps1`: SPA build → API `wwwroot` → `dotnet publish -c Release -r win-x64 --self-contained true -o publish`. Self-contained → host'ta .NET 10 gerekmez. `web.config` (in-process ANCM) publish ile gelir. **Doğrulandı:** publish çıktısı `wwwroot/index.html` + `web.config` bundle'lıyor.
+- [x] `DEPLOY-monsterasp.md`: adım adım — ücretsiz MSSQL bağlantı dizesi, env config (`Section__Key`), upload, R2/B2 (dosya için), Gmail SMTP, sorun giderme.
+- [x] **nginx DNS fix:** `resolver 127.0.0.11` + değişkenli `proxy_pass` — api rebuild sonrası nginx'in stale-IP cache'inden gelen 502 kalıcı çözüldü (bu oturumda gözlendi).
+- [ ] **Kullanıcı adımı:** MonsterASP.NET hesabı/DB oluştur → `./publish.ps1` → `./publish` içeriğini siteye yükle → env'leri (ConnectionString, Jwt, SuperAdmin, Email/Gmail, App__PublicBaseUrl) panelde ayarla → aç. (Ben hesaba erişemem.)
+- [ ] **Açık:** dosya yükleme için S3 (R2/B2) — yoksa yalnız dosya akışı çalışmaz.
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
