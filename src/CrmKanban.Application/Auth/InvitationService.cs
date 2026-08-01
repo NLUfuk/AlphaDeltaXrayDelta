@@ -96,6 +96,15 @@ public sealed class InvitationService(
         user.SetPasswordHash(passwordHasher.Hash(user, request.NewPassword));
         user.Activate();
         invitation.Accept(now);
+
+        // Setting a password invalidates every existing session. No-op for a fresh account (none yet);
+        // for a password reset it kills any session an attacker may hold. (Mirrors ChangePassword.)
+        var activeTokens = await db.RefreshTokens.IgnoreQueryFilters()
+            .Where(t => t.UserId == user.Id && t.RevokedAt == null)
+            .ToListAsync(ct);
+        foreach (var t in activeTokens)
+            t.Revoke(now);
+
         await db.SaveChangesAsync(ct);
     }
 }

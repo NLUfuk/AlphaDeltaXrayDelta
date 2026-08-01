@@ -28,4 +28,11 @@ public sealed class CompaniesController(CompanyService companies) : ControllerBa
     [HttpGet("{id:guid}/members")]
     public async Task<ActionResult<IReadOnlyList<MemberDto>>> Members(Guid id, CancellationToken ct) =>
         Ok(await companies.ListMembersAsync(id, ct));
+
+    [HttpDelete("{id:guid}/members/{userId:guid}")]
+    public async Task<IActionResult> RemoveMember(Guid id, Guid userId, CancellationToken ct)
+    {
+        await companies.RemoveMemberAsync(id, userId, ct);
+        return NoContent();
+    }
 }

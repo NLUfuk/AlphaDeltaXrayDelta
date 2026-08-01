@@ -15,7 +15,12 @@ public interface IFileStorage
     string PresignGet(string key, TimeSpan expiry);
 
     /// <summary>Server-side upload: the bytes flow through the API so they can be inspected before
-    /// storage (zero-trust intake, spec §10). Used for the anonymous public path; authenticated staff
-    /// keep the direct presigned PUT.</summary>
+    /// storage (zero-trust intake, spec §10). Used for both the anonymous public path and the
+    /// authenticated staff/customer path so the browser never has to reach the storage host directly.</summary>
     Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default);
+
+    /// <summary>Server-side read: stream a private object back through the API. Downloads proxy through
+    /// the API rather than a presigned redirect, so a browser reaches the same origin it already uses
+    /// (the storage host may be private/internal, e.g. an in-cluster MinIO).</summary>
+    Task<Stream> GetAsync(string key, CancellationToken ct = default);
 }

@@ -33,6 +33,7 @@ public interface IAppDbContext
     DbSet<EmailQueue> EmailQueue { get; }
     DbSet<UserNotificationPref> UserNotificationPrefs { get; }
     DbSet<Setting> Settings { get; }
+    DbSet<FormField> FormFields { get; }
 
     Task<int> SaveChangesAsync(CancellationToken ct = default);
 }

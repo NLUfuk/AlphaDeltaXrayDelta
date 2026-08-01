@@ -20,6 +20,7 @@ public sealed class PublicFormService(
     IAppDbContext db,
     ICaptchaValidator captcha,
     AttachmentService attachments,
+    Forms.FormFieldService formFields,
     IClock clock,
     Settings.SettingsService settings,
     IOptions<AuthOptions> authOptions,
@@ -29,7 +30,8 @@ public sealed class PublicFormService(
     private readonly AppOptions _app = appOptions.Value;
 
     /// <summary>Config for rendering the anonymous form: company name + super-admin-editable KVKK text
-    /// and branding from the Settings store (spec §13, §16). No auth — the form is public.</summary>
+    /// and branding from the Settings store (spec §13, §16), plus the company's configurable extra fields
+    /// (spec §4.6). No auth — the form is public.</summary>
     public async Task<PublicFormConfig> GetConfigAsync(string slug, CancellationToken ct = default)
     {
         var company = await OpenCompanyBySlugAsync(slug, ct);
@@ -38,7 +40,8 @@ public sealed class PublicFormService(
             await settings.GetValueAsync("form.kvkk_text", ct) ?? "",
             await settings.GetValueAsync("brand.system_name", ct) ?? "",
             await settings.GetValueAsync("brand.primary_color", ct) ?? "#2563eb",
-            await settings.GetValueAsync("brand.logo_url", ct) is { Length: > 0 } logo ? logo : null);
+            await settings.GetValueAsync("brand.logo_url", ct) is { Length: > 0 } logo ? logo : null,
+            await formFields.ListActiveAsync(company.Id, ct));
     }
 
     /// <summary>Active companies a customer can pick from the portal (register / new message). Only id,
@@ -66,6 +69,7 @@ public sealed class PublicFormService(
 
         var status = await InitialStatusAsync(company.Id, ct);
         var ticket = new Ticket(company.Id, company.AllocateTicketNumber(), user.Id, status.Id, request.Title, request.Body);
+        ticket.SetCustomFields(await BuildCustomFieldsJsonAsync(company.Id, request.CustomFields, ct));
         // Zero-trust intake (spec §10): a first-time (unknown) customer's ticket is held for manual
         // approval before it enters the pool; a known customer (existing user) goes straight in.
         if (inviteToken is not null)
@@ -131,6 +135,41 @@ public sealed class PublicFormService(
         db.Invitations.Add(new Invitation(user.Id, Auth.TokenHasher.Hash(raw), now.AddDays(_auth.InviteTokenDays), invitedById: null));
         return (user, raw);
     }
+
+    /// <summary>Validate the configurable form fields (spec §4.6) and return the captured values as a
+    /// denormalized JSON array of {label, value} to store on the ticket. Required active fields must have a
+    /// non-empty value; a select value must be one of the field's options. Returns null when there are no
+    /// values to store.</summary>
+    private async Task<string?> BuildCustomFieldsJsonAsync(
+        Guid companyId, IReadOnlyDictionary<string, string>? submitted, CancellationToken ct)
+    {
+        var fields = await formFields.ListActiveAsync(companyId, ct);
+        if (fields.Count == 0)
+            return null;
+
+        var captured = new List<CapturedField>();
+        foreach (var field in fields)
+        {
+            string? raw = null;
+            submitted?.TryGetValue(field.Id.ToString(), out raw);
+            var value = (raw ?? "").Trim();
+
+            if (value.Length == 0)
+            {
+                if (field.Required)
+                    throw new BadRequestException("formfield.required", $"'{field.Label}' is required.");
+                continue;
+            }
+            if (field.Type == (int)Domain.Enums.FormFieldType.Select && field.Options.Count > 0 && !field.Options.Contains(value))
+                throw new BadRequestException("formfield.invalid_option", $"'{value}' is not a valid option for '{field.Label}'.");
+
+            captured.Add(new CapturedField(field.Label, value));
+        }
+
+        return captured.Count == 0 ? null : System.Text.Json.JsonSerializer.Serialize(captured);
+    }
+
+    private sealed record CapturedField(string Label, string Value);
 
     private async Task<TicketStatus> InitialStatusAsync(Guid companyId, CancellationToken ct) =>
         (await Tickets.StatusSet.EffectiveAsync(db, companyId, ct)).FirstOrDefault(s => s.Category == StatusCategory.Open)

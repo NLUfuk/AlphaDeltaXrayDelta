@@ -17,7 +17,8 @@ public sealed class AuthService(
     IPasswordHasher passwordHasher,
     IClock clock,
     IOptions<AuthOptions> authOptions,
-    IOptions<AppOptions> appOptions)
+    IOptions<AppOptions> appOptions,
+    ICurrentUserService currentUser)
 {
     private readonly AuthOptions _auth = authOptions.Value;
     private readonly AppOptions _app = appOptions.Value;
@@ -46,6 +47,28 @@ public sealed class AuthService(
         db.Invitations.Add(new Invitation(user.Id, TokenHasher.Hash(raw), now.AddDays(_auth.InviteTokenDays), invitedById: null));
         InviteEmail.Enqueue(db, _app.PublicBaseUrl, email, "account_verify", raw,
             new Dictionary<string, string> { ["name"] = $"{request.FirstName} {request.LastName}".Trim() });
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Self-service password reset (spec §1.12). Emails a one-time link that sets a new password
+    /// (reuses the invite/accept flow — <see cref="InvitationService.AcceptInviteAsync"/>, which also revokes
+    /// existing sessions). Only an active account with a password can reset; inactive/unknown accounts get
+    /// nothing. Always returns without revealing whether the email exists (anti-enumeration).</summary>
+    public async Task ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken ct = default)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == email, ct);
+
+        // Only a usable account can reset. Unknown/inactive/never-set-password accounts fall through
+        // silently (an inactive account activates via the invite link, not here).
+        if (user is not { IsActive: true } || user.PasswordHash is null)
+            return;
+
+        var now = clock.UtcNow;
+        var raw = TokenHasher.NewRawToken();
+        db.Invitations.Add(new Invitation(user.Id, TokenHasher.Hash(raw), now.AddDays(_auth.InviteTokenDays), invitedById: null));
+        InviteEmail.Enqueue(db, _app.PublicBaseUrl, email, "password_reset", raw,
+            new Dictionary<string, string> { ["name"] = $"{user.FirstName} {user.LastName}".Trim() });
         await db.SaveChangesAsync(ct);
     }
 
@@ -87,6 +110,27 @@ public sealed class AuthService(
 
         var result = await IssueAsync(user, ct, rotatedFrom: token);
         return result;
+    }
+
+    /// <summary>Super-admin impersonation (support/debug): mint a normal session for another user without
+    /// their password. SuperAdmin-only, never targets another super admin, and is audit-logged with the
+    /// real actor. The issued token is an ordinary target session — accountability lives in the audit log,
+    /// not the token (ponytail: no impersonator claim; add one if refresh must preserve the link).</summary>
+    public async Task<AuthResult> ImpersonateAsync(Guid targetUserId, CancellationToken ct = default)
+    {
+        if (!currentUser.IsSuperAdmin)
+            throw new ForbiddenException("auth.impersonate_forbidden", "Only a super admin can impersonate a user.");
+        var actorId = currentUser.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+
+        var target = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == targetUserId, ct)
+            ?? throw new NotFoundException("user.not_found", "User not found.");
+        if (target.IsSuperAdmin)
+            throw new ForbiddenException("auth.impersonate_superadmin", "Cannot impersonate another super admin.");
+        if (!target.IsActive)
+            throw new BadRequestException("auth.impersonate_inactive", "Cannot impersonate an inactive account.");
+
+        db.AuditLogs.Add(new AuditLog(actorId, "auth.impersonate", $"target={targetUserId}"));
+        return await IssueAsync(target, ct); // persists the audit row too
     }
 
     public async Task<UserInfo> GetMeAsync(Guid userId, CancellationToken ct = default)

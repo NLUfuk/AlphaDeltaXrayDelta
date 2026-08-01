@@ -77,7 +77,12 @@ try
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<CrmDbContext>();
-        await db.Database.MigrateAsync();
+        // Relational DB → apply migrations; a non-relational provider (InMemory, used by integration
+        // tests) has no migrations, so just create the schema.
+        if (db.Database.IsRelational())
+            await db.Database.MigrateAsync();
+        else
+            await db.Database.EnsureCreatedAsync();
         await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync();
         // Demo data: always in Development, and on demand elsewhere via Seed:Demo=true (e.g. a review
         // deployment where you want the kanban/reports populated). Off by default in production.
@@ -122,7 +127,10 @@ try
 
     app.Run();
 }
-catch (Exception ex)
+// Don't swallow the sentinel the host-capture (WebApplicationFactory integration tests) throws to abort
+// startup after building the host — it's an internal "StopTheHostException"/HostAbortedException. Catching
+// it would leave the test server unstarted.
+catch (Exception ex) when (ex.GetType().Name is not ("HostAbortedException" or "StopTheHostException"))
 {
     Log.Fatal(ex, "Host terminated unexpectedly");
 }

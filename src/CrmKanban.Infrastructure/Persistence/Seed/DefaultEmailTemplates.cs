@@ -46,6 +46,30 @@ public static class DefaultEmailTemplates
             "Hesabınızı etkinleştirin",
             "<p>Merhaba {{name}},</p><p>Kaydınızı tamamlamak, e-posta adresinizi doğrulamak ve bir parola belirlemek için:</p><p><a href=\"{{link}}\">Hesabımı etkinleştir</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
 
+        // Moderation outcomes for a public submission (spec §10). Approved = accepted into the pool;
+        // Rejected = politely declined.
+        T("11111111-0000-0000-0000-000000000011", "ticket_approved",
+            "Talebiniz işleme alındı: {{ticketNumber}}",
+            "<p>Merhaba,</p><p><b>{{ticketNumber}}</b> numaralı talebiniz onaylandı ve işleme alındı. En kısa sürede sizinle ilgileneceğiz.</p>"),
+
+        T("11111111-0000-0000-0000-000000000012", "ticket_rejected",
+            "Talebiniz hakkında: {{ticketNumber}}",
+            "<p>Merhaba,</p><p>Maalesef <b>{{ticketNumber}}</b> numaralı talebiniz işleme alınamadı. Sorularınız için bizimle iletişime geçebilirsiniz.</p>"),
+
+        T("11111111-0000-0000-0000-000000000013", "ticket_attachment_added",
+            "{{ticketNumber}} için yeni dosya",
+            "<p><b>{{ticketNumber}}</b> ({{title}}) talebine yeni bir dosya eklendi.</p>"),
+
+        T("11111111-0000-0000-0000-000000000014", "ticket_edited",
+            "{{ticketNumber}} güncellendi",
+            "<p><b>{{ticketNumber}}</b> ({{title}}) talebinin başlığı/içeriği güncellendi.</p>"),
+
+        // Self-service password reset — one-time link that sets a new password (spec §1.12). Uses the same
+        // /invite set-password page; accepting it also revokes any existing sessions.
+        T("11111111-0000-0000-0000-000000000010", "password_reset",
+            "Parolanızı sıfırlayın",
+            "<p>Merhaba {{name}},</p><p>Parolanızı sıfırlamak için aşağıdaki bağlantıyı kullanın. Bu isteği siz yapmadıysanız bu e-postayı yok sayın.</p><p><a href=\"{{link}}\">Parolamı sıfırla</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
+
         // Staff invitation — same one-time link, activates the account and sets a password (spec §9).
         T("11111111-0000-0000-0000-000000000008", "staff_invite",
             "{{companyName}} ekibine davet edildiniz",

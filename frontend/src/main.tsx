@@ -12,6 +12,7 @@ import TicketDetail from './screens/TicketDetail'
 import PublicForm from './screens/PublicForm'
 import AcceptInvite from './screens/AcceptInvite'
 import Register from './screens/Register'
+import ForgotPassword from './screens/ForgotPassword'
 import Settings from './screens/Settings'
 import Dashboard from './screens/Dashboard'
 import AdminUsers from './screens/admin/AdminUsers'
@@ -19,6 +20,8 @@ import Companies from './screens/admin/Companies'
 import Permissions from './screens/admin/Permissions'
 import Columns from './screens/admin/Columns'
 import Moderation from './screens/Moderation'
+import Templates from './screens/admin/Templates'
+import FormFields from './screens/admin/FormFields'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -28,6 +31,7 @@ const queryClient = new QueryClient({
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
   { path: '/register', element: <Register /> },
+  { path: '/forgot-password', element: <ForgotPassword /> },
   { path: '/invite', element: <AcceptInvite /> },
   { path: '/form/:slug', element: <PublicForm /> },
   {
@@ -38,8 +42,10 @@ const router = createBrowserRouter([
       { path: 'tickets/:id', element: <TicketDetail /> },
       { path: 'moderation', element: <Moderation /> },
       { path: 'admin/columns', element: <Columns /> },
+      { path: 'admin/form-fields', element: <FormFields /> },
       { path: 'reports', element: <Dashboard /> },
       { path: 'settings', element: <Settings /> },
+      { path: 'admin/templates', element: <Templates /> },
       { path: 'admin/users', element: <AdminUsers /> },
       { path: 'admin/companies', element: <Companies /> },
       { path: 'admin/permissions', element: <Permissions /> },

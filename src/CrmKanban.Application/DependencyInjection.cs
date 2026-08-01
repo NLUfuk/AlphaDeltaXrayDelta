@@ -29,9 +29,11 @@ public static class DependencyInjection
         services.AddScoped<CommentService>();
 
         services.AddScoped<Files.AttachmentService>();
+        services.AddScoped<Forms.FormFieldService>();
         services.AddScoped<PublicForm.PublicFormService>();
 
         services.AddScoped<Settings.SettingsService>();
+        services.AddScoped<Notifications.EmailTemplateService>();
         services.AddScoped<Reports.ReportService>();
         services.AddScoped<Kvkk.KvkkService>();
 

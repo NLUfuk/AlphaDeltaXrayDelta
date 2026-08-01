@@ -133,14 +133,25 @@ public sealed class TicketsController(
 
     // ---- attachments (spec §12) ----
 
-    /// <summary>Presigned PUT so the browser uploads directly to storage; then include the Key in a comment.</summary>
-    [HttpPost("{id:guid}/attachments/upload-url")]
-    public async Task<ActionResult<UploadUrlResult>> AttachmentUploadUrl(Guid id, UploadUrlRequest request, CancellationToken ct) =>
-        Ok(await attachments.CreateTicketUploadUrlAsync(id, request, ct));
+    /// <summary>Attach a file to a ticket. The bytes proxy through the API (like the public path) so the
+    /// browser never reaches the storage host and the real size is measured server-side. Authorized
+    /// against the ticket. Capped at 11 MB (10 MB limit + envelope).</summary>
+    [HttpPost("{id:guid}/attachments")]
+    [RequestSizeLimit(11 * 1024 * 1024)]
+    public async Task<ActionResult<AttachmentDto>> UploadAttachment(Guid id, IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { code = "attachment.empty", message = "No file was provided." });
+        await using var stream = file.OpenReadStream();
+        return Ok(await attachments.StoreTicketUploadAsync(id, file.FileName, file.ContentType, stream, ct));
+    }
 
-    /// <summary>Short-lived presigned GET for a private object; authorized against the ticket (a
+    /// <summary>Stream a private attachment back through the API; authorized against the ticket (a
     /// customer never gets a file on an internal note).</summary>
     [HttpGet("attachments/{attachmentId:guid}/download")]
-    public async Task<IActionResult> DownloadAttachment(Guid attachmentId, CancellationToken ct) =>
-        Redirect(await attachments.GetDownloadUrlAsync(attachmentId, ct));
+    public async Task<IActionResult> DownloadAttachment(Guid attachmentId, CancellationToken ct)
+    {
+        var content = await attachments.OpenAttachmentAsync(attachmentId, ct);
+        return File(content.Content, content.ContentType, content.FileName);
+    }
 }

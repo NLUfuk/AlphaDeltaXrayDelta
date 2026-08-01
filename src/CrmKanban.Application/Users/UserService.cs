@@ -52,9 +52,23 @@ public sealed class UserService(
             var s = search.Trim().ToLowerInvariant();
             q = q.Where(u => u.Email.Contains(s) || u.FirstName.Contains(s) || u.LastName.Contains(s));
         }
-        return await q.OrderBy(u => u.Email)
-            .Select(u => new UserDto(u.Id, u.Email, u.FirstName + " " + u.LastName, u.IsSuperAdmin, u.CanCreateCompany, u.IsActive))
+        var users = await q.OrderBy(u => u.Email)
+            .Select(u => new { u.Id, u.Email, Name = u.FirstName + " " + u.LastName, u.IsSuperAdmin, u.CanCreateCompany, u.IsActive })
             .Take(100).ToListAsync(ct);
+
+        // Memberships for the listed users, with company names — the UI groups the table by company.
+        var ids = users.Select(u => u.Id).ToList();
+        var memberships = await (
+            from m in db.Memberships.IgnoreQueryFilters().Where(m => ids.Contains(m.UserId) && m.DeletedAt == null)
+            join c in db.Companies.IgnoreQueryFilters() on m.CompanyId equals c.Id
+            select new { m.UserId, m.CompanyId, c.Name, m.Role }).ToListAsync(ct);
+        var byUser = memberships.GroupBy(x => x.UserId).ToDictionary(
+            g => g.Key,
+            g => (IReadOnlyList<UserCompanyDto>)g.Select(x => new UserCompanyDto(x.CompanyId, x.Name, (int)x.Role))
+                .OrderBy(x => x.CompanyName).ToList());
+
+        return users.Select(u => new UserDto(u.Id, u.Email, u.Name, u.IsSuperAdmin, u.CanCreateCompany, u.IsActive,
+            byUser.GetValueOrDefault(u.Id, []))).ToList();
     }
 
     private Guid RequireSuperAdmin()

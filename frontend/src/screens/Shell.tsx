@@ -7,12 +7,14 @@ const NAV: NavItem[] = [
   { to: '/', label: 'Pano', icon: 'view-dashboard-outline', end: true },
   { to: '/moderation', label: 'Onay kutusu', icon: 'inbox-arrow-down-outline' },
   { to: '/admin/columns', label: 'Sütunlar', icon: 'view-column-outline' },
+  { to: '/admin/form-fields', label: 'Form alanları', icon: 'form-select' },
   { to: '/reports', label: 'Raporlar', icon: 'chart-line' },
   { to: '/admin/companies', label: 'Şirketler', icon: 'domain' },
   { to: '/admin/permissions', label: 'Yetkiler', icon: 'shield-key-outline' },
 ]
 const SUPER_NAV: NavItem[] = [
   { to: '/admin/users', label: 'Kullanıcılar', icon: 'account-multiple-outline' },
+  { to: '/admin/templates', label: 'Şablonlar', icon: 'email-edit-outline' },
   { to: '/settings', label: 'Ayarlar', icon: 'cog-outline' },
 ]
 // A customer (no company membership) only has their own tickets — the staff tabs would 403 anyway.
@@ -22,7 +24,7 @@ const CUSTOMER_NAV: NavItem[] = [
 
 /** Protected layout (spec §17.8): a minimal sticky app bar — wordmark + module tabs + account. */
 export default function Shell() {
-  const { user, loading, logout } = useAuth()
+  const { user, loading, logout, impersonating, stopImpersonation } = useAuth()
   if (loading) return <div className="p-8 text-muted">Yükleniyor…</div>
   if (!user) return <Navigate to="/login" replace />
 
@@ -31,6 +33,15 @@ export default function Shell() {
 
   return (
     <div className="min-h-screen">
+      {impersonating && (
+        <div className="flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-sm text-white">
+          <Icon name="account-eye-outline" />
+          <span><b>{user.name}</b> kimliğiyle görüntülüyorsunuz.</span>
+          <button onClick={() => stopImpersonation()} className="font-semibold underline underline-offset-2">
+            Yönetici hesabına dön
+          </button>
+        </div>
+      )}
       <header className="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5">
           <nav className="flex items-center gap-1 overflow-x-auto">

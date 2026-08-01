@@ -3,8 +3,10 @@
 | | |
 |---|---|
 | Tarih | 2026-07-31 |
-| Bağlam | Faz 0-7 + yönetim/onboarding + kanban sütun yönetimi + public zero-trust intake + Faz 8 Docker artefaktları tamam. 109 test yeşil. Bu doküman "deploy öncesi son hâli"nden sonrasına dair önceliklendirilmiş öneri listesidir. |
+| Bağlam | Faz 0-12 tamam (portal + dosya eki API-proxy dahil). 101 test yeşil. Stack Docker'da canlı doğrulandı (8080). Bu doküman "deploy öncesi son hâli"nden sonrasına dair önceliklendirilmiş öneri listesidir. |
 | İlgili kayıtlar | `PROGRESS.md` (tarihsel faz/karar günlüğü + teknik borç #1-29), `crm-kanban-mimari.md` (spec Rev 2) |
+
+> **Güncelleme (2026-08-01, Faz 13-15):** Aşağıdaki P1 maddeleri kapandı — moderasyon audit/bildirim (#8), controller/HTTP smoke testleri (#14). Ayrıca checklist'teki tüm kod eksikleri kapatıldı: forgot-password, kanban filtre, dosya+edit bildirimi, şirketten üye çıkarma, mail şablon UI, **konfigüre edilebilir form alanları**. 135 test yeşil. **P0'ın tamamı hâlâ açık** (operasyonel — kullanıcı hesapları gerekir). Ayrıntı: `PROGRESS.md` Faz 13-15 + `crm-kanban-checklist.md`.
 
 Bu dosya kararların **gerekçesini kesmez**; kod minimal tutuldu ama neyin neden ertelendiği burada. Öncelikler: **P0 = ilk gerçek deploy'dan önce zorunlu**, **P1 = ilk hafta içinde**, **P2 = iyileştirme/ölçek**.
 
@@ -31,9 +33,9 @@ Bunlar yapılmadan prod'a çıkılırsa ya güvenlik açığı ya da "çalışm�
 - **Durum:** `appsettings.Production.json`'da `Captcha:Enabled=false` (provider'sız `true` fail-closed olup public formu tamamen bloklar). Seam hazır: `CaptchaValidator` (teknik borç #12).
 - **Yap:** Turnstile veya reCAPTCHA seç → `CaptchaValidator`'a tek branch + client'a widget → `Enabled=true`. Bot koruması olmadan public form spam'e açık. Rate limiter var ama tek başına yetmez.
 
-### 5. Gerçek S3/MinIO bucket ile bayt uçtan uca doğrula
-- **Durum:** Presign + yeni `PutAsync` kod yolu fake'lerle test edildi; **gerçek yükleme/indirme baytları e2e doğrulanmadı** (teknik borç #11).
-- **Yap:** Gerçek bucket + credential ile: public upload (magic-byte geçen bir pdf), staff presigned upload, presigned GET indirme, iç-not dosyası müşteriye kapalı mı. Bucket **private** kalmalı (public-read ASLA).
+### 5. Gerçek S3/MinIO bucket ile bayt uçtan uca doğrula — kısmen kapandı (Faz 12)
+- **Durum:** Docker MinIO'ya karşı staff/müşteri upload→store→download bayt round-trip **tarayıcıda doğrulandı** (`roundTripMatch: true`, teknik borç #11 MinIO için kapandı). Yol artık API-proxy (presigned kaldırıldı).
+- **Kalan:** Prod'da **gerçek AWS S3** (MinIO değil) ile aynı round-trip + iç-not dosyası müşteriye kapalı doğrulaması. Bucket **private** kalmalı (public-read ASLA). Not: proxy yol tarayıcıya S3 host'u açmaz → private bucket yeterli, presigned gerektirmez.
 
 ### 6. SMTP sağlayıcısı (bildirim gerçekten gitsin)
 - **Durum:** Dev'de `DevLogEmailSender` (log). Prod `Email:Provider=smtp` seam hazır (teknik borç #16).
@@ -54,11 +56,10 @@ Bunlar yapılmadan prod'a çıkılırsa ya güvenlik açığı ya da "çalışm�
 | Moderasyon audit/bildirim | Approve/Reject sadece state çeviriyor, `TicketEvent` yok → audit ve bildirim üretmiyor; Rejected müşteriye bildirilmiyor; Created makbuzu pending ticket için de gidiyor (teknik borç #27) | `Approved`/`Rejected` event tipi + `NotificationMatrix` girdisi. Rejected'da müşteriye kibar "talebiniz işleme alınamadı" | `TicketCommandService.ApproveAsync/RejectAsync`, `Enums.cs`, `NotificationMatrix.cs` |
 | docx magic doğrulama | PK-zip imzası + `.docx` uzantısı yeterli sayılıyor; herhangi bir zip .docx geçer (teknik borç #26) | Gerekirse zip entry kontrolü (`[Content_Types].xml` + `word/document.xml`) | `PublicFileValidator.cs` |
 | Sütun fork geri alınamaz | Şirket global default'a dönemez; fork sonrası yeni global default sütun o şirkete yansımaz (teknik borç #28) | "Varsayılana sıfırla" gerekirse: company statülerini soft-delete + ticket'ları global'e migrate | `StatusManagementService.cs` |
-| Staff dosya yükleme UI | Backend presigned hazır ama personel/yorum tarafında yükleme UI'ı yok (Faz 7 açık madde) | Ticket detay + yorumda presigned PUT ile dosya ekleme dilimi | `TicketDetail.tsx`, `tickets.ts` |
+| ~~Staff dosya yükleme UI~~ | **Faz 12'de tamamlandı:** ticket detay "Ekler" bölümü (API-proxy yükleme+indirme). Presigned yerine backend-proxy (tarayıcıdan çalışan tek yol; bkz. PROGRESS Faz 12). Kalan yalnız **yorum-seviyesi** ek (şu an ticket-seviyesi). | (kapandı) | `TicketDetail.tsx`, `tickets.ts`, `AttachmentService.cs`, `TicketsController.cs` |
 
-### 9. Presigned PUT'ta gerçek boyut zorlaması (staff yolu)
-- **Durum:** Public yol artık backend'de baytı ölçüyor (çözüldü). Ama staff presigned PUT S3'te boyutu **zorlayamıyor** (client bildirimini doğruluyor — teknik borç #13).
-- **Yap:** Presigned POST `content-length-range` policy veya upload sonrası S3 HEAD ile gerçek boyut kontrolü. Ya da staff yolunu da backend-proxy'ye çek (public gibi).
+### 9. ~~Presigned PUT'ta gerçek boyut zorlaması (staff yolu)~~ → Faz 12'de kapandı
+- **Durum:** Staff/müşteri yolu da backend-proxy'ye çekildi (public gibi); boyut sunucuda cap'li buffer ile ölçülüyor. Presigned staff yolu kaldırıldı. Teknik borç #13 kapandı.
 
 ### 10. Rate limiter'ı dağıtık yap
 - **Durum:** Native ASP.NET fixed-window, **in-memory + per-instance** (teknik borç #14). Çok instance'ta limit instance başına.

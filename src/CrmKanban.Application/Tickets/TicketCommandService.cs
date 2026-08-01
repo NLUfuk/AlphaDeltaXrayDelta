@@ -161,6 +161,7 @@ public sealed class TicketCommandService(
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketEdit);
 
         ticket.Approve();
+        db.TicketEvents.Add(Event(ticket, actor.UserId, TicketEventType.Approved, null, ticket.Number));
         await db.SaveChangesAsync(ct);
     }
 
@@ -172,6 +173,7 @@ public sealed class TicketCommandService(
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketEdit);
 
         ticket.Reject();
+        db.TicketEvents.Add(Event(ticket, actor.UserId, TicketEventType.Rejected, null, ticket.Number));
         await db.SaveChangesAsync(ct);
     }
 

@@ -4,7 +4,8 @@ import { useAuth } from '../lib/auth'
 import { useMembers } from '../lib/admin'
 import { PRIORITIES, priority, statusCategory } from '../lib/messages'
 import {
-  useAddComment, useAssignTicket, useChangeTicketStatus, useSetTicketPriority, useStatuses, useTicket,
+  downloadAttachment,
+  useAddComment, useAssignTicket, useChangeTicketStatus, useSetTicketPriority, useStatuses, useTicket, useUploadAttachment,
 } from '../lib/tickets'
 import { Badge, Button, Card, Icon, Input } from '../ui/primitives'
 
@@ -20,6 +21,7 @@ export default function TicketDetail() {
   const assign = useAssignTicket(id, ticket?.companyId)
   const setPriority = useSetTicketPriority(id, ticket?.companyId)
   const addComment = useAddComment(id)
+  const upload = useUploadAttachment(id)
   const [body, setBody] = useState('')
   const [internal, setInternal] = useState(false)
 
@@ -37,6 +39,12 @@ export default function TicketDetail() {
     addComment.mutate({ body, isInternal: internal }, { onSuccess: () => setBody('') })
   }
 
+  function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) upload.mutate(file)
+    e.target.value = '' // allow re-selecting the same file
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <Link to="/" className="inline-flex items-center gap-1 text-sm text-primary"><Icon name="arrow-left" />Panoya dön</Link>
@@ -49,6 +57,16 @@ export default function TicketDetail() {
         </div>
         <h1 className="mt-2 text-lg font-semibold text-ink">{ticket.title}</h1>
         <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{ticket.body}</p>
+        {ticket.customFields.length > 0 && (
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-line pt-3 text-sm">
+            {ticket.customFields.map((f, i) => (
+              <div key={i} className="contents">
+                <dt className="font-medium text-slate-500">{f.label}</dt>
+                <dd className="text-slate-700">{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </Card>
 
       {/* Actions: staff manage status/assignee/priority; customer may cancel or complete a non-terminal ticket. */}
@@ -83,6 +101,36 @@ export default function TicketDetail() {
           </Card>
         )
       )}
+
+      <Card className="p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ekler</span>
+          <label className="inline-flex cursor-pointer items-center gap-1 text-sm text-primary">
+            <Icon name="paperclip" />
+            {upload.isPending ? 'Yükleniyor…' : 'Dosya ekle'}
+            <input type="file" className="hidden" onChange={pickFile} disabled={upload.isPending} />
+          </label>
+        </div>
+        {ticket.attachments.length === 0 ? (
+          <p className="text-sm text-slate-400">Ek yok.</p>
+        ) : (
+          <ul className="space-y-1">
+            {ticket.attachments.map((a) => (
+              <li key={a.id}>
+                <button
+                  type="button"
+                  onClick={() => downloadAttachment(a.id, a.fileName)}
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  <Icon name="download" />{a.fileName}
+                  <span className="text-xs text-slate-400">({Math.max(1, Math.round(a.size / 1024))} KB)</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {upload.isError && <p className="mt-1 text-sm text-red-600">Yükleme başarısız (tip veya boyut).</p>}
+      </Card>
 
       <div className="space-y-2">
         {ticket.comments.map((c) => (

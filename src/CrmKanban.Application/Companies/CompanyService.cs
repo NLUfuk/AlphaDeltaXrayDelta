@@ -91,6 +91,30 @@ public sealed class CompanyService(IAppDbContext db, ICurrentUserService current
                       select new MemberDto(u.Id, u.Email, u.FirstName + " " + u.LastName, (int)m.Role)).ToListAsync(ct);
     }
 
+    /// <summary>Remove a staff member from a company (spec §3). The owning admin of the company or a super
+    /// admin only. The company owner can't be removed (that would orphan the company). Soft-deletes the
+    /// membership (the interceptor turns Remove into a soft delete), so history and audit stay intact.</summary>
+    public async Task RemoveMemberAsync(Guid companyId, Guid userId, CancellationToken ct = default)
+    {
+        var callerId = RequireUserId();
+        var company = await db.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == companyId && c.DeletedAt == null, ct)
+            ?? throw new NotFoundException("company.not_found", "Company not found.");
+
+        if (!currentUser.IsSuperAdmin && !await IsAdminOfAsync(callerId, companyId, ct))
+            throw new ForbiddenException("company.member_remove_forbidden", "Only the owning admin or a super admin can remove members.");
+
+        if (company.OwnerAdminId == userId)
+            throw new BadRequestException("company.owner_immutable", "The company owner cannot be removed.");
+
+        var membership = await db.Memberships.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(m => m.CompanyId == companyId && m.UserId == userId && m.DeletedAt == null, ct)
+            ?? throw new NotFoundException("membership.not_found", "This user is not a member of the company.");
+
+        db.Memberships.Remove(membership); // interceptor soft-deletes
+        db.AuditLogs.Add(new AuditLog(callerId, "company.member_remove", $"company {companyId} user {userId}"));
+        await db.SaveChangesAsync(ct);
+    }
+
     private async Task<bool> IsAdminOfAsync(Guid userId, Guid companyId, CancellationToken ct) =>
         await db.Memberships.IgnoreQueryFilters()
             .AnyAsync(m => m.UserId == userId && m.CompanyId == companyId && m.Role == RoleType.Admin, ct);

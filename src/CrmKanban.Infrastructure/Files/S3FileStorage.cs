@@ -42,4 +42,10 @@ public sealed class S3FileStorage(IAmazonS3 client, IOptions<S3Options> options)
             ContentType = contentType,
             AutoCloseStream = false,
         }, ct);
+
+    public async Task<Stream> GetAsync(string key, CancellationToken ct = default)
+    {
+        var response = await client.GetObjectAsync(_bucket, key, ct);
+        return response.ResponseStream; // caller disposes; owns the network stream
+    }
 }

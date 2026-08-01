@@ -2,8 +2,8 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 2026-07-31 |
-| Aktif faz | **Canlı — Docker stack ayakta (8080)** — Faz 0-10 tamam (Faz 10: müşteri portalı — self-service kayıt + şirket seçip mesaj). Sıradaki: Faz 11 MonsterASP.NET deploy (planlandı) |
+| Son güncelleme | 2026-08-01 |
+| Aktif faz | **Faz 0-15 tamam. 135 test yeşil** (16 domain + 114 application + 5 API/HTTP). **Faz 13-15 (2026-08-01):** checklist reconcile + tüm kalan kod eksikleri kapatıldı — (13) forgot-password + moderasyon audit/bildirim; (14) kanban filtre UI + dosya-eklendi bildirimi; (15) edit bildirimi, şirketten üye çıkarma, mail şablon düzenleme UI, controller/HTTP smoke testleri (WebApplicationFactory), **konfigüre edilebilir public form alanları** (§4.6). Sıradaki: operasyonel deploy sertleştirmesi (TLS/secret/CAPTCHA/SMTP/gerçek S3 — kullanıcı hesapları, ONERILER P0) |
 | Genel durum | Faz 0-8 + onboarding/RBAC + Faz 9 tamam. **Faz 9 (2026-07-31):** (1) müşteri self-registration e-posta doğrulama akışı uçtan uca bağlandı — public form yeni müşteride `account_invite` mailini kuyruğa atıyor, `/invite` ekranı token'la şifre belirleyip hesabı aktive ediyor (personel daveti de `staff_invite` maili gönderiyor); (2) müşteri yüzeyi: `Home` dispatcher (personel→kanban, müşteri→Taleplerim), `CustomerTickets` listesi, müşteri-sade nav; (3) **bug fix:** müşteri yazma yolu (`CommentService`/`TicketCommandService` ticket load) tenant filtresiyle yüklüyordu → müşterinin şirket scope'u yok → kendi ticket'ına yorum/iptal 404; `IgnoreQueryFilters + authz` deseniyle düzeltildi; (4) kanban drag-drop: `dataTransfer` set (Firefox), `onDragEnd` temizliği, kendi kolonuna no-op drop engeli, sürükleme görsel geri bildirimi; (5) CRM-tadında demo seed (teklif/talep + müşteri-personel yorum thread'leri) + `Seed:Demo` bayrağıyla Production'da da çalıştırılabilir. **96 test yeşil** (+3 müşteri yazma-yolu). Docker stack `up.ps1` ile ayağa kaldırıldı, e2e doğrulandı (login/public-form→mail→invite→müşteri yorum) |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
@@ -123,7 +123,7 @@
 - [x] Ticket detay aksiyonları bağlandı: staff için STATÜ/ATANAN/ÖNCELİK dropdown'ları (`/status`,`/assign`,`/priority`); müşteri için İptal/Tamamlandı butonları (terminal değilse); statü kataloğu endpoint'i (`GET /api/tickets/statuses`)
 - [x] Dev-only demo seed (`DevSeeder`, yalnız Development, idempotent): demo şirket + admin(`admin@demo.local`/`Demo!2026Pass`) + personel + müşteriler + 6 statüye yayılmış 10 ticket → kanban/dashboard dolu görünüyor
 - [x] Public form dosya yükleme UI — **zero-trust'a geçirildi** (backend'e byte akışı + magic-byte doğrulama, yalnız pdf/txt/doc/docx); form'da çoklu dosya ekleme + kaldırma
-- [ ] Personel/yorum tarafı dosya yükleme UI (presigned PUT) — backend hazır, staff UI dilimi kaldı (teknik borç)
+- [x] Personel/yorum tarafı dosya yükleme UI — **Faz 12'de tamamlandı** (API-proxy yükleme + indirme, ticket detay "Ekler" bölümü). Presigned PUT yerine backend-proxy seçildi (bkz. Faz 12).
 
 ### Faz 7b — Kanban sütun yönetimi (per-şirket) ✅ (2026-07-31)
 - [x] Domain: `TicketStatus` mutatörleri (Rename/Recolor/MoveTo), `Ticket.MigrateStatus` (kimlik remap, state-machine'siz), `PermissionKeys.StatusManage` + Admin baseline
@@ -201,6 +201,68 @@ Plan `~/.claude/plans/concurrent-crunching-teacup.md`. Yapıldı:
 - [x] **nginx DNS fix:** `resolver 127.0.0.11` + değişkenli `proxy_pass` — api rebuild sonrası nginx'in stale-IP cache'inden gelen 502 kalıcı çözüldü (bu oturumda gözlendi).
 - [ ] **Kullanıcı adımı:** MonsterASP.NET hesabı/DB oluştur → `./publish.ps1` → `./publish` içeriğini siteye yükle → env'leri (ConnectionString, Jwt, SuperAdmin, Email/Gmail, App__PublicBaseUrl) panelde ayarla → aç. (Ben hesaba erişemem.)
 - [ ] **Açık:** dosya yükleme için S3 (R2/B2) — yoksa yalnız dosya akışı çalışmaz.
+
+### Faz 12 — Personel/müşteri dosya eki (API-proxy) + canlı e2e doğrulama ✅ (2026-07-31)
+Bu oturumda stack Docker'da gerçekten ayağa kaldırıldı (`up.ps1`, 8080) ve tarayıcıda uçtan uca gözlemlenerek eksik kapatıldı.
+- [x] **Ticket detay "Ekler" bölümü (`TicketDetail.tsx`):** dosya seç → yükle, mevcut ekleri listele, tıklayıp indir. Faz 7'nin açık maddesi (personel/yorum dosya UI) kapandı.
+- [x] **Yükleme/indirme artık API üzerinden proxy'leniyor (presigned DEĞİL):** `POST /api/tickets/{id}/attachments` (IFormFile, 11MB) baytı backend'e alır, `authz.ResolveAsync` ile yetki, boyutu **sunucuda ölçer** (client bildirimini güvenmez), `IFileStorage.PutAsync` ile depolar, satırı ticket-seviyesinde (`CommentId=null`) bağlar. İndirme `GET /api/tickets/attachments/{id}/download` artık presigned redirect yerine `IFileStorage.GetAsync` ile baytı **stream eder** (`File(...)`). `IFileStorage`'a `GetAsync` eklendi.
+- [x] **Kök-neden düzeltmesi (latent, tarayıcıda yakalandı):** presigned URL'ler `S3:ServiceUrl=http://minio:9000` (docker-içi host) üzerinden imzalanıyordu → tarayıcı bu host'a erişemez → yükleme **ve** indirme hiçbir zaman tarayıcıdan çalışmamıştı (teknik borç #11'in neden hiç doğrulanmadığının sebebi buydu). Proxy yaklaşımı topolojiden bağımsız (tarayıcı same-origin `/api` → nginx → api → minio).
+- [x] **Kök-neden düzeltmesi #2 (latent axios bug):** `api` axios instance'ı global `Content-Type: application/json` set ediyordu → FormData yüklemelerinde multipart/boundary'yi eziyor → **415**. Global default kaldırıldı (axios obje gövdesine json, FormData'ya multipart+boundary'yi kendi koyar). Tüm gelecekteki yüklemeleri de düzeltir.
+- [x] **MIME fallback (sağlamlaştırma):** tarayıcı bazı dosyalar için boş/`octet-stream` content-type yollar (özellikle Office). `ResolveContentType` uzantıdan kanonik tipi türetir (AllowedContentTypes ile senkron) → geçerli dosya eksik header yüzünden sessizce reddedilmez.
+- [x] **Testler (+3, toplam 101):** ticket yükleme gerçek boyutu ölçer + satırı bağlar; boş MIME uzantıdan türetilir; iç-not dosyası müşteriye kapalı testi yeni `OpenAttachmentAsync`'e taşındı. `TicketQueryService` artık `AttachmentService`'e bağımlı değil (`ToDto` static; DTO url'i API indirme yolu).
+- [x] **Canlı e2e doğrulama (tarayıcı, 8080):** (a) upload→download bayt round-trip `roundTripMatch: true`, boyut sunucuda 39B ölçüldü; (b) UI dosya seçici ile `ui-upload.pdf` yüklendi, "Ekler" listesinde göründü; (c) login/kanban/ticket-detay/moderasyon (`2 onay bekliyor`)/public form (branding+KVKK) canlı gözlemlendi.
+
+**Karar/Varsayım (Faz 12):**
+- *Presigned yerine API-proxy (staff yolu da):* Presigned PUT/GET bu deploy topolojisinde tarayıcıdan çalışmıyor (imza minio:9000'e); ayrıca presigned PUT boyutu S3'te zorlayamıyordu (teknik borç #13). ONERILER #9 zaten "staff yolunu da backend-proxy'ye çek" diyordu. Public yol zaten proxy'liydi → aynı deseni staff'a genişletmek en az kod + en tutarlı + en güvenli (boyut sunucuda). SCOPE DISCIPLINE "istenen değişiklik bitişik düzeltme olmadan yanlış/çalışmaz" istisnası: "staff dosya UI'ı" presigned'ın çalışmadığı bir dünyada anlamsızdı.
+- *Ticket-seviyesi ek (yorum-seviyesi değil):* MVP olarak dosya ticket'a bağlanır (`CommentId=null`), yoruma değil. Yorum-eki (`BuildAttachments` zaten destekliyor) ve iç-nota özel dosya UI'ı ileride; ticket-seviyesi "personel dosya ekleyebilsin" ihtiyacını karşılıyor.
+- *Yükleme herkese (opener dahil) açık:* backend `authz.ResolveAsync` opener'ı da geçirir → müşteri kendi ticket'ına dosya ekleyebilir (public form ile tutarlı). İç-not dosyası indirmesi müşteriye hâlâ kapalı (korunmuş invariant).
+- *`ToDto` static + DTO url = API yolu:* presigned url ölü olduğundan (frontend kullanmıyordu, host erişilemez) DTO url'i `/api/tickets/attachments/{id}/download`'a çevrildi; `ToDto` instance state kullanmıyor → static; `TicketQueryService`'in `AttachmentService` bağımlılığı düştü.
+
+### Faz 13 — Forgot-password + moderasyon audit/bildirim ✅ (2026-08-01)
+Checklist (`crm-kanban-checklist.md`) koda karşı doğrulandı: liste bayattı, çoğu `[ ]` madde aslında yapılmıştı (Faz 0-12). Gerçek kod eksikleri kapatıldı.
+- [x] **Forgot-password (spec §1.12, test-first):** `POST /api/auth/forgot-password` (anonim, rate-limitli, nötr 204 — enumeration yok) → `AuthService.ForgotPasswordAsync` yalnız aktif+parolalı hesaba `password_reset` maili kuyruğa atar. Reset linki mevcut `/invite` set-password akışını yeniden kullanır. Frontend `ForgotPassword.tsx` + Login'e "Parolamı unuttum" linki.
+- [x] **Güvenlik kök-neden düzeltmesi:** `InvitationService.AcceptInviteAsync` parola belirlendiğinde artık kullanıcının **tüm aktif refresh token'larını iptal ediyor** — taze hesapta no-op, reset'te çalınmış oturumu öldürür (ChangePassword ile aynı invariant). +1 test.
+- [x] **Moderasyon audit + bildirim (tech debt #27):** `ApproveAsync`/`RejectAsync` artık `TicketEvent` yazıyor (`Approved`/`Rejected` yeni enum) → audit + bildirim üretir. `NotificationMatrix`: Approved→açan (bilgi), Rejected→açan (**kritik**, müşteri kibar red bildirimi alır). 2 yeni şablon.
+- [x] Testler: +3 forgot-password (aktif→mail, bilinmeyen→sessiz, inaktif→sessiz) + 1 reset-oturum-iptali + moderasyon testleri Approved/Rejected event assertion'ı ile genişletildi.
+
+### Faz 14 — Kanban filtre UI + dosya-eklendi bildirimi ✅ (2026-08-01)
+- [x] **Kanban filtreleri (checklist §5):** `useKanban(companyId, filters)` — ara (no/başlık) / atanan / öncelik. Backend `TicketQueryService.ApplyFilters` + `Kanban` endpoint'i `[FromQuery] TicketListQuery`'yi zaten binliyordu; yalnız UI eksikti. Filtre çubuğu `Kanban.tsx`'e eklendi (react-query key filtreleri içerir; invalidation prefix-match ile hâlâ çalışır). Not: tarih/müşteri filtresi backend contract'ında yok — istenirse eklenir.
+- [x] **Dosya-eklendi bildirimi (checklist §7):** `StoreTicketUploadAsync` artık `AttachmentAdded` (yeni enum) olayı yazıyor → açan+atanan bildirim alır (actor çıkarılır; müşteri kendi yüklemesine mail almaz). Matris girdisi + `ticket_attachment_added` şablonu. Ticket-seviyesi yükleme asla iç-not olmadığından açana bildirim güvenli. +1 test assertion.
+- [x] **Checklist reconcile:** `crm-kanban-checklist.md` tamamen yeniden yazıldı — gerçek durumu yansıtıyor; kalan işler (A) operasyonel deploy, (B) kod eksikleri, (~) spec-çelişkisi olarak sınıflandı.
+
+**Karar/Varsayım (Faz 13-14):**
+- *Forgot-password ayrı entity değil, invite/accept yeniden kullanımı:* `/invite` set-password akışı zaten vardı; ayrı `PasswordResetToken` tablosu ikinci tek-kullanım-token mekanizması olurdu (over-engineering). Reset linki aynı sayfaya gider. Ponytail: token sahipliği = kimlik.
+- *Reset'te oturum iptali paylaşılan `AcceptInviteAsync`'te:* kök-neden doğru yer — taze hesapta zararsız (token yok), reset'te güvenlik şart. Her iki çağıran da düzelir.
+- *Moderasyon: Approved açana bildirim de gider:* submit makbuzu "alındı" der; approve "işleme alındı" anlamlı sinyal. Rejected kritik (opt-out'suz) — müşteri reddi mutlaka öğrenir.
+- *Dosya bildirimi yalnız ticket-seviyesi upload path'inde:* `StoreTicketUploadAsync` (UI'nin kullandığı yol) CommentId=null → asla iç-not → açana güvenli. Yorum-seviyesi ek (iç-not olabilir) ayrı yoldan gelir, dokunulmadı.
+- *Kanban filtreleri yalnız backend'in desteklediği eksende:* ara/atanan/öncelik (+statü/kategori mevcut). Tarih/müşteri filtresi backend'de yok → uydurma backend işi yapılmadı (SCOPE DISCIPLINE).
+- *Checklist bir bilgi kaydı, kod değil:* bayat checklist'i gerçekle uyumlamak minimalizmin kestiği şey değil (SCOPE DISCIPLINE: knowledge record kesilmez).
+
+### Faz 15 — Kalan kod eksiklerinin tamamı (kullanıcı onayıyla) ✅ (2026-08-01)
+Kullanıcı checklist'teki tüm (B) kod eksiklerini + spec-çelişen edit-bildirimini "yap" dedi. Hepsi kapatıldı.
+- [x] **Edit bildirimi (checklist §7, spec §14 override):** başlık/gövde düzenlemesinde açan+atanan mail alır. `NotificationMatrix`'e `Edited` girdisi + `ticket_edited` şablonu. Karar: kullanıcı checklist'i spec §14 "Edited→kimse" default'unun üzerine seçti.
+- [x] **Şirketten üye çıkarma (§3):** `DELETE /api/companies/{id}/members/{userId}` + `CompanyService.RemoveMemberAsync` (company admin/super admin gate, sahip çıkarılamaz, soft-delete membership) + Companies UI'da "Çıkar". +2 test.
+- [x] **Mail şablon düzenleme UI (§7/§9):** `EmailTemplateService` (list/update, super-admin) + `/api/email-templates` + `/admin/templates` ekranı (sol liste + konu/gövde editörü + placeholder ipuçları). Şablonlar zaten DB'deydi; UI eksikti.
+- [x] **Controller/HTTP smoke testleri (§11, ONERILER P1#14):** yeni `CrmKanban.Api.Tests` projesi (`WebApplicationFactory` + InMemory DB). 5 test: /health, protected→401, forgot-password→204, bad login→401 zarf, süper admin login→/me. `Program.cs` iki küçük değişiklik: (a) non-relational provider'da `EnsureCreated` (InMemory), (b) host-capture sentinel'i (`StopTheHostException`/`HostAbortedException`) catch'te yutmama.
+- [x] **Konfigüre edilebilir public form alanları (§4.6):** `FormField` entity (per-şirket: label/type/required/options/order/active) + `ConfigurableFormFields` migration (gerçek SQL Server'a uygulandı) + `Ticket.CustomFieldsJson` (denormalize {label,value}). `FormFieldService` (admin/super-admin gate) + `/api/companies/{id}/form-fields` CRUD. Public form config aktif alanları döner; submit zorunluları doğrular (400) ve değerleri ticket'a JSON yazar; ticket detay bunları gösterir. `/admin/form-fields` yönetim ekranı + public form dinamik render. +2 (FormFieldService) +2 (public submit) test.
+- [x] **Canlı doğrulama (8080→5221):** migration uygulandı, health 200; form-field create/list/public-config e2e curl ile doğrulandı (test alanı sonra silindi).
+
+**Karar/Varsayım (Faz 15):**
+- *Form alanı değerleri denormalize JSON (`{label,value}`) ticket'ta, ayrı `TicketFieldValue` tablosu değil:* v1'de custom alan üzerinde sorgu/rapor YAGNI; JSON tek kolon, alan sonradan silinse/yeniden adlandırılsa bile yakalanan veri okunur kalır. Sorgulanabilirlik gerekirse tablo eklenir (2. gerçek durum).
+- *Form alanı yetkisi permission-key'siz, company-admin/super-admin:* `form.manage` permission seed churn'ü yerine `RemoveMember` ile aynı company-admin gate kullanıldı (ponytail). Gerçek granularite gerekirse permission key eklenir. RBAC data-layer prensibi burada company-admin membership kontrolüyle korunuyor.
+- *Custom field select doğrulaması sunucuda:* seçilen değer alanın options'ında olmalı (client bildirimi güvenilmez); required boşsa 400.
+- *Controller testleri InMemory + env-var config:* WAF'ın `ConfigureAppConfiguration`'ı Program'ın build-time config okumasından geç kaldığı için Jwt/SuperAdmin process env-var ile veriliyor; DB SqlServer→InMemory swap'inde `IDbContextOptionsConfiguration<CrmDbContext>` da kaldırılmalı (EF 9+) yoksa iki provider çakışır.
+- *Edit bildirimi spec'i geçersiz kıldı — bilinçli:* PROGRESS Faz 5 "Edited→kimse (§14)" diyordu; kullanıcı checklist §7 lehine karar verdi. Ürün sahibi kararı > spec default'u.
+
+### Faz 16 — Süper admin impersonation UI ✅ (2026-08-01)
+Backend zaten vardı (`AuthService.ImpersonateAsync` + `POST /api/auth/impersonate` + 3 test: super-admin-only, super-admin hedeflenemez, audit'li). Eksik olan UI eklendi.
+- [x] **Auth context:** `impersonate(userId)` / `stopImpersonation()` / `impersonating` bayrağı. Gerçek admin oturumu (`crm.orig.*`) localStorage'a snapshot'lanır; dönüşte geri yüklenir (`tokens.beginImpersonation/endImpersonation`). Snapshot tek sefer (iç içe impersonate real admin'i ezmez). Hata olursa snapshot geri alınır.
+- [x] **UI:** `/admin/users` tablosunda "Kimliğine gir" (yalnız aktif, süper-admin-olmayan, kendisi-olmayan satırlar); `Shell`'de sarı banner "X kimliğiyle görüntülüyorsunuz — Yönetici hesabına dön". Logout tüm token'ları (orig dahil) temizler.
+- [x] **Canlı doğrulama (proxy 5173→7084):** süper admin login → impersonate(admin@mermer) → dönen oturum isSuperAdmin=false, `/me`=admin@mermer. Non-super gate + endpoint proxy üzerinden çalışıyor.
+
+- [x] **Kullanıcı listesi şirkete göre gruplandı:** `UserDto`'ya `Companies` (companyId+name+role) eklendi (`UserService.ListAsync` membership+company join); `/admin/users` artık her şirket için ayrı tablo + "Şirkete bağlı olmayan (müşteri/süper admin)" grubu gösterir. Çok-şirketli kullanıcı her grupta görünür. Canlı doğrulandı (Anadolu Tekstil / Ege Mermer / şirketsiz).
+
+**Karar (Faz 16):** *Dönüş için admin token'ları client'ta snapshot:* backend impersonation ayrı "impersonator" claim taşımıyor (basit — hesap verebilirlik audit log'da). Dönüş, admin'in kendi refresh token'ını saklayıp geri yükleyerek yapılır; impersonation sırasında admin token'ı hiç kullanılmadığından revoke olmaz. ponytail: localStorage XSS-okunur (mevcut token modeliyle aynı tavan); tehdit modeli sıkılaşırsa httpOnly cookie.
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
@@ -282,9 +344,10 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 | 8 | Ticket araması `EF.Functions.Like('%term%')` — sargable değil, büyük tablolarda tarama. v1 ölçeğinde kabul; ölçek büyürse full-text index. | Düşük |
 | 9 | `TicketEvents` yazılıyor ama tüketen mail worker'ı yok (Faz 5). Şimdilik yalnız audit/rapor kaynağı. | Düşük |
 | 10 | ~~Attachment Faz 3'te yok~~ → Faz 4'te eklendi (S3 + presigned). | ✅ kapandı |
-| 11 | Gerçek S3/MinIO bucket sağlanmadı; presign kod yolu fake'lerle test edildi, **gerçek yükleme/indirme baytları uçtan uca doğrulanmadı**. Bucket + credential (env/user-secrets `S3:AccessKey/SecretKey`) gelince e2e test. | Orta |
+| 11 | ~~gerçek yükleme/indirme baytları uçtan uca doğrulanmadı~~ → **Faz 12'de kapandı (staff/müşteri yolu):** Docker MinIO'ya karşı upload→store→download bayt round-trip tarayıcıda doğrulandı (`roundTripMatch: true`). Public form yolu da aynı `PutAsync` proxy'sini kullanıyor. Kalan: presigned yol tamamen kaldırıldığından prod'da gerçek AWS S3 (MinIO değil) ile de doğrulanmalı. | ✅ kapandı (MinIO) |
+| 11b | Depolama artık API-proxy (staff+public); büyük dosyalarda API belleğe cap'li buffer + stream. Çok yüksek hacimde presigned direct-to-S3 tekrar değerlendirilebilir (o zaman browser-erişilebilir S3 endpoint şart). | Düşük |
 | 12 | CAPTCHA provider bağlı değil (açılırsa fail-closed). Provider seçilince `CaptchaValidator`'a tek branch. | Orta |
-| 13 | Presigned PUT S3'te dosya boyutunu zorlayamaz (client bildirimi doğrulanıyor). Presigned POST content-length-range veya upload sonrası HEAD ile sıkılaştır. | Orta |
+| 13 | ~~Presigned PUT S3'te dosya boyutunu zorlayamaz~~ → **Faz 12'de kapandı:** staff/müşteri yolu artık API-proxy; boyut sunucuda cap'li buffer ile ölçülüyor (client bildirimi güvenilmiyor). Presigned staff yolu tamamen kaldırıldı. | ✅ kapandı |
 | 14 | Rate limiter in-memory + per-instance; çok-instance prod'da distributed (Redis vb.) limiter gerekir. | Düşük |
 | 15 | Token hash'leme 3. kez kopyalandı (refresh/invite/public-form SHA256). Auth'a bir dahaki dokunuşta `TokenHasher` helper'ına çıkar. | Düşük |
 | 16 | SMTP sağlayıcı seçilmedi; dev'de log sender. Gerçek SMTP + SPF/DKIM/DMARC + gönderim logu (§14) sağlayıcı gelince. | Orta |
@@ -298,7 +361,7 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 | 24 | `kvkk.retention_days` saklanıyor ama otomatik saklama-süresi purge/anonimleştirme job'ı yok. | Düşük |
 | 25 | Docker imajları bu ortamda build edilmedi (daemon kapalı); Dockerfile komutları + compose config ayrı doğrulandı. İlk deploy'da `docker compose up --build` + e2e stack (login→public form→moderasyon→kanban→upload indir) testi. | Orta |
 | 26 | docx magic doğrulaması PK-zip imzası + uzantı ile; içindeki `[Content_Types].xml`/word/ yapısı denetlenmiyor (herhangi bir zip .docx sayılır). Gerçek OOXML doğrulama gerekirse zip entry kontrolü eklenir. | Düşük |
-| 27 | Approve/Reject için TicketEvent tipi yok → moderasyon aksiyonları audit/bildirim üretmiyor; Rejected müşteriye bildirilmiyor, Created makbuzu pending ticket için de gidiyor. Gerekirse `Approved`/`Rejected` event tipi + matris girdisi. | Düşük |
+| 27 | ~~Approve/Reject için TicketEvent tipi yok~~ → **Faz 13'te kapandı:** `Approved`/`Rejected` event tipi + matris girdisi (Rejected müşteriye kibar red bildirimi, kritik). Kalan minör: Created makbuzu pending ticket için de gidiyor (kabul). | ✅ kapandı |
 | 28 | Sütun fork geri alınamaz (şirket global default'a dönemez) ve fork sonrası yeni global default sütun o şirkete yansımaz. v1'de gerek yok; "varsayılana sıfırla" istenirse eklenir. | Düşük |
 | 29 | DevSeeder yeni ApprovalState/pending ticket veya per-şirket sütun demo verisi kurmuyor; demo hep Approved + global set. Moderasyon/sütun akışını demoda görmek için seed'e birkaç pending + örnek özel sütun eklenebilir. | Düşük |
 

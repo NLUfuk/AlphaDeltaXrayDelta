@@ -1,17 +1,54 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toApiError } from '../../lib/api'
 import { errorMessage } from '../../lib/messages'
-import { useCreateAdmin, useUsers } from '../../lib/admin'
+import { useAuth } from '../../lib/auth'
+import { useCreateAdmin, useUsers, type UserRow } from '../../lib/admin'
 import { Alert, Button, Field, Input } from '../../ui/primitives'
+
+const roleLabel = (r: number) => (r === 1 ? 'Admin' : 'Personel')
+const globalRole = (u: UserRow) => (u.isSuperAdmin ? 'Süper Admin' : u.canCreateCompany ? 'Admin' : 'Müşteri')
+
+// Group the flat user list by company. A user in several companies appears under each; users with no
+// membership (customers, super admins) fall into the "unassigned" bucket.
+function groupByCompany(users: UserRow[]) {
+  const map = new Map<string, { name: string; rows: { u: UserRow; role: number }[] }>()
+  const unassigned: UserRow[] = []
+  for (const u of users) {
+    if (u.companies.length === 0) { unassigned.push(u); continue }
+    for (const c of u.companies) {
+      const g = map.get(c.companyId) ?? { name: c.companyName, rows: [] }
+      g.rows.push({ u, role: c.role })
+      map.set(c.companyId, g)
+    }
+  }
+  return {
+    companies: [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'tr')),
+    unassigned,
+  }
+}
 
 // Super-admin: create admin accounts + list users (spec §9). The invite token is shown after creation
 // because email is a dev log sender in this environment — it's how the admin completes signup.
 export default function AdminUsers() {
   const { data: users, error } = useUsers()
+  const { user, impersonate } = useAuth()
+  const navigate = useNavigate()
   const create = useCreateAdmin()
   const [form, setForm] = useState({ email: '', firstName: '', lastName: '' })
   const [token, setToken] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+
+  async function stepInto(userId: string) {
+    setErr(null)
+    try {
+      await impersonate(userId)
+      navigate('/', { replace: true })
+    } catch (e) {
+      const { code, message } = toApiError(e)
+      setErr(errorMessage(code, message))
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -50,24 +87,59 @@ export default function AdminUsers() {
         <Button type="submit" disabled={create.isPending}>Admin oluştur</Button>
       </form>
 
-      <div className="rounded-lg bg-white p-4 shadow-sm">
-        <h2 className="mb-2 text-sm font-semibold text-slate-600">Tüm kullanıcılar</h2>
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-slate-400">
-            <tr><th className="py-1">E-posta</th><th>Ad</th><th>Rol</th><th>Durum</th></tr>
-          </thead>
-          <tbody>
-            {users?.map((u) => (
-              <tr key={u.id} className="border-t">
-                <td className="py-1">{u.email}</td>
-                <td>{u.name}</td>
-                <td>{u.isSuperAdmin ? 'Süper Admin' : u.canCreateCompany ? 'Admin' : 'Kullanıcı'}</td>
-                <td>{u.isActive ? 'Aktif' : 'Bekliyor'}</td>
-              </tr>
+      {(() => {
+        const { companies, unassigned } = groupByCompany(users ?? [])
+
+        const row = (u: UserRow, roleText: string) => (
+          <tr key={u.id} className="border-t">
+            <td className="py-1">{u.email}</td>
+            <td>{u.name}</td>
+            <td>{roleText}</td>
+            <td>{u.isActive ? 'Aktif' : 'Bekliyor'}</td>
+            <td className="text-right">
+              {/* Impersonation is SuperAdmin-only and never targets another super admin or an inactive/self account. */}
+              {!u.isSuperAdmin && u.isActive && u.id !== user?.id && (
+                <button onClick={() => stepInto(u.id)} className="text-xs font-medium text-primary hover:underline">
+                  Kimliğine gir
+                </button>
+              )}
+            </td>
+          </tr>
+        )
+
+        const table = (rows: React.ReactNode) => (
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-slate-400">
+              <tr><th className="py-1">E-posta</th><th>Ad</th><th>Rol</th><th>Durum</th><th></th></tr>
+            </thead>
+            <tbody>{rows}</tbody>
+          </table>
+        )
+
+        return (
+          <div className="space-y-4">
+            {companies.map((g) => (
+              <div key={g.name} className="rounded-lg bg-white p-4 shadow-sm">
+                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  {g.name}
+                  <span className="rounded-full bg-slate-100 px-2 text-xs font-normal text-slate-500">{g.rows.length}</span>
+                </h2>
+                {table(g.rows.map(({ u, role }) => row(u, roleLabel(role))))}
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
+
+            {unassigned.length > 0 && (
+              <div className="rounded-lg bg-white p-4 shadow-sm">
+                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  Şirkete bağlı olmayan (müşteri / süper admin)
+                  <span className="rounded-full bg-slate-100 px-2 text-xs font-normal text-slate-500">{unassigned.length}</span>
+                </h2>
+                {table(unassigned.map((u) => row(u, globalRole(u))))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }

@@ -10,7 +10,15 @@ public sealed record RegisterRequest(string Email, string FirstName, string Last
 
 public sealed record RefreshRequest(string RefreshToken);
 
+/// <summary>A super admin asks to act as another user (support/debug). Mints a normal session for the
+/// target; the action is audit-logged. See <see cref="AuthService.ImpersonateAsync"/>.</summary>
+public sealed record ImpersonateRequest(Guid UserId);
+
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+/// <summary>Self-service password reset request (spec §1.12). Only the email is collected; a one-time
+/// reset link is emailed. Reuses the invite/accept flow — the link sets a new password.</summary>
+public sealed record ForgotPasswordRequest(string Email);
 
 public sealed record AcceptInviteRequest(string Token, string NewPassword);
 

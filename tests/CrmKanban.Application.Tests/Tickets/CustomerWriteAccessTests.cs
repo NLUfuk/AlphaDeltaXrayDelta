@@ -39,6 +39,7 @@ public class CustomerWriteAccessTests
         public string PresignPut(string key, string contentType, TimeSpan expiry) => "https://storage.test/put";
         public string PresignGet(string key, TimeSpan expiry) => "https://storage.test/get";
         public Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<Stream> GetAsync(string key, CancellationToken ct = default) => Task.FromResult<Stream>(new MemoryStream());
     }
 
     private sealed class FixedClock : IClock

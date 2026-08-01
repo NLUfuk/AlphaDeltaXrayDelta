@@ -39,6 +39,7 @@ public class CommentVisibilityTests
         public string PresignPut(string key, string contentType, TimeSpan expiry) => $"https://storage.test/put/{key}";
         public string PresignGet(string key, TimeSpan expiry) => $"https://storage.test/get/{key}";
         public Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<Stream> GetAsync(string key, CancellationToken ct = default) => Task.FromResult<Stream>(new MemoryStream());
     }
 
     private sealed class FixedClock : IClock
@@ -75,9 +76,7 @@ public class CommentVisibilityTests
     {
         var db = new CrmDbContext(options, user);
         var authz = new TicketAuthorizationService(user, new FakePermissionService(), db);
-        var attachments = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(),
-            Options.Create(new Application.Files.FileOptions()));
-        return new TicketQueryService(db, user, authz, attachments, Options.Create(new TicketOptions()));
+        return new TicketQueryService(db, user, authz, Options.Create(new TicketOptions()));
     }
 
     [Fact]

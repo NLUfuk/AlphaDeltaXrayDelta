@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { toApiError } from '../../lib/api'
 import { errorMessage } from '../../lib/messages'
-import { useCompanies, useCreateCompany, useInvite, useMembers, type Company } from '../../lib/admin'
+import { useCompanies, useCreateCompany, useInvite, useMembers, useRemoveMember, type Company } from '../../lib/admin'
 import { Alert, Button, Field, Input } from '../../ui/primitives'
 
 // Companies (spec §8/§9): an admin opens their own; the list + members drive assignment/permission UIs.
@@ -50,6 +50,7 @@ function CompanyCard({ company }: { company: Company }) {
   const [open, setOpen] = useState(false)
   const { data: members } = useMembers(open ? company.id : undefined)
   const invite = useInvite()
+  const removeMember = useRemoveMember()
   const [inv, setInv] = useState({ email: '', firstName: '', lastName: '', role: 2 })
   const [token, setToken] = useState<string | null>(null)
 
@@ -75,7 +76,18 @@ function CompanyCard({ company }: { company: Company }) {
         <div className="mt-3 space-y-3 border-t pt-3">
           <ul className="text-sm text-slate-600">
             {members?.map((m) => (
-              <li key={m.userId}>{m.name} — {m.email} <span className="text-slate-400">({m.role === 1 ? 'Admin' : 'Personel'})</span></li>
+              <li key={m.userId} className="flex items-center gap-2 py-0.5">
+                <span>{m.name} — {m.email} <span className="text-slate-400">({m.role === 1 ? 'Admin' : 'Personel'})</span></span>
+                {m.userId !== company.ownerAdminId && (
+                  <button
+                    onClick={() => removeMember.mutate({ companyId: company.id, userId: m.userId })}
+                    disabled={removeMember.isPending}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Çıkar
+                  </button>
+                )}
+              </li>
             ))}
           </ul>
 

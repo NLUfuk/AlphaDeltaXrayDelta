@@ -49,8 +49,31 @@ public static class NotificationMatrix
             [TicketEventType.Assigned] = new(
                 [RecipientSlot.Assignee], "ticket_assigned",
                 NotifyOpenerEvenIfActor: false, Critical: false),
+
+            // Moderation outcomes for public submissions (spec §10, tech debt #27). The actor is staff,
+            // so the opener (customer) is always the recipient. Rejection is critical — the customer must
+            // learn their request was not accepted.
+            [TicketEventType.Approved] = new(
+                [RecipientSlot.Opener], "ticket_approved",
+                NotifyOpenerEvenIfActor: false, Critical: false),
+
+            [TicketEventType.Rejected] = new(
+                [RecipientSlot.Opener], "ticket_rejected",
+                NotifyOpenerEvenIfActor: false, Critical: true),
+
+            // A file added to the ticket (spec §7). Same recipients as a comment; the actor is removed, so
+            // whoever uploaded it isn't mailed their own upload.
+            [TicketEventType.AttachmentAdded] = new(
+                [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_attachment_added",
+                NotifyOpenerEvenIfActor: false, Critical: false),
+
+            // Title/body edit (checklist §7). Spec §14's default was "nobody"; the product owner chose to
+            // notify the opener + assignee so the customer sees content changes. Actor is removed.
+            [TicketEventType.Edited] = new(
+                [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_edited",
+                NotifyOpenerEvenIfActor: false, Critical: false),
         };
 
-    // PriorityChanged, CategoryChanged, Edited, Deleted, Unassigned → nobody (spec §14).
+    // PriorityChanged, CategoryChanged, Deleted, Unassigned → nobody (spec §14).
     public static MatrixEntry? For(TicketEventType type) => Default.GetValueOrDefault(type);
 }

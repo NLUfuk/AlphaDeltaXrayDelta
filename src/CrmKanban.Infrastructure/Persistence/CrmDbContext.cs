@@ -40,6 +40,7 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
     public DbSet<EmailQueue> EmailQueue => Set<EmailQueue>();
     public DbSet<UserNotificationPref> UserNotificationPrefs => Set<UserNotificationPref>();
     public DbSet<Setting> Settings => Set<Setting>();
+    public DbSet<FormField> FormFields => Set<FormField>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -192,6 +193,15 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
             e.Property(x => x.Type).HasMaxLength(30).IsRequired();
             e.Property(x => x.Group).HasMaxLength(50).IsRequired();
             e.HasQueryFilter(x => x.DeletedAt == null);
+        });
+
+        // ---- FormField (per-company configurable public-form fields, §4.6 — tenant-scoped) ----
+        b.Entity<FormField>(e =>
+        {
+            e.HasIndex(x => x.CompanyId);
+            e.Property(x => x.Label).HasMaxLength(150).IsRequired();
+            e.Property(x => x.Options).HasMaxLength(2000);
+            e.HasQueryFilter(x => x.DeletedAt == null && (IsSuperAdmin || CompanyScope.Contains(x.CompanyId)));
         });
     }
 }

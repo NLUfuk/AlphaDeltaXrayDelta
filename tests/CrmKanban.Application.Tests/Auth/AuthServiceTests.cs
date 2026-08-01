@@ -20,6 +20,15 @@ public class AuthServiceTests
         public IReadOnlyCollection<Guid> CompanyIds => [];
     }
 
+    // Configurable caller for the impersonation gate (identity + super-admin flag matter there).
+    private sealed class Caller(Guid? id, bool super) : ICurrentUserService
+    {
+        public Guid? UserId => id;
+        public bool IsAuthenticated => id is not null;
+        public bool IsSuperAdmin => super;
+        public IReadOnlyCollection<Guid> CompanyIds => [];
+    }
+
     private sealed class FakeJwt : IJwtTokenService
     {
         public IssuedToken CreateAccessToken(AccessTokenClaims claims) =>
@@ -43,7 +52,7 @@ public class AuthServiceTests
         new(new DbContextOptionsBuilder<CrmDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options, new FakeCurrentUser());
 
-    private static (AuthService Service, CrmDbContext Db, FakeClock Clock) Build(out User user)
+    private static (AuthService Service, CrmDbContext Db, FakeClock Clock) Build(out User user, ICurrentUserService? caller = null)
     {
         var db = NewDb();
         var hasher = new FakeHasher();
@@ -54,7 +63,7 @@ public class AuthServiceTests
 
         var clock = new FakeClock(new DateTime(2026, 7, 29, 12, 0, 0, DateTimeKind.Utc));
         var svc = new AuthService(db, new FakeJwt(), hasher, clock,
-            Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
+            Options.Create(new AuthOptions()), Options.Create(new AppOptions()), caller ?? new FakeCurrentUser());
         return (svc, db, clock);
     }
 
@@ -119,6 +128,42 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task Super_admin_can_impersonate_a_normal_user_and_it_is_audit_logged()
+    {
+        var superAdminId = Guid.NewGuid();
+        var (svc, db, _) = Build(out var target, new Caller(superAdminId, super: true));
+
+        var result = await svc.ImpersonateAsync(target.Id);
+
+        result.User.Id.Should().Be(target.Id, "the session is minted for the target, not the super admin");
+        result.AccessToken.Should().NotBeNullOrEmpty();
+        var audit = await db.AuditLogs.IgnoreQueryFilters().SingleAsync(a => a.Action == "auth.impersonate");
+        audit.ActorId.Should().Be(superAdminId, "the real actor is recorded for accountability");
+        audit.Detail.Should().Contain(target.Id.ToString());
+    }
+
+    [Fact]
+    public async Task A_non_super_admin_cannot_impersonate()
+    {
+        var (svc, _, _) = Build(out var target, new Caller(Guid.NewGuid(), super: false));
+        var act = () => svc.ImpersonateAsync(target.Id);
+        await act.Should().ThrowAsync<ForbiddenException>().Where(e => e.Code == "auth.impersonate_forbidden");
+    }
+
+    [Fact]
+    public async Task Impersonating_another_super_admin_is_refused()
+    {
+        var (svc, db, _) = Build(out _, new Caller(Guid.NewGuid(), super: true));
+        var targetSuper = new User("boss@x.io", "Boss", "X");
+        targetSuper.PromoteToSuperAdmin();
+        db.Users.Add(targetSuper);
+        await db.SaveChangesAsync();
+
+        var act = () => svc.ImpersonateAsync(targetSuper.Id);
+        await act.Should().ThrowAsync<ForbiddenException>().Where(e => e.Code == "auth.impersonate_superadmin");
+    }
+
+    [Fact]
     public async Task Register_new_email_creates_a_pending_account_and_queues_a_verification_email()
     {
         var (svc, db, _) = Build(out _);
@@ -145,5 +190,42 @@ public class AuthServiceTests
         (await db.Users.IgnoreQueryFilters().CountAsync(u => u.Email == "u@x.io")).Should().Be(1, "no duplicate account");
         (await db.Invitations.IgnoreQueryFilters().CountAsync()).Should().Be(0, "no token issued");
         (await db.EmailQueue.IgnoreQueryFilters().CountAsync()).Should().Be(0, "no email — nothing leaks that the account exists");
+    }
+
+    [Fact]
+    public async Task Forgot_password_for_an_active_account_queues_a_reset_link()
+    {
+        var (svc, db, _) = Build(out var user); // "u@x.io" is active with a password
+
+        await svc.ForgotPasswordAsync(new ForgotPasswordRequest("u@x.io"));
+
+        (await db.Invitations.IgnoreQueryFilters().CountAsync(i => i.UserId == user.Id)).Should().Be(1);
+        var mail = await db.EmailQueue.IgnoreQueryFilters().SingleAsync();
+        mail.TemplateKey.Should().Be("password_reset");
+        mail.ToEmail.Should().Be("u@x.io");
+        mail.Payload.Should().Contain("/invite?token=");
+    }
+
+    [Fact]
+    public async Task Forgot_password_for_unknown_email_is_a_silent_noop_no_enumeration()
+    {
+        var (svc, db, _) = Build(out _);
+
+        await svc.ForgotPasswordAsync(new ForgotPasswordRequest("nobody@x.io"));
+
+        (await db.Invitations.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await db.EmailQueue.IgnoreQueryFilters().CountAsync()).Should().Be(0, "nothing leaks that the account is absent");
+    }
+
+    [Fact]
+    public async Task Forgot_password_for_an_inactive_account_sends_nothing()
+    {
+        var (svc, db, _) = Build(out var user);
+        user.Deactivate();
+        await db.SaveChangesAsync();
+
+        await svc.ForgotPasswordAsync(new ForgotPasswordRequest("u@x.io"));
+
+        (await db.EmailQueue.IgnoreQueryFilters().CountAsync()).Should().Be(0, "inactive accounts activate via invite, not reset");
     }
 }

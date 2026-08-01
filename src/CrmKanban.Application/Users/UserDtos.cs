@@ -4,4 +4,9 @@ namespace CrmKanban.Application.Users;
 /// link, then opens their own company. No company is assigned here.</summary>
 public sealed record CreateAdminRequest(string Email, string FirstName, string LastName);
 
-public sealed record UserDto(Guid Id, string Email, string Name, bool IsSuperAdmin, bool CanCreateCompany, bool IsActive);
+public sealed record UserDto(
+    Guid Id, string Email, string Name, bool IsSuperAdmin, bool CanCreateCompany, bool IsActive,
+    IReadOnlyList<UserCompanyDto> Companies);
+
+/// <summary>A company a user belongs to (for grouping the user list), with their role in it.</summary>
+public sealed record UserCompanyDto(Guid CompanyId, string CompanyName, int Role);

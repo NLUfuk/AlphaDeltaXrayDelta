@@ -65,9 +65,7 @@ public class TicketModerationTests
         var user = new SuperAdmin();
         var db = new CrmDbContext(options, user);
         var authz = new TicketAuthorizationService(user, new Perms(), db);
-        var attachments = new AttachmentService(db, new FakeStorage(), authz, new FixedClock(),
-            Options.Create(new Application.Files.FileOptions()));
-        return new TicketQueryService(db, user, authz, attachments, Options.Create(new TicketOptions()));
+        return new TicketQueryService(db, user, authz, Options.Create(new TicketOptions()));
     }
 
     private static TicketCommandService Command(DbContextOptions<CrmDbContext> options)
@@ -83,6 +81,7 @@ public class TicketModerationTests
         public string PresignPut(string key, string contentType, TimeSpan expiry) => "put";
         public string PresignGet(string key, TimeSpan expiry) => "get";
         public Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<Stream> GetAsync(string key, CancellationToken ct = default) => Task.FromResult<Stream>(new MemoryStream());
     }
 
     [Fact]
@@ -109,6 +108,10 @@ public class TicketModerationTests
         var board = await Query(options).KanbanAsync(companyId, new TicketListQuery());
         board.SelectMany(c => c.Tickets).Select(t => t.Id).Should().Contain(pendingId);
         (await Query(options).ModerationQueueAsync(companyId)).Should().BeEmpty();
+
+        await using var db = new CrmDbContext(options, new SuperAdmin());
+        (await db.TicketEvents.IgnoreQueryFilters().CountAsync(e => e.TicketId == pendingId && e.EventType == TicketEventType.Approved))
+            .Should().Be(1, "approval is audited and drives the customer notification (#27)");
     }
 
     [Fact]
@@ -122,6 +125,10 @@ public class TicketModerationTests
         var board = await Query(options).KanbanAsync(companyId, new TicketListQuery());
         board.SelectMany(c => c.Tickets).Select(t => t.Id).Should().NotContain(pendingId);
         (await Query(options).ModerationQueueAsync(companyId)).Should().BeEmpty();
+
+        await using var db = new CrmDbContext(options, new SuperAdmin());
+        (await db.TicketEvents.IgnoreQueryFilters().CountAsync(e => e.TicketId == pendingId && e.EventType == TicketEventType.Rejected))
+            .Should().Be(1, "rejection is audited and notifies the customer politely (#27)");
     }
 
     [Fact]

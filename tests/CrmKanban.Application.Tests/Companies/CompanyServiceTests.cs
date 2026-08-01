@@ -98,4 +98,55 @@ public class CompanyServiceTests
         var act = () => Service(read, stranger).ListMembersAsync(companyId);
         await act.Should().ThrowAsync<ForbiddenException>();
     }
+
+    [Fact]
+    public async Task Admin_can_remove_a_member_but_not_the_owner()
+    {
+        var options = Store();
+        var adminId = await SeedAdminAsync(options, canCreate: true);
+        var admin = new FakeUser(false, adminId);
+
+        Guid companyId;
+        var staffId = Guid.NewGuid();
+        await using (var db = new CrmDbContext(options, admin))
+        {
+            companyId = (await Service(db, admin).CreateAsync(new CreateCompanyRequest("Acme", "acme"))).Id;
+            db.Memberships.Add(new Membership(staffId, companyId, RoleType.Personel));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = new CrmDbContext(options, admin))
+            await Service(db, admin).RemoveMemberAsync(companyId, staffId);
+
+        await using (var db = new CrmDbContext(options, admin))
+        {
+            (await db.Memberships.IgnoreQueryFilters().CountAsync(m => m.UserId == staffId && m.DeletedAt == null))
+                .Should().Be(0, "the member was removed (soft-deleted)");
+            // The owner cannot be removed.
+            var act = () => Service(db, admin).RemoveMemberAsync(companyId, adminId);
+            await act.Should().ThrowAsync<BadRequestException>();
+        }
+    }
+
+    [Fact]
+    public async Task A_stranger_cannot_remove_members()
+    {
+        var options = Store();
+        var adminId = await SeedAdminAsync(options, canCreate: true);
+        var admin = new FakeUser(false, adminId);
+
+        Guid companyId;
+        var staffId = Guid.NewGuid();
+        await using (var db = new CrmDbContext(options, admin))
+        {
+            companyId = (await Service(db, admin).CreateAsync(new CreateCompanyRequest("Acme", "acme"))).Id;
+            db.Memberships.Add(new Membership(staffId, companyId, RoleType.Personel));
+            await db.SaveChangesAsync();
+        }
+
+        var stranger = new FakeUser(false, Guid.NewGuid());
+        await using var read = new CrmDbContext(options, stranger);
+        var act = () => Service(read, stranger).RemoveMemberAsync(companyId, staffId);
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
 }

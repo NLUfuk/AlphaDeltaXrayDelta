@@ -44,7 +44,11 @@ public sealed record TicketDetail(
     Guid StatusId, string StatusName, StatusCategory Category, Priority Priority,
     Guid OpenedById, Guid? AssignedToId, Guid? CategoryId,
     DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt,
-    DateTime CreatedAt, IReadOnlyList<CommentDto> Comments, IReadOnlyList<AttachmentDto> Attachments);
+    DateTime CreatedAt, IReadOnlyList<CommentDto> Comments, IReadOnlyList<AttachmentDto> Attachments,
+    IReadOnlyList<CustomFieldValue> CustomFields);
+
+/// <summary>A value captured from a configurable public-form field (spec §4.6), denormalized as label+value.</summary>
+public sealed record CustomFieldValue(string Label, string Value);
 
 public sealed record StatusDto(Guid Id, string Name, StatusCategory Category, string Color, int Order, bool IsTerminal);
 

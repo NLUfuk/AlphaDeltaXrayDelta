@@ -13,8 +13,11 @@ export type User = {
 type AuthContext = {
   user: User | null
   loading: boolean
+  impersonating: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  impersonate: (userId: string) => Promise<void>
+  stopImpersonation: () => Promise<void>
 }
 
 const Ctx = createContext<AuthContext | null>(null)
@@ -22,6 +25,7 @@ const Ctx = createContext<AuthContext | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [impersonating, setImpersonating] = useState(tokens.isImpersonating())
 
   // Hydrate from an existing token on load (survives refresh); a failed /me clears the session.
   useEffect(() => {
@@ -43,10 +47,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const rt = tokens.refresh()
     if (rt) await api.post('/auth/logout', { refreshToken: rt }).catch(() => {})
     tokens.clear()
+    setImpersonating(false)
     setUser(null)
   }
 
-  return <Ctx.Provider value={{ user, loading, login, logout }}>{children}</Ctx.Provider>
+  // Super admin steps into another user's session (backend gates SuperAdmin-only, blocks super-admin
+  // targets, and audit-logs the real actor). The real admin session is snapshotted so they can return.
+  async function impersonate(userId: string) {
+    tokens.beginImpersonation()
+    try {
+      const { data } = await api.post('/auth/impersonate', { userId })
+      tokens.set(data.accessToken, data.refreshToken)
+      setUser(data.user)
+      setImpersonating(true)
+    } catch (e) {
+      tokens.endImpersonation() // roll back the snapshot on failure
+      throw e
+    }
+  }
+
+  async function stopImpersonation() {
+    if (!tokens.endImpersonation()) return
+    setImpersonating(false)
+    const { data } = await api.get<User>('/auth/me')
+    setUser(data)
+  }
+
+  return (
+    <Ctx.Provider value={{ user, loading, impersonating, login, logout, impersonate, stopImpersonation }}>
+      {children}
+    </Ctx.Provider>
+  )
 }
 
 export function useAuth() {

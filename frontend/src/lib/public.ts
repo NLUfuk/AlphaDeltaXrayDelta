@@ -17,6 +17,13 @@ export function useRegister() {
   })
 }
 
+// Self-service password reset (spec §1.12). Uniform response — always show "check your email".
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (v: { email: string }) => api.post('/auth/forgot-password', v),
+  })
+}
+
 // A logged-in customer opens a request to a company they picked.
 export function useCreateCustomerTicket() {
   const qc = useQueryClient()

@@ -6,6 +6,7 @@
     <Project Path="src/CrmKanban.Infrastructure/CrmKanban.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/CrmKanban.Api.Tests/CrmKanban.Api.Tests.csproj" />
     <Project Path="tests/CrmKanban.Application.Tests/CrmKanban.Application.Tests.csproj" />
     <Project Path="tests/CrmKanban.Domain.Tests/CrmKanban.Domain.Tests.csproj" />
   </Folder>

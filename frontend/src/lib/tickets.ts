@@ -50,8 +50,13 @@ export type TicketDetail = {
   categoryId: string | null
   createdAt: string
   comments: Comment[]
-  attachments: { id: string; fileName: string }[]
+  attachments: Attachment[]
+  customFields: CustomFieldValue[]
 }
+
+export type CustomFieldValue = { label: string; value: string }
+
+export type Attachment = { id: string; fileName: string; contentType: string; size: number; url: string }
 
 export type Paged<T> = { items: T[]; total: number; page: number; pageSize: number }
 
@@ -63,11 +68,19 @@ export function useMyTickets() {
   })
 }
 
-export function useKanban(companyId: string | undefined) {
+// Board filters map straight onto the backend TicketListQuery (search/assignee/priority). Empty fields
+// are dropped so the query key stays stable when nothing is set.
+export type KanbanFilters = { search?: string; assignedToId?: string; priority?: number }
+
+export function useKanban(companyId: string | undefined, filters: KanbanFilters = {}) {
+  const params: Record<string, string | number> = {}
+  if (filters.search?.trim()) params.search = filters.search.trim()
+  if (filters.assignedToId) params.assignedToId = filters.assignedToId
+  if (filters.priority !== undefined) params.priority = filters.priority
   return useQuery({
-    queryKey: ['kanban', companyId],
+    queryKey: ['kanban', companyId, params],
     enabled: !!companyId,
-    queryFn: async () => (await api.get<KanbanColumn[]>(`/tickets/kanban/${companyId}`)).data,
+    queryFn: async () => (await api.get<KanbanColumn[]>(`/tickets/kanban/${companyId}`, { params })).data,
   })
 }
 
@@ -181,6 +194,31 @@ export function useAssignTicket(ticketId: string, companyId: string | undefined)
 export function useSetTicketPriority(ticketId: string, companyId: string | undefined) {
   return useTicketMutation<number>(ticketId, companyId, (priority) =>
     api.post(`/tickets/${ticketId}/priority`, { priority }))
+}
+
+// Uploads a file through the API (bytes proxy through the backend to private storage). FormData lets
+// axios set the multipart boundary itself — don't force a Content-Type here.
+export function useUploadAttachment(ticketId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api.post(`/tickets/${ticketId}/attachments`, form)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ticket', ticketId] }),
+  })
+}
+
+/** Downloads an attachment through the authed client (a plain <a> can't send the Bearer header). */
+export async function downloadAttachment(id: string, fileName: string) {
+  const res = await api.get(`/tickets/attachments/${id}/download`, { responseType: 'blob' })
+  const url = URL.createObjectURL(res.data as Blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export function useAddComment(ticketId: string) {

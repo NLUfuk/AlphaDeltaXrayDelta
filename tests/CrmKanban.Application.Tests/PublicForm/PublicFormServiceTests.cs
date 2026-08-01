@@ -46,6 +46,7 @@ public class PublicFormServiceTests
         public string PresignPut(string key, string contentType, TimeSpan expiry) => "https://storage.test/put";
         public string PresignGet(string key, TimeSpan expiry) => "https://storage.test/get";
         public Task PutAsync(string key, Stream content, string contentType, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<Stream> GetAsync(string key, CancellationToken ct = default) => Task.FromResult<Stream>(new MemoryStream());
     }
 
     private sealed class FakePermissionService : IPermissionService
@@ -88,7 +89,8 @@ public class PublicFormServiceTests
         var attachments = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(),
             Options.Create(new Application.Files.FileOptions()));
         var settings = new Application.Settings.SettingsService(db, new Anonymous());
-        return new PublicFormService(db, new FakeCaptcha(captchaOk), attachments, new FixedClock(),
+        var formFields = new Application.Forms.FormFieldService(db, new Anonymous());
+        return new PublicFormService(db, new FakeCaptcha(captchaOk), attachments, formFields, new FixedClock(),
             settings, Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
     }
 
@@ -119,6 +121,44 @@ public class PublicFormServiceTests
         mail.TemplateKey.Should().Be("account_invite");
         mail.ToEmail.Should().Be("jane@example.com");
         mail.Payload.Should().Contain("/invite?token=");
+    }
+
+    [Fact]
+    public async Task Submit_stores_custom_field_values_on_the_ticket()
+    {
+        var options = Store();
+        var companyId = await SeedCompanyAsync(options);
+        Guid fieldId;
+        await using (var seed = new CrmDbContext(options, new SuperAdmin()))
+        {
+            var field = new FormField(companyId, "Telefon", FormFieldType.Text, required: true, sortOrder: 0);
+            seed.FormFields.Add(field);
+            await seed.SaveChangesAsync();
+            fieldId = field.Id;
+        }
+
+        var request = Request() with { CustomFields = new Dictionary<string, string> { [fieldId.ToString()] = "555-1234" } };
+        await ServiceFor(options).SubmitAsync(Slug, request);
+
+        await using var read = new CrmDbContext(options, new SuperAdmin());
+        var ticket = await read.Tickets.SingleAsync();
+        ticket.CustomFieldsJson.Should().NotBeNull();
+        ticket.CustomFieldsJson.Should().Contain("Telefon").And.Contain("555-1234");
+    }
+
+    [Fact]
+    public async Task Submit_rejects_a_missing_required_custom_field()
+    {
+        var options = Store();
+        var companyId = await SeedCompanyAsync(options);
+        await using (var seed = new CrmDbContext(options, new SuperAdmin()))
+        {
+            seed.FormFields.Add(new FormField(companyId, "Telefon", FormFieldType.Text, required: true, sortOrder: 0));
+            await seed.SaveChangesAsync();
+        }
+
+        var act = () => ServiceFor(options).SubmitAsync(Slug, Request()); // no CustomFields
+        await act.Should().ThrowAsync<BadRequestException>().Where(e => e.Code == "formfield.required");
     }
 
     [Fact]

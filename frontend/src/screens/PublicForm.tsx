@@ -5,7 +5,8 @@ import { api, toApiError } from '../lib/api'
 import { errorMessage } from '../lib/messages'
 import { Alert, Button, Field, Icon, Input } from '../ui/primitives'
 
-type FormConfig = { companyName: string; kvkkText: string; brandName: string; primaryColor: string; logoUrl: string | null }
+type PublicField = { id: string; label: string; type: number; required: boolean; options: string[] }
+type FormConfig = { companyName: string; kvkkText: string; brandName: string; primaryColor: string; logoUrl: string | null; fields: PublicField[] }
 type Descriptor = { key: string; fileName: string; contentType: string; size: number }
 
 const ACCEPT = '.pdf,.txt,.doc,.docx'
@@ -21,6 +22,7 @@ export default function PublicForm() {
   })
 
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', title: '', body: '' })
+  const [customFields, setCustomFields] = useState<Record<string, string>>({})
   const [consent, setConsent] = useState(false)
   const [files, setFiles] = useState<Descriptor[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -59,7 +61,7 @@ export default function PublicForm() {
     setError(null)
     setBusy(true)
     try {
-      const { data } = await api.post(`/public/form/${slug}`, { ...form, kvkkConsent: consent, attachments: files })
+      const { data } = await api.post(`/public/form/${slug}`, { ...form, kvkkConsent: consent, attachments: files, customFields })
       setResult({ ticketNumber: data.ticketNumber, newAccount: !!data.newAccount })
     } catch (err) {
       const { code, message } = toApiError(err)
@@ -96,6 +98,31 @@ export default function PublicForm() {
           <Field label="E-posta"><Input type="email" value={form.email} onChange={set('email')} required /></Field>
           <Field label="Konu"><Input value={form.title} onChange={set('title')} required /></Field>
           <Field label="Açıklama"><Input value={form.body} onChange={set('body')} required /></Field>
+
+          {cfg?.fields?.map((f) => {
+            const val = customFields[f.id] ?? ''
+            const onChange = (v: string) => setCustomFields((prev) => ({ ...prev, [f.id]: v }))
+            return (
+              <Field key={f.id} label={f.label + (f.required ? ' *' : '')}>
+                {f.type === 3 ? (
+                  <select
+                    className="w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink"
+                    value={val} onChange={(e) => onChange(e.target.value)} required={f.required}
+                  >
+                    <option value="">Seçiniz…</option>
+                    {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : f.type === 1 ? (
+                  <textarea
+                    className="w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink"
+                    value={val} onChange={(e) => onChange(e.target.value)} required={f.required}
+                  />
+                ) : (
+                  <Input type={f.type === 2 ? 'number' : 'text'} value={val} onChange={(e) => onChange(e.target.value)} required={f.required} />
+                )}
+              </Field>
+            )
+          })}
 
           <div>
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-line px-3 py-2 text-sm text-muted hover:border-primary">

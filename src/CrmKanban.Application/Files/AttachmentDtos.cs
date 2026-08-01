@@ -9,5 +9,8 @@ public sealed record UploadUrlResult(string Key, string Url, DateTime ExpiresAt)
 /// <summary>A previously-uploaded object the caller now links to a ticket/comment. Re-validated on link.</summary>
 public sealed record AttachmentDescriptor(string Key, string FileName, string ContentType, long Size);
 
-/// <summary>An attachment as shown to a caller — Url is a short-lived presigned GET (spec §12).</summary>
+/// <summary>An attachment as shown to a caller — Url is the API's proxy download path (spec §12).</summary>
 public sealed record AttachmentDto(Guid Id, string FileName, string ContentType, long Size, string Url);
+
+/// <summary>A file streamed back through the API for download. The caller owns and disposes Content.</summary>
+public sealed record AttachmentContent(Stream Content, string ContentType, string FileName);

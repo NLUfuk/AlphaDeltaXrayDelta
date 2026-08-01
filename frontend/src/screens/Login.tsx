@@ -43,6 +43,9 @@ export default function Login() {
           {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
         </Button>
         <p className="text-center text-sm text-slate-500">
+          <Link to="/forgot-password" className="font-medium text-primary hover:underline">Parolamı unuttum</Link>
+        </p>
+        <p className="text-center text-sm text-slate-500">
           Hesabın yok mu? <Link to="/register" className="font-medium text-primary hover:underline">Kayıt ol</Link>
         </p>
       </form>

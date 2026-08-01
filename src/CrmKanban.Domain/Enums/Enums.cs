@@ -15,6 +15,15 @@ public enum StatusCategory
     Cancelled = 5,
 }
 
+/// <summary>Input type of a configurable public-form field (spec §4.6). Select carries options.</summary>
+public enum FormFieldType
+{
+    Text = 0,
+    TextArea = 1,
+    Number = 2,
+    Select = 3,
+}
+
 /// <summary>
 /// Moderation state of a ticket. Default Approved: staff-created tickets and known-customer
 /// submissions go straight into the pool. A first-time (unknown) public submission lands Pending
@@ -86,4 +95,7 @@ public enum TicketEventType
     Reopened = 8,
     Edited = 9,
     Deleted = 10,
+    Approved = 11,
+    Rejected = 12,
+    AttachmentAdded = 13,
 }

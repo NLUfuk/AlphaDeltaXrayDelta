@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 
-export type UserRow = { id: string; email: string; name: string; isSuperAdmin: boolean; canCreateCompany: boolean; isActive: boolean }
+export type UserCompany = { companyId: string; companyName: string; role: number }
+export type UserRow = { id: string; email: string; name: string; isSuperAdmin: boolean; canCreateCompany: boolean; isActive: boolean; companies: UserCompany[] }
 export type Company = { id: string; name: string; slug: string; ownerAdminId: string; isActive: boolean; isArchived: boolean; ticketNumberPrefix: string }
 export type Member = { userId: string; email: string; name: string; role: number }
 export type PermissionInfo = { key: string; group: string }
@@ -38,6 +39,14 @@ export function useMembers(companyId: string | undefined) {
     queryKey: ['members', companyId],
     enabled: !!companyId,
     queryFn: async () => (await api.get<Member[]>(`/companies/${companyId}/members`)).data,
+  })
+}
+export function useRemoveMember() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { companyId: string; userId: string }) =>
+      api.delete(`/companies/${v.companyId}/members/${v.userId}`),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['members', v.companyId] }),
   })
 }
 export function useInvite() {

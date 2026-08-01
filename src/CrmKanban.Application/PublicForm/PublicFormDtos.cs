@@ -1,10 +1,12 @@
 using CrmKanban.Application.Files;
+using CrmKanban.Application.Forms;
 
 namespace CrmKanban.Application.PublicForm;
 
 /// <summary>
 /// An anonymous public-form submission (spec §10). CaptchaToken feeds the bot gate; KvkkConsent must
 /// be true (spec §16). Attachments are objects already uploaded via a presigned PUT (spec §12).
+/// CustomFields carries the company's configurable extra fields (spec §4.6), keyed by field id.
 /// </summary>
 public sealed record PublicFormSubmitRequest(
     string FirstName,
@@ -14,7 +16,8 @@ public sealed record PublicFormSubmitRequest(
     string Body,
     bool KvkkConsent,
     string? CaptchaToken = null,
-    IReadOnlyList<AttachmentDescriptor>? Attachments = null);
+    IReadOnlyList<AttachmentDescriptor>? Attachments = null,
+    IReadOnlyDictionary<string, string>? CustomFields = null);
 
 /// <summary>Result of a submission. <see cref="NewAccount"/> is true when this was a first-time
 /// customer: the activation link was emailed to them (the raw token never leaves the server via the
@@ -31,4 +34,5 @@ public sealed record PublicFormConfig(
     string KvkkText,
     string BrandName,
     string PrimaryColor,
-    string? LogoUrl);
+    string? LogoUrl,
+    IReadOnlyList<PublicFormFieldDto> Fields);

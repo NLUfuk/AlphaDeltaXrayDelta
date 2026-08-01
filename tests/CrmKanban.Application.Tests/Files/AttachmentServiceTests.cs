@@ -44,6 +44,8 @@ public class AttachmentServiceTests
             await content.CopyToAsync(ms, ct);
             Stored[key] = ms.ToArray();
         }
+        public Task<Stream> GetAsync(string key, CancellationToken ct = default) =>
+            Task.FromResult<Stream>(new MemoryStream(Stored.TryGetValue(key, out var b) ? b : []));
     }
 
     private sealed class FixedClock : IClock
@@ -163,9 +165,60 @@ public class AttachmentServiceTests
 
             // Customer (opener, no company scope) is denied.
             var customerSvc = ServiceFor(new CrmDbContext(options, new FakeUser(customerId, false)), new FakeUser(customerId, false));
-            var act = () => customerSvc.GetDownloadUrlAsync(attachmentId);
+            var act = () => customerSvc.OpenAttachmentAsync(attachmentId);
             await act.Should().ThrowAsync<ForbiddenException>().Where(e => e.Code == "attachment.internal_forbidden");
         }
+    }
+
+    [Fact]
+    public async Task Ticket_upload_measures_real_size_and_links_the_row()
+    {
+        var companyId = Guid.NewGuid();
+        var openerId = Guid.NewGuid();
+
+        await using var seed = NewDbShared(out var options, new FakeUser(Guid.NewGuid(), true));
+        var ticket = new Ticket(companyId, "ACME-1", openerId, Guid.NewGuid(), "t", "b");
+        seed.Tickets.Add(ticket);
+        await seed.SaveChangesAsync();
+
+        // The customer who opened the ticket attaches a file (authorized as the opener).
+        var storage = new FakeFileStorage();
+        var db = new CrmDbContext(options, new FakeUser(openerId, false));
+        var authz = new TicketAuthorizationService(new FakeUser(openerId, false), new FakePermissionService(), db);
+        var svc = new AttachmentService(db, storage, authz, new FixedClock(), Options.Create(Opt));
+
+        var pdf = "%PDF-1.7 body"u8.ToArray();
+        var dto = await svc.StoreTicketUploadAsync(ticket.Id, "teklif.pdf", "application/pdf", new MemoryStream(pdf));
+
+        dto.Size.Should().Be(pdf.Length, "size is measured server-side, not trusted from the client");
+        dto.Url.Should().Be($"/api/tickets/attachments/{dto.Id}/download", "downloads proxy through the API, same-origin");
+        storage.Stored.Values.Should().ContainSingle().Which.Should().Equal(pdf);
+        // Count ignoring the tenant filter: the customer actor has no company scope of their own.
+        (await db.Attachments.IgnoreQueryFilters().CountAsync(a => a.TicketId == ticket.Id && a.CommentId == null)).Should().Be(1);
+        // A file-added event is recorded so the opener/assignee get notified (spec §7).
+        (await db.TicketEvents.IgnoreQueryFilters().CountAsync(e => e.TicketId == ticket.Id && e.EventType == TicketEventType.AttachmentAdded))
+            .Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Ticket_upload_falls_back_to_the_extension_when_the_browser_sends_no_mime()
+    {
+        var companyId = Guid.NewGuid();
+        var openerId = Guid.NewGuid();
+
+        await using var seed = NewDbShared(out var options, new FakeUser(Guid.NewGuid(), true));
+        var ticket = new Ticket(companyId, "ACME-1", openerId, Guid.NewGuid(), "t", "b");
+        seed.Tickets.Add(ticket);
+        await seed.SaveChangesAsync();
+
+        var db = new CrmDbContext(options, new FakeUser(openerId, false));
+        var authz = new TicketAuthorizationService(new FakeUser(openerId, false), new FakePermissionService(), db);
+        var svc = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(), Options.Create(Opt));
+
+        // Empty content-type (as some browsers report) must not sink a valid .pdf.
+        var dto = await svc.StoreTicketUploadAsync(ticket.Id, "teklif.pdf", "", new MemoryStream("%PDF-1.7"u8.ToArray()));
+
+        dto.ContentType.Should().Be("application/pdf");
     }
 
     // Shared in-memory root so a second context sees seeded rows.

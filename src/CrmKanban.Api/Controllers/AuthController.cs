@@ -27,6 +27,17 @@ public sealed class AuthController(AuthService auth, ICurrentUserService current
         return NoContent();
     }
 
+    /// <summary>Self-service password reset (spec §1.12). Rate-limited; always 204 (no enumeration).
+    /// The reset link is emailed and reuses the /invite set-password page.</summary>
+    [AllowAnonymous]
+    [EnableRateLimiting("public-form")]
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken ct)
+    {
+        await auth.ForgotPasswordAsync(request, ct);
+        return NoContent();
+    }
+
     [AllowAnonymous]
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthResult>> Refresh(RefreshRequest request, CancellationToken ct) =>
@@ -44,6 +55,13 @@ public sealed class AuthController(AuthService auth, ICurrentUserService current
     [HttpGet("me")]
     public async Task<ActionResult<UserInfo>> Me(CancellationToken ct) =>
         Ok(await auth.GetMeAsync(RequireUserId(), ct));
+
+    /// <summary>Super-admin impersonation: returns a session for another user. Gated inside the service
+    /// (SuperAdmin-only, no super-admin targets) and audit-logged.</summary>
+    [Authorize]
+    [HttpPost("impersonate")]
+    public async Task<ActionResult<AuthResult>> Impersonate(ImpersonateRequest request, CancellationToken ct) =>
+        Ok(await auth.ImpersonateAsync(request.UserId, ct));
 
     [Authorize]
     [HttpPost("change-password")]

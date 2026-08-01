@@ -1,24 +1,27 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { statusCategory } from '../lib/messages'
-import { useChangeStatus, useKanban, useModeration } from '../lib/tickets'
-import { Icon } from '../ui/primitives'
+import { useMembers } from '../lib/admin'
+import { PRIORITIES, statusCategory } from '../lib/messages'
+import { useChangeStatus, useKanban, useModeration, type KanbanFilters } from '../lib/tickets'
+import { Icon, Input } from '../ui/primitives'
 import { TicketCard } from '../ui/TicketCard'
 
 // Kanban board (spec §17.8). Card drag = status change → same server rules (§12). Native HTML5 DnD, no
 // library. On mobile the columns stack vertically (Tailwind `max-md`), the required list fallback.
+// Filters (search / assignee / priority) map onto the backend TicketListQuery the endpoint already binds.
 export default function Kanban() {
   const { user } = useAuth()
   const companyId = user?.companies[0]?.companyId
-  const { data: columns, isLoading, error } = useKanban(companyId)
+  const [filters, setFilters] = useState<KanbanFilters>({})
+  const { data: columns, isLoading, error } = useKanban(companyId, filters)
+  const { data: members } = useMembers(companyId)
   const { data: pending } = useModeration(companyId)
   const changeStatus = useChangeStatus(companyId)
   const [drag, setDrag] = useState<{ id: string; fromStatusId: string } | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
 
   if (!companyId) return <p className="text-muted">Bu kullanıcı bir şirkete bağlı değil (kanban için şirket gerekli).</p>
-  if (isLoading) return <p className="text-muted">Yükleniyor…</p>
   if (error) return <p className="text-red-600">Pano yüklenemedi.</p>
 
   function clearDrag() {
@@ -48,6 +51,37 @@ export default function Kanban() {
           </Link>
         </div>
       </header>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="w-56">
+          <Input
+            placeholder="Ara (no / başlık)…"
+            value={filters.search ?? ''}
+            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+          />
+        </div>
+        <select
+          className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-ink"
+          value={filters.assignedToId ?? ''}
+          onChange={(e) => setFilters((f) => ({ ...f, assignedToId: e.target.value || undefined }))}
+        >
+          <option value="">Atanan: herkes</option>
+          {members?.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
+        </select>
+        <select
+          className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-ink"
+          value={filters.priority ?? ''}
+          onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value === '' ? undefined : Number(e.target.value) }))}
+        >
+          <option value="">Öncelik: tümü</option>
+          {PRIORITIES.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
+        </select>
+        {(filters.search || filters.assignedToId || filters.priority !== undefined) && (
+          <button onClick={() => setFilters({})} className="text-sm text-muted hover:text-ink">Temizle</button>
+        )}
+      </div>
+
+      {isLoading && <p className="text-muted">Yükleniyor…</p>}
 
       <div className="flex gap-4 overflow-x-auto pb-2 max-md:flex-col">
         {columns?.map((col) => {

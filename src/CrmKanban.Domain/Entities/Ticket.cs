@@ -47,6 +47,13 @@ public sealed class Ticket : Entity
     public DateTime? ResolvedAt { get; private set; }
     public DateTime? ClosedAt { get; private set; }
 
+    /// <summary>Values captured from the company's configurable form fields (spec §4.6), stored as a
+    /// denormalized JSON array of {label, value} so it stays readable even if a field is later renamed or
+    /// removed. Null when the form had no extra fields.</summary>
+    public string? CustomFieldsJson { get; private set; }
+
+    public void SetCustomFields(string? json) => CustomFieldsJson = json;
+
     /// <summary>Moderation state (spec §10 zero-trust intake). Defaults to Approved so existing rows,
     /// staff-created tickets, and known-customer submissions need no gate.</summary>
     public TicketApprovalState ApprovalState { get; private set; } = TicketApprovalState.Approved;

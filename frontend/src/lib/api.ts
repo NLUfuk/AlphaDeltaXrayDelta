@@ -4,6 +4,9 @@ import axios, { AxiosError } from 'axios'
 // ponytail: localStorage is XSS-readable; fine for v1, move to httpOnly cookie if the threat model tightens.
 const ACCESS = 'crm.access'
 const REFRESH = 'crm.refresh'
+// While a super admin is impersonating, the real admin session is snapshotted here so they can return.
+const ORIG_ACCESS = 'crm.orig.access'
+const ORIG_REFRESH = 'crm.orig.refresh'
 
 export const tokens = {
   access: () => localStorage.getItem(ACCESS),
@@ -15,13 +18,34 @@ export const tokens = {
   clear: () => {
     localStorage.removeItem(ACCESS)
     localStorage.removeItem(REFRESH)
+    localStorage.removeItem(ORIG_ACCESS)
+    localStorage.removeItem(ORIG_REFRESH)
+  },
+
+  isImpersonating: () => !!localStorage.getItem(ORIG_ACCESS),
+  // Snapshot the current (real admin) session once — a nested impersonate must not clobber the snapshot.
+  beginImpersonation: () => {
+    if (localStorage.getItem(ORIG_ACCESS)) return
+    localStorage.setItem(ORIG_ACCESS, localStorage.getItem(ACCESS) ?? '')
+    localStorage.setItem(ORIG_REFRESH, localStorage.getItem(REFRESH) ?? '')
+  },
+  // Restore the snapshotted admin session; returns false if there was none.
+  endImpersonation: () => {
+    const a = localStorage.getItem(ORIG_ACCESS)
+    const r = localStorage.getItem(ORIG_REFRESH)
+    localStorage.removeItem(ORIG_ACCESS)
+    localStorage.removeItem(ORIG_REFRESH)
+    if (!a || !r) return false
+    localStorage.setItem(ACCESS, a)
+    localStorage.setItem(REFRESH, r)
+    return true
   },
 }
 
-export const api = axios.create({
-  baseURL: '/api',
-  headers: { 'Content-Type': 'application/json' },
-})
+// No global Content-Type: axios sets application/json for object bodies on its own, and — crucially —
+// sets multipart/form-data with the right boundary for FormData uploads. A hardcoded json default here
+// would override the multipart type and break file uploads (415).
+export const api = axios.create({ baseURL: '/api' })
 
 api.interceptors.request.use((config) => {
   const t = tokens.access()
