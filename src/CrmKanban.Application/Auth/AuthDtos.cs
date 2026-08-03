@@ -16,6 +16,10 @@ public sealed record ImpersonateRequest(Guid UserId);
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
+/// <summary>Self-service account deletion (KVKK §16). Password re-confirmation gates the destructive
+/// action; deletion is anonymization (mask + deactivate), not a hard delete, so ticket history stays.</summary>
+public sealed record DeleteAccountRequest(string Password);
+
 /// <summary>Self-service password reset request (spec §1.12). Only the email is collected; a one-time
 /// reset link is emailed. Reuses the invite/accept flow — the link sets a new password.</summary>
 public sealed record ForgotPasswordRequest(string Email);

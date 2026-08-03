@@ -4,77 +4,111 @@ namespace CrmKanban.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// v1 default email templates (spec §14). Keys match the notification matrix; bodies use
-/// {{placeholder}} tokens filled from the queued message payload (ticketNumber, title, newValue…).
-/// Super-admin editable in Faz 6; seeded idempotently by stable Id.
+/// {{placeholder}} tokens filled from the queued message payload. Available tokens:
+///  - ticket events: ticketNumber, title, newValue, oldValue, link (deep link to the ticket)
+///  - account emails: name, companyName, link (one-time activation/reset link)
+/// Only these render — any other {{token}} is left literal, so never introduce one that isn't in the
+/// payload. Super-admin editable (Faz 15 /admin/templates); seeded insert-if-missing by Key, so edits
+/// are never overwritten on restart.
 /// </summary>
 public static class DefaultEmailTemplates
 {
     public static IReadOnlyList<EmailTemplate> All { get; } =
     [
         T("11111111-0000-0000-0000-000000000001", "ticket_created",
-            "Talebiniz alındı: {{ticketNumber}}",
-            "<p>Merhaba,</p><p><b>{{title}}</b> başlıklı talebiniz <b>{{ticketNumber}}</b> numarasıyla oluşturuldu.</p>"),
+            "Talebiniz alındı — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p><b>{{title}}</b> başlıklı talebinizi aldık; kaydınız <b>{{ticketNumber}}</b> numarasıyla oluşturuldu. Ekibimiz en kısa sürede ilgilenecek.</p>",
+                "Talebi görüntüle")),
 
         T("11111111-0000-0000-0000-000000000002", "ticket_status_changed",
-            "{{ticketNumber}} durumu güncellendi",
-            "<p><b>{{ticketNumber}}</b> ({{title}}) durumu <b>{{newValue}}</b> olarak güncellendi.</p>"),
+            "Talebinizin durumu güncellendi — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebinizin durumu <b>{{newValue}}</b> olarak güncellendi.</p>",
+                "Talebi görüntüle")),
 
         T("11111111-0000-0000-0000-000000000003", "ticket_reopened",
-            "{{ticketNumber}} yeniden açıldı",
-            "<p><b>{{ticketNumber}}</b> ({{title}}) yeniden açıldı: <b>{{newValue}}</b>.</p>"),
+            "Talebiniz yeniden açıldı — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebiniz yeniden açıldı ve tekrar işleme alındı.</p>",
+                "Talebi görüntüle")),
 
         T("11111111-0000-0000-0000-000000000004", "ticket_comment_added",
-            "{{ticketNumber}} için yeni yorum",
-            "<p><b>{{ticketNumber}}</b> ({{title}}) talebine yeni bir yorum eklendi.</p>"),
+            "Talebinize yeni bir yanıt var — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebinize yeni bir yanıt yazıldı.</p>",
+                "Yanıtı görüntüle")),
 
         T("11111111-0000-0000-0000-000000000005", "ticket_internal_note_added",
-            "{{ticketNumber}} için iç not",
-            "<p><b>{{ticketNumber}}</b> ({{title}}) talebine bir iç not eklendi.</p>"),
+            "İç not eklendi — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebine bir <b>iç not</b> eklendi. (Bu not yalnızca ekip tarafından görülür.)</p>",
+                "Talebi görüntüle")),
 
         T("11111111-0000-0000-0000-000000000006", "ticket_assigned",
-            "{{ticketNumber}} size atandı",
-            "<p><b>{{ticketNumber}}</b> ({{title}}) talebi size atandı.</p>"),
+            "Bir talep size atandı — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebi size atandı. İlgilenmeniz bekleniyor.</p>",
+                "Talebi görüntüle")),
 
-        // Account activation for a first-time customer who submitted the public form (spec §9). Clicking
-        // the link proves they own the address (email verification) and lets them set a password.
-        T("11111111-0000-0000-0000-000000000007", "account_invite",
-            "{{companyName}} — hesabınızı etkinleştirin",
-            "<p>Merhaba {{name}},</p><p><b>{{companyName}}</b> için talebiniz alındı. Taleplerinizi takip edip yanıt yazabilmeniz için hesabınızı etkinleştirin ve bir parola belirleyin:</p><p><a href=\"{{link}}\">Hesabımı etkinleştir</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
-
-        // Self-service registration: verify the address + set a password via the one-time link (spec §18.5).
-        T("11111111-0000-0000-0000-000000000009", "account_verify",
-            "Hesabınızı etkinleştirin",
-            "<p>Merhaba {{name}},</p><p>Kaydınızı tamamlamak, e-posta adresinizi doğrulamak ve bir parola belirlemek için:</p><p><a href=\"{{link}}\">Hesabımı etkinleştir</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
-
-        // Moderation outcomes for a public submission (spec §10). Approved = accepted into the pool;
-        // Rejected = politely declined.
         T("11111111-0000-0000-0000-000000000011", "ticket_approved",
-            "Talebiniz işleme alındı: {{ticketNumber}}",
-            "<p>Merhaba,</p><p><b>{{ticketNumber}}</b> numaralı talebiniz onaylandı ve işleme alındı. En kısa sürede sizinle ilgileneceğiz.</p>"),
+            "Talebiniz işleme alındı — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebiniz onaylandı ve işleme alındı. En kısa sürede sizinle ilgileneceğiz.</p>",
+                "Talebi görüntüle")),
 
         T("11111111-0000-0000-0000-000000000012", "ticket_rejected",
-            "Talebiniz hakkında: {{ticketNumber}}",
-            "<p>Merhaba,</p><p>Maalesef <b>{{ticketNumber}}</b> numaralı talebiniz işleme alınamadı. Sorularınız için bizimle iletişime geçebilirsiniz.</p>"),
+            "Talebiniz hakkında — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p>Maalesef <b>{{ticketNumber}}</b> — <b>{{title}}</b> talebinizi bu aşamada işleme alamadık. Sorularınız için bize ulaşabilir veya yeni bir talep oluşturabilirsiniz.</p>",
+                "Talebi görüntüle")),
 
         T("11111111-0000-0000-0000-000000000013", "ticket_attachment_added",
-            "{{ticketNumber}} için yeni dosya",
-            "<p><b>{{ticketNumber}}</b> ({{title}}) talebine yeni bir dosya eklendi.</p>"),
+            "Talebinize yeni bir dosya eklendi — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebine yeni bir dosya eklendi.</p>",
+                "Dosyayı görüntüle")),
 
         T("11111111-0000-0000-0000-000000000014", "ticket_edited",
-            "{{ticketNumber}} güncellendi",
-            "<p><b>{{ticketNumber}}</b> ({{title}}) talebinin başlığı/içeriği güncellendi.</p>"),
+            "Talebiniz güncellendi — {{ticketNumber}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebinin başlığı veya içeriği güncellendi.</p>",
+                "Talebi görüntüle")),
 
-        // Self-service password reset — one-time link that sets a new password (spec §1.12). Uses the same
-        // /invite set-password page; accepting it also revokes any existing sessions.
+        // --- Account lifecycle (one-time link) ---
+
+        // First-time customer who submitted the public form (spec §9): clicking the link verifies the
+        // address and lets them set a password.
+        T("11111111-0000-0000-0000-000000000007", "account_invite",
+            "{{companyName}} — hesabınızı etkinleştirin",
+            Account("<p>Merhaba {{name}},</p><p><b>{{companyName}}</b> firmasına gönderdiğiniz talep alındı. Taleplerinizi takip edip yanıtlayabilmeniz için hesabınızı etkinleştirin ve bir parola belirleyin.</p>",
+                "Hesabımı etkinleştir")),
+
+        // Self-service registration (spec §18.5).
+        T("11111111-0000-0000-0000-000000000009", "account_verify",
+            "Hesabınızı etkinleştirin",
+            Account("<p>Merhaba {{name}},</p><p>Kaydınızı tamamlamak için e-posta adresinizi doğrulayın ve bir parola belirleyin.</p>",
+                "Hesabımı etkinleştir")),
+
+        // Password reset (spec §1.12) — same set-password page; accepting also revokes existing sessions.
         T("11111111-0000-0000-0000-000000000010", "password_reset",
             "Parolanızı sıfırlayın",
-            "<p>Merhaba {{name}},</p><p>Parolanızı sıfırlamak için aşağıdaki bağlantıyı kullanın. Bu isteği siz yapmadıysanız bu e-postayı yok sayın.</p><p><a href=\"{{link}}\">Parolamı sıfırla</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
+            Account("<p>Merhaba {{name}},</p><p>Parolanızı sıfırlamak için aşağıdaki butonu kullanın. Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz; parolanız değişmez.</p>",
+                "Parolamı sıfırla")),
 
-        // Staff invitation — same one-time link, activates the account and sets a password (spec §9).
+        // Staff invitation (spec §9).
         T("11111111-0000-0000-0000-000000000008", "staff_invite",
             "{{companyName}} ekibine davet edildiniz",
-            "<p>Merhaba {{name}},</p><p><b>{{companyName}}</b> ekibine davet edildiniz. Parolanızı belirleyip hesabınızı etkinleştirmek için:</p><p><a href=\"{{link}}\">Daveti kabul et</a></p><p style=\"color:#64748b;font-size:12px\">Bağlantı çalışmazsa tarayıcınıza yapıştırın: {{link}}</p>"),
+            Account("<p>Merhaba {{name}},</p><p><b>{{companyName}}</b> ekibine davet edildiniz. Hesabınızı etkinleştirip parolanızı belirlemek için aşağıdaki butonu kullanın.</p>",
+                "Daveti kabul et")),
     ];
+
+    private const string Footer =
+        "<p style=\"margin-top:24px;color:#94a3b8;font-size:12px\">Bu otomatik bir bildirimdir; lütfen bu e-postayı yanıtlamayın.</p>";
+
+    private static string Btn(string text) =>
+        $"<p style=\"margin:20px 0\"><a href=\"{{{{link}}}}\" style=\"display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600\">{text}</a></p>";
+
+    /// <summary>Ticket/notification body: content + a "view" button (deep link) + footer.</summary>
+    private static string Compose(string inner, string buttonText) =>
+        inner + Btn(buttonText) + Footer;
+
+    /// <summary>Account-action body: content + action button + a plain-text fallback link (these are the
+    /// critical one-time links, so give a copy-paste fallback for clients that strip the button).</summary>
+    private static string Account(string inner, string buttonText) =>
+        inner + Btn(buttonText) +
+        "<p style=\"color:#94a3b8;font-size:12px\">Buton çalışmazsa bu bağlantıyı tarayıcınıza yapıştırın:<br>{{link}}</p>" +
+        Footer;
 
     private static EmailTemplate T(string id, string key, string subject, string body) =>
         new(key, subject, body, isActive: true, id: Guid.Parse(id));

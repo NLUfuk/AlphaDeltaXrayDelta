@@ -18,6 +18,7 @@ public sealed class NotificationWorker(
     IEmailSender sender,
     IClock clock,
     IOptions<NotificationOptions> notifOptions,
+    IOptions<CrmKanban.Application.AppOptions> appOptions,
     ILogger<NotificationWorker> logger) : BackgroundService
 {
     private readonly NotificationOptions _opt = notifOptions.Value;
@@ -37,7 +38,7 @@ public sealed class NotificationWorker(
                 using var scope = services.CreateScope();
                 var dbOptions = scope.ServiceProvider.GetRequiredService<DbContextOptions<CrmDbContext>>();
                 await using var db = new CrmDbContext(dbOptions, SystemCurrentUserService.System);
-                var service = new NotificationService(db, sender, clock, notifOptions);
+                var service = new NotificationService(db, sender, clock, notifOptions, appOptions);
                 await service.RunOnceAsync(stoppingToken);
             }
             catch (Exception ex) when (!stoppingToken.IsCancellationRequested)

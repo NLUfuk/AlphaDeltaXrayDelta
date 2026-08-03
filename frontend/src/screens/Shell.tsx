@@ -66,10 +66,12 @@ export default function Shell() {
             ))}
           </nav>
           <div className="flex items-center gap-3 text-sm text-muted">
-            <span className="hidden sm:inline">{user.name}</span>
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-              {user.name.slice(0, 1).toUpperCase()}
-            </span>
+            <NavLink to="/account" className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-primary/5" title="Hesabım">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                {user.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="hidden text-ink sm:inline">{user.name}</span>
+            </NavLink>
             <Button variant="secondary" onClick={logout}><Icon name="logout" className="mr-1" />Çıkış</Button>
           </div>
         </div>

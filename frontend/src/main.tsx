@@ -22,6 +22,7 @@ import Columns from './screens/admin/Columns'
 import Moderation from './screens/Moderation'
 import Templates from './screens/admin/Templates'
 import FormFields from './screens/admin/FormFields'
+import Account from './screens/Account'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -39,6 +40,7 @@ const router = createBrowserRouter([
     element: <Shell />,
     children: [
       { index: true, element: <Home /> },
+      { path: 'account', element: <Account /> },
       { path: 'tickets/:id', element: <TicketDetail /> },
       { path: 'moderation', element: <Moderation /> },
       { path: 'admin/columns', element: <Columns /> },

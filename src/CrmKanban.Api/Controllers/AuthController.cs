@@ -71,6 +71,16 @@ public sealed class AuthController(AuthService auth, ICurrentUserService current
         return NoContent();
     }
 
+    /// <summary>Self-service account deletion (KVKK §16): anonymizes the caller's own account after
+    /// password re-confirmation. Not for a super admin (self-orphaning).</summary>
+    [Authorize]
+    [HttpPost("delete-account")]
+    public async Task<IActionResult> DeleteAccount(DeleteAccountRequest request, CancellationToken ct)
+    {
+        await auth.DeleteOwnAccountAsync(RequireUserId(), request, ct);
+        return NoContent();
+    }
+
     private Guid RequireUserId() =>
         currentUser.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
 }

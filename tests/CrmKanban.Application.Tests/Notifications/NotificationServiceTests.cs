@@ -72,7 +72,8 @@ public class NotificationServiceTests
 
     private static NotificationService ServiceOver(CrmDbContext db, IEmailSender sender, int maxAttempts = 5) =>
         new(db, sender, new FixedClock(),
-            Options.Create(new NotificationOptions { MaxAttempts = maxAttempts }));
+            Options.Create(new NotificationOptions { MaxAttempts = maxAttempts }),
+            Options.Create(new AppOptions { PublicBaseUrl = "http://test.local" }));
 
     private static async Task<List<string>> QueuedRecipientsAsync(DbContextOptions<CrmDbContext> options)
     {

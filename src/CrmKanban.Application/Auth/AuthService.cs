@@ -166,6 +166,25 @@ public sealed class AuthService(
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Self-service account deletion (KVKK §16). Re-confirms the password (destructive action),
+    /// then anonymizes the account — masks personal fields, clears the password, deactivates — keeping
+    /// ticket history and the audit chain intact (a hard delete would break both). All sessions are
+    /// revoked. A super admin cannot self-delete (would orphan the system) — same rule as KVKK anonymize.</summary>
+    public async Task DeleteOwnAccountAsync(Guid userId, DeleteAccountRequest request, CancellationToken ct = default)
+    {
+        var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId, ct)
+            ?? throw new NotFoundException("user.not_found", "User not found.");
+
+        if (user.IsSuperAdmin)
+            throw new ConflictException("auth.superadmin_delete", "A super admin account cannot be self-deleted.");
+        if (user.PasswordHash is null || !passwordHasher.Verify(user, user.PasswordHash, request.Password))
+            throw new UnauthorizedException("auth.invalid_credentials", "Password is incorrect.");
+
+        user.Anonymize();
+        await RevokeAllAsync(userId, clock.UtcNow, ct);
+        await db.SaveChangesAsync(ct);
+    }
+
     private async Task<AuthResult> IssueAsync(User user, CancellationToken ct, RefreshToken? rotatedFrom = null)
     {
         var now = clock.UtcNow;

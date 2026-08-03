@@ -25,9 +25,11 @@ public sealed class NotificationService(
     IAppDbContext db,
     IEmailSender sender,
     IClock clock,
-    IOptions<NotificationOptions> options)
+    IOptions<NotificationOptions> options,
+    IOptions<CrmKanban.Application.AppOptions> appOptions)
 {
     private readonly NotificationOptions _opt = options.Value;
+    private readonly string _baseUrl = appOptions.Value.PublicBaseUrl.TrimEnd('/');
 
     public async Task RunOnceAsync(CancellationToken ct = default)
     {
@@ -144,7 +146,7 @@ public sealed class NotificationService(
         return set;
     }
 
-    private static string BuildPayload(TicketEvent ev, Ticket ticket) =>
+    private string BuildPayload(TicketEvent ev, Ticket ticket) =>
         JsonSerializer.Serialize(new Dictionary<string, string>
         {
             ["ticketNumber"] = ticket.Number,
@@ -152,6 +154,7 @@ public sealed class NotificationService(
             ["event"] = ev.EventType.ToString(),
             ["oldValue"] = ev.OldValue ?? "",
             ["newValue"] = ev.NewValue ?? "",
+            ["link"] = $"{_baseUrl}/tickets/{ticket.Id}", // deep link so ticket emails are actionable
         });
 
     private static Dictionary<string, string> Deserialize(string json) =>

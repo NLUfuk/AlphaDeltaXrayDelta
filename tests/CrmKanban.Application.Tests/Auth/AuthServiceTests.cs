@@ -128,6 +128,43 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task Delete_own_account_anonymizes_deactivates_and_revokes_sessions()
+    {
+        var (svc, db, _) = Build(out var user);
+        await svc.LoginAsync(new LoginRequest("u@x.io", "Passw0rd!"));
+
+        await svc.DeleteOwnAccountAsync(user.Id, new DeleteAccountRequest("Passw0rd!"));
+
+        var deleted = await db.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == user.Id);
+        deleted.IsActive.Should().BeFalse();
+        deleted.Email.Should().NotBe("u@x.io", "personal fields are masked (anonymized)");
+        deleted.PasswordHash.Should().BeNull("the account can no longer log in");
+        (await db.RefreshTokens.IgnoreQueryFilters().CountAsync(t => t.RevokedAt == null)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Delete_own_account_with_wrong_password_is_rejected()
+    {
+        var (svc, _, _) = Build(out var user);
+        var act = () => svc.DeleteOwnAccountAsync(user.Id, new DeleteAccountRequest("wrong"));
+        await act.Should().ThrowAsync<UnauthorizedException>().Where(e => e.Code == "auth.invalid_credentials");
+    }
+
+    [Fact]
+    public async Task A_super_admin_cannot_self_delete()
+    {
+        var (svc, db, _) = Build(out _);
+        var boss = new User("boss@x.io", "Boss", "X");
+        boss.SetPasswordHash(new FakeHasher().Hash(boss, "Passw0rd!"));
+        boss.PromoteToSuperAdmin();
+        db.Users.Add(boss);
+        await db.SaveChangesAsync();
+
+        var act = () => svc.DeleteOwnAccountAsync(boss.Id, new DeleteAccountRequest("Passw0rd!"));
+        await act.Should().ThrowAsync<ConflictException>().Where(e => e.Code == "auth.superadmin_delete");
+    }
+
+    [Fact]
     public async Task Super_admin_can_impersonate_a_normal_user_and_it_is_audit_logged()
     {
         var superAdminId = Guid.NewGuid();
