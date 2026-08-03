@@ -2,8 +2,8 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 2026-08-01 |
-| Aktif faz | **Faz 0-15 tamam. 135 test yeşil** (16 domain + 114 application + 5 API/HTTP). **Faz 13-15 (2026-08-01):** checklist reconcile + tüm kalan kod eksikleri kapatıldı — (13) forgot-password + moderasyon audit/bildirim; (14) kanban filtre UI + dosya-eklendi bildirimi; (15) edit bildirimi, şirketten üye çıkarma, mail şablon düzenleme UI, controller/HTTP smoke testleri (WebApplicationFactory), **konfigüre edilebilir public form alanları** (§4.6). Sıradaki: operasyonel deploy sertleştirmesi (TLS/secret/CAPTCHA/SMTP/gerçek S3 — kullanıcı hesapları, ONERILER P0) |
+| Son güncelleme | 2026-08-03 |
+| Aktif faz | **Faz 0-18 tamam. 142 test yeşil** (16 domain + 119 application + 7 API/HTTP). **Faz 16-18 (2026-08-03):** (16) süper admin impersonation UI; (17) müşteri portalı ilişki-scope'u (yalnız iş yaptığı firmalar) + müşteri süreç göstergesi; **deploy config:** SMTP→Resend (canlı doğrulandı), depolama→host diski `local` (+azure/s3 provider); (18) hesap sayfası (`/account`: bilgi + parola değiştir + KVKK hesap silme) + mail şablonları anlamsallaştırıldı (buton/footer + ticket deep-link). Kalan: operasyonel (TLS→MonsterASP, CAPTCHA provider, prod secret) — ONERILER P0 |
 | Genel durum | Faz 0-8 + onboarding/RBAC + Faz 9 tamam. **Faz 9 (2026-07-31):** (1) müşteri self-registration e-posta doğrulama akışı uçtan uca bağlandı — public form yeni müşteride `account_invite` mailini kuyruğa atıyor, `/invite` ekranı token'la şifre belirleyip hesabı aktive ediyor (personel daveti de `staff_invite` maili gönderiyor); (2) müşteri yüzeyi: `Home` dispatcher (personel→kanban, müşteri→Taleplerim), `CustomerTickets` listesi, müşteri-sade nav; (3) **bug fix:** müşteri yazma yolu (`CommentService`/`TicketCommandService` ticket load) tenant filtresiyle yüklüyordu → müşterinin şirket scope'u yok → kendi ticket'ına yorum/iptal 404; `IgnoreQueryFilters + authz` deseniyle düzeltildi; (4) kanban drag-drop: `dataTransfer` set (Firefox), `onDragEnd` temizliği, kendi kolonuna no-op drop engeli, sürükleme görsel geri bildirimi; (5) CRM-tadında demo seed (teklif/talep + müşteri-personel yorum thread'leri) + `Seed:Demo` bayrağıyla Production'da da çalıştırılabilir. **96 test yeşil** (+3 müşteri yazma-yolu). Docker stack `up.ps1` ile ayağa kaldırıldı, e2e doğrulandı (login/public-form→mail→invite→müşteri yorum) |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
@@ -275,6 +275,18 @@ Kullanıcı canlı test ederken müşteri deneyimindeki boşluğu bildirdi: mü�
 - *İlişki tanımı = "müşterinin o firmada ticket'ı var":* Müşteri üye değil; mimaride firmaya ticket açarak bağlanır. Ayrı `CustomerCompany` bağ tablosu YAGNI — ticket zaten ilişkinin kanıtı. İlk temas kanalı firmanın public formu (slug), portal değil (kullanıcı onayladı: "dış link → form"). Portaldeki global `/api/public/companies` endpoint'i + `ListOpenCompaniesAsync` + `PublicCompanyDto` + `PublicController` **kaldırıldı** (ilişki-scope sonrası ölü + enumerasyon yüzeyi; ponytail).
 - *Scope hem read hem write'ta:* my-companies (read) + CreateAsCustomerAsync (write) ikisi de ilişkiye bağlı. Write reddi kritik — yoksa müşteri API'den rastgele tenant'a ticket açardı (izolasyon ihlali).
 - *Süreç göstergesi kategori-bazlı, statü-adı değil:* statü adları süper-admin editable (§4.3); gösterge `StatusCategory`'e map eder. 6→3 sadeleştirme müşteri için; staff tam kanban'ı görür.
+
+### Faz 18 — Hesap sayfası + mail şablonları anlamsallaştırma ✅ (2026-08-03)
+- [x] **Hesap sayfası (`/account`):** sağ üstteki isim/avatar linki. Kendi bilgileri (ad, e-posta, hesap türü, bağlı firma sayısı) + **parola değiştir** (mevcut+yeni, tüm oturumları iptal eder) + **hesap sil**. Route Shell altında.
+- [x] **Hesap silme = KVKK anonimleştirme (self-service):** `AuthService.DeleteOwnAccountAsync` — parola yeniden-onayı (yıkıcı işlem), `User.Anonymize` (maskele+deaktive, ticket geçmişi korunur), tüm token'lar revoke. **Süper admin kendini silemez** (`auth.superadmin_delete`, sistemi öksüz bırakmaz — KVKK anonymize ile aynı kural). `POST /api/auth/delete-account`. UI'da super admin'e silme bölümü gösterilmez. +3 test (anonimleştir+revoke, yanlış parola→401, super admin→409).
+- [x] **Mail şablonları anlamsallaştırıldı:** tutarlı yapı (`Btn`/`Footer`/`Compose`/`Account` helper'ları — 15 şablon aynı iskeleti paylaşıyor), net Türkçe kopya, **ticket maillerine "talebi görüntüle" deep-link**. `NotificationService` payload'una `link` eklendi (`{baseUrl}/tickets/{id}`); base URL `AppOptions` ile worker'dan geçiriliyor. Yalnız payload'da dolu token kullanıldı (render bilinmeyen `{{token}}`'ı literal bırakır).
+- [x] **Çalışan DB'ye uygulama:** seed eksik-ekler (UI-edit'leri korumak için mevcut satırı güncellemez); iyileştirilmiş şablonların canlıya inmesi için `EmailTemplates` satırları silinip API restart ile yeniden seed'lendi.
+
+**Karar/Varsayım (Faz 18):**
+- *Hesap silme = anonimleştirme, hard delete değil:* mevcut KVKK `User.Anonymize` deseni yeniden kullanıldı (ayrı silme yolu YAGNI); ticket/audit bütünlüğü korunur. Parola onayı zorunlu (yıkıcı + geri alınamaz). Süper admin istisnası KVKK ile tutarlı.
+- *Mail şablon helper'ları (Btn/Footer/Compose):* 15 şablon aynı HTML iskeletini paylaşıyor → gerçek 2+ tekrar, DRY seam hak ediyor (SCOPE DISCIPLINE). Tam HTML e-posta framework'ü değil; sadece ortak buton+footer.
+- *Ticket deep-link'i `{{link}}` payload'da:* ticket mailleri "bir şey oldu" deyip link vermiyordu (mantıksız); en anlamlı iyileştirme. Base URL `AppOptions.PublicBaseUrl` (account mailleriyle aynı kaynak).
+- *Seed insert-if-missing korundu:* şablonlar UI-editable; her boot'ta üzerine yazmak kullanıcı düzenlemesini silerdi. Canlı DB'ye uygulamak için tek seferlik satır-silme+reseed (dev/deploy işlemi, kod değil).
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
