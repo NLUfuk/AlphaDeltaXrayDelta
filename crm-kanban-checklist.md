@@ -82,11 +82,11 @@ Agent doğrulama listesi. Her madde bağımsız olarak test edilebilir olmalı.
 - [x] Dosya tipi ve boyut validasyonu — sunucu tarafı (magic-byte public yolda)
 - [x] Erişim yetkisi kontrolü — API-proxy download + per-ticket authz (iç-not dosyası müşteriye kapalı). Presigned yerine backend-proxy (Faz 12 kararı)
 - [x] S3 konfigürasyonu sistem ayar dosyasından okunuyor — config/env (secret split)
-- [ ] **Operasyonel (A):** gerçek AWS S3 (MinIO değil) ile prod bayt e2e — bucket + credential kullanıcıda (ONERILER P0#5)
+- [x] **Depolama seçildi (Faz 17):** `Files:Provider` = `local` (host diski, ücretsiz, MonsterASP default) / `azure` (Azure Blob) / `s3` (MinIO/AWS). Lokal MinIO bayt e2e + LocalFileStorage unit test (round-trip + path-traversal). Gerçek AWS S3 zorunlu değil.
 
 ## 7. E-posta ve Bildirimler
 
-- [x] SMTP / mail servis entegrasyonu — `IEmailSender` seam (dev log / prod SMTP). **Provider secret'ları kullanıcıda (A)** (ONERILER P0#6)
+- [x] SMTP / mail servis entegrasyonu — `IEmailSender` seam (dev log / prod SMTP). **Faz 17: Resend bağlandı**, canlı gönderim doğrulandı (EmailQueue Sent + Resend Logs 200). `smtp.resend.com:587` STARTTLS
 - [x] Ticket'taki değişikliklerde ticket'ı açana otomatik mail — `TicketEvent` outbox + `NotificationWorker` + `NotificationMatrix`
   - [x] Statü değişimi
   - [x] Yeni yorum
@@ -144,8 +144,9 @@ Agent doğrulama listesi. Her madde bağımsız olarak test edilebilir olmalı.
 
 ## Kalan işler — özet
 
-**A) Operasyonel deploy sertleştirmesi (kullanıcı hesapları gerekir — kod değil, ONERILER.md P0):**
-Docker imaj build + stack e2e · JWT/secret yönetimi · TLS/HTTPS · CAPTCHA provider · gerçek AWS S3 bayt e2e · SMTP provider · (çok-instance için migration ayrımı).
+**A) Operasyonel deploy sertleştirmesi (ONERILER.md P0):**
+- ✅ **Faz 17'de kapandı:** Docker imaj build + stack e2e (`up.ps1`) · SMTP provider (Resend, canlı) · depolama (host diski `local`, ücretsiz — gerçek AWS S3 zorunlu değil).
+- Kalan (kullanıcı/operasyonel): prod secret store · TLS/HTTPS (MonsterASP SSL sağlıyor) · CAPTCHA provider · çok-instance migration ayrımı (tek-instance'ta gerekmez).
 
 **B) Kod eksikleri — Faz 13-15'te kapatıldı ✅:**
 1. ~~Form alanları konfigüre (§4.6/§9)~~ → Faz 15 (`/admin/form-fields`).

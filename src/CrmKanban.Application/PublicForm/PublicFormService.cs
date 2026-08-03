@@ -44,15 +44,6 @@ public sealed class PublicFormService(
             await formFields.ListActiveAsync(company.Id, ct));
     }
 
-    /// <summary>Active companies a customer can pick from the portal (register / new message). Only id,
-    /// name, slug are exposed — no tenant data. Anonymous; the endpoint is rate-limited.</summary>
-    public async Task<IReadOnlyList<PublicCompanyDto>> ListOpenCompaniesAsync(CancellationToken ct = default) =>
-        await db.Companies.IgnoreQueryFilters()
-            .Where(c => c.IsActive && c.ArchivedAt == null) // IsArchived is computed → not SQL-translatable
-            .OrderBy(c => c.Name)
-            .Select(c => new PublicCompanyDto(c.Id, c.Name, c.Slug))
-            .ToListAsync(ct);
-
     public async Task<PublicFormResult> SubmitAsync(string slug, PublicFormSubmitRequest request, CancellationToken ct = default)
     {
         if (!await captcha.ValidateAsync(request.CaptchaToken, ct))

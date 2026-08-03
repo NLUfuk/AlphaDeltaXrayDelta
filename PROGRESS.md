@@ -272,7 +272,7 @@ Kullanıcı canlı test ederken müşteri deneyimindeki boşluğu bildirdi: mü�
 - [x] **Canlı doğrulama:** 116 backend testi + frontend build yeşil; stack rebuild, `/api/tickets/my-companies` 401 (yetkili), public form 200. Kullanıcı tarayıcıda uçtan uca test edecek (form→ilişki→portal).
 
 **Karar/Varsayım (Faz 17):**
-- *İlişki tanımı = "müşterinin o firmada ticket'ı var":* Müşteri üye değil; mimaride firmaya ticket açarak bağlanır. Ayrı `CustomerCompany` bağ tablosu YAGNI — ticket zaten ilişkinin kanıtı. İlk temas kanalı firmanın public formu (slug), portal değil (kullanıcı onayladı: "dış link → form"). Portaldeki global `/api/public/companies` listesi app'ten düştü (endpoint duruyor ama artık kullanılmıyor — opsiyonel temizlik).
+- *İlişki tanımı = "müşterinin o firmada ticket'ı var":* Müşteri üye değil; mimaride firmaya ticket açarak bağlanır. Ayrı `CustomerCompany` bağ tablosu YAGNI — ticket zaten ilişkinin kanıtı. İlk temas kanalı firmanın public formu (slug), portal değil (kullanıcı onayladı: "dış link → form"). Portaldeki global `/api/public/companies` endpoint'i + `ListOpenCompaniesAsync` + `PublicCompanyDto` + `PublicController` **kaldırıldı** (ilişki-scope sonrası ölü + enumerasyon yüzeyi; ponytail).
 - *Scope hem read hem write'ta:* my-companies (read) + CreateAsCustomerAsync (write) ikisi de ilişkiye bağlı. Write reddi kritik — yoksa müşteri API'den rastgele tenant'a ticket açardı (izolasyon ihlali).
 - *Süreç göstergesi kategori-bazlı, statü-adı değil:* statü adları süper-admin editable (§4.3); gösterge `StatusCategory`'e map eder. 6→3 sadeleştirme müşteri için; staff tam kanban'ı görür.
 
