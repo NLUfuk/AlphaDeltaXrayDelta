@@ -22,6 +22,13 @@ public sealed class PermissionAssignmentService(
         var assignerId = currentUser.UserId
             ?? throw new UnauthorizedException("auth.required", "Authentication required.");
 
+        // A super admin is invisible and untouchable to everyone below it — no non-super-admin may
+        // grant/deny against a super-admin target (overrides on it are inert anyway, but it must not
+        // even be addressable). Super admin itself is unrestricted.
+        if (!currentUser.IsSuperAdmin &&
+            await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Id == request.UserId && u.IsSuperAdmin, ct))
+            throw new ForbiddenException("permission.assign.forbidden_target", "You cannot modify this user's permissions.");
+
         IReadOnlySet<string> assignerPermissions = currentUser.IsSuperAdmin
             ? new HashSet<string>()
             : await permissions.GetPermissionsAsync(assignerId, request.CompanyId, ct);
@@ -40,9 +47,17 @@ public sealed class PermissionAssignmentService(
             up => up.UserId == request.UserId && up.PermissionId == permission.Id && up.CompanyId == request.CompanyId, ct);
 
         if (existing is not null)
-            db.UserPermissions.Remove(existing); // replace to reflect the new Grant/Deny type
-
-        db.UserPermissions.Add(new UserPermission(request.UserId, permission.Id, request.Type, request.CompanyId));
+        {
+            // Update in place — remove+add would soft-delete the old row (audit interceptor) and then
+            // collide with it on the unique (UserId, PermissionId, CompanyId) index. Also heal any row
+            // the previous remove+add path had already soft-deleted.
+            existing.SetType(request.Type);
+            if (existing.IsDeleted) existing.Restore();
+        }
+        else
+        {
+            db.UserPermissions.Add(new UserPermission(request.UserId, permission.Id, request.Type, request.CompanyId));
+        }
         db.AuditLogs.Add(new AuditLog(assignerId, "permission.assign",
             $"{request.Type} {request.PermissionKey} to {request.UserId} in {request.CompanyId}"));
 

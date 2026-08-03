@@ -5,7 +5,7 @@ export type UserCompany = { companyId: string; companyName: string; role: number
 export type UserRow = { id: string; email: string; name: string; isSuperAdmin: boolean; canCreateCompany: boolean; isActive: boolean; companies: UserCompany[] }
 export type Company = { id: string; name: string; slug: string; ownerAdminId: string; isActive: boolean; isArchived: boolean; ticketNumberPrefix: string }
 export type Member = { userId: string; email: string; name: string; role: number }
-export type PermissionInfo = { key: string; group: string }
+export type PermissionInfo = { key: string; group: string; label: string; groupLabel: string }
 export type Effective = { userId: string; companyId: string; permissions: string[] }
 export type InviteResult = { userId: string; rawToken: string; expiresAt: string }
 

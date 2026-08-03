@@ -25,6 +25,10 @@ public sealed class UserPermission : Entity
     public Guid PermissionId { get; private set; }
     public UserPermissionType Type { get; private set; }
 
+    /// <summary>Flip an existing override between Grant/Deny in place (an override is config, not
+    /// history) — avoids a remove+add that collides with the unique index under soft-delete.</summary>
+    public void SetType(UserPermissionType type) => Type = type;
+
     /// <summary>Company scope of this override; null = applies globally to the user.</summary>
     public Guid? CompanyId { get; private set; }
 }

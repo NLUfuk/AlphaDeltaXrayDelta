@@ -85,8 +85,11 @@ public sealed class CompanyService(IAppDbContext db, ICurrentUserService current
         if (!currentUser.IsSuperAdmin && !await db.Memberships.IgnoreQueryFilters().AnyAsync(m => m.UserId == userId && m.CompanyId == companyId, ct))
             throw new ForbiddenException("company.members_forbidden", "You are not a member of this company.");
 
+        // A super admin is never listed as a staff member — it must stay invisible in assignment/
+        // permission pickers to everyone (spec §9: super admin sits above tenants, is not "staff").
         return await (from m in db.Memberships.IgnoreQueryFilters().Where(m => m.CompanyId == companyId && m.DeletedAt == null)
                       join u in db.Users.IgnoreQueryFilters() on m.UserId equals u.Id
+                      where !u.IsSuperAdmin
                       orderby u.FirstName
                       select new MemberDto(u.Id, u.Email, u.FirstName + " " + u.LastName, (int)m.Role)).ToListAsync(ct);
     }

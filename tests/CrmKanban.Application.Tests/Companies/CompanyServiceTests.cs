@@ -100,6 +100,33 @@ public class CompanyServiceTests
     }
 
     [Fact]
+    public async Task Super_admin_is_never_listed_as_a_member()
+    {
+        var options = Store();
+        var adminId = await SeedAdminAsync(options, canCreate: true);
+        var admin = new FakeUser(false, adminId);
+
+        Guid companyId;
+        await using (var db = new CrmDbContext(options, admin))
+        {
+            companyId = (await Service(db, admin).CreateAsync(new CreateCompanyRequest("Acme", "acme"))).Id;
+            // A super admin sitting inside the company's memberships must stay hidden from staff pickers.
+            var su = new User("root@x.com", "Super", "Admin");
+            su.PromoteToSuperAdmin();
+            db.Users.Add(su);
+            db.Memberships.Add(new Membership(su.Id, companyId, RoleType.Admin));
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = new CrmDbContext(options, admin))
+        {
+            var members = await Service(db, admin).ListMembersAsync(companyId);
+            members.Should().OnlyContain(m => m.Email != "root@x.com");
+            members.Should().ContainSingle(m => m.UserId == adminId);
+        }
+    }
+
+    [Fact]
     public async Task Admin_can_remove_a_member_but_not_the_owner()
     {
         var options = Store();

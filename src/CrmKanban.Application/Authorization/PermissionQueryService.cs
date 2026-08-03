@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CrmKanban.Application.Authorization;
 
-public sealed record PermissionInfo(string Key, string Group);
+public sealed record PermissionInfo(string Key, string Group, string Label, string GroupLabel);
 public sealed record EffectivePermissions(Guid UserId, Guid CompanyId, IReadOnlyList<string> Permissions);
 
 /// <summary>
@@ -16,9 +16,13 @@ public sealed record EffectivePermissions(Guid UserId, Guid CompanyId, IReadOnly
 /// </summary>
 public sealed class PermissionQueryService(IAppDbContext db, ICurrentUserService currentUser, IPermissionService permissions)
 {
-    public async Task<IReadOnlyList<PermissionInfo>> ListCatalogAsync(CancellationToken ct = default) =>
-        await db.Permissions.OrderBy(p => p.Group).ThenBy(p => p.Key)
-            .Select(p => new PermissionInfo(p.Key, p.Group)).ToListAsync(ct);
+    public async Task<IReadOnlyList<PermissionInfo>> ListCatalogAsync(CancellationToken ct = default)
+    {
+        var rows = await db.Permissions.OrderBy(p => p.Group).ThenBy(p => p.Key)
+            .Select(p => new { p.Key, p.Group }).ToListAsync(ct);
+        return rows.Select(p => new PermissionInfo(
+            p.Key, p.Group, PermissionLabels.ForKey(p.Key), PermissionLabels.ForGroup(p.Group))).ToList();
+    }
 
     public async Task<EffectivePermissions> GetEffectiveAsync(Guid userId, Guid companyId, CancellationToken ct = default)
     {
@@ -26,6 +30,12 @@ public sealed class PermissionQueryService(IAppDbContext db, ICurrentUserService
             ?? throw new UnauthorizedException("auth.required", "Authentication required.");
         if (!currentUser.IsSuperAdmin &&
             !await permissions.HasPermissionAsync(callerId, companyId, PermissionKeys.PermissionAssign, ct))
+            throw new ForbiddenException("permission.view_forbidden", "You cannot view permissions for this company.");
+
+        // A super admin is invisible to everyone below it: never disclose its permission set. Same error
+        // code as above so a caller can't tell "not allowed" apart from "target is a super admin".
+        if (!currentUser.IsSuperAdmin &&
+            await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Id == userId && u.IsSuperAdmin, ct))
             throw new ForbiddenException("permission.view_forbidden", "You cannot view permissions for this company.");
 
         var effective = await permissions.GetPermissionsAsync(userId, companyId, ct);

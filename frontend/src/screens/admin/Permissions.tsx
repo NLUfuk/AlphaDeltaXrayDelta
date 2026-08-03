@@ -14,7 +14,8 @@ export default function Permissions() {
   const assign = useAssignPermission()
 
   const has = (key: string) => effective?.permissions.includes(key) ?? false
-  const groups = [...new Set(catalog?.map((p) => p.group) ?? [])]
+  // Group prefix -> Turkish group label, de-duplicated, order preserved from the catalog.
+  const groups = [...new Map((catalog ?? []).map((p) => [p.group, p.groupLabel])).entries()]
 
   function act(permissionKey: string, type: number) {
     if (userId && companyId) assign.mutate({ userId, companyId, permissionKey, type })
@@ -39,14 +40,14 @@ export default function Permissions() {
 
       {userId && (
         <div className="space-y-4">
-          {groups.map((g) => (
+          {groups.map(([g, gLabel]) => (
             <section key={g} className="rounded-lg bg-white p-4 shadow-sm">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{g}</h2>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{gLabel}</h2>
               <div className="space-y-2">
                 {catalog!.filter((p) => p.group === g).map((p) => (
                   <div key={p.key} className="flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2">
-                      {p.key}
+                      <span title={p.key}>{p.label}</span>
                       {has(p.key) ? <Badge label="var" color="#16a34a" /> : <Badge label="yok" color="#9ca3af" />}
                     </span>
                     <span className="flex gap-2">
