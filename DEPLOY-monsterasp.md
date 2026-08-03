@@ -7,8 +7,8 @@ IIS tek-site'tir. Bu yüzden deploy şekli farklı:
   (`UseStaticFiles` + `MapFallbackToFile`). `/api/*` controller'lara, gerisi `index.html`'e gider.
 - **Self-contained publish:** .NET 10 runtime paketin içinde gelir → host'ta .NET kurulu olmasa da çalışır.
 - **DB:** MonsterASP.NET'in ücretsiz MSSQL'i (MinIO/SQL container yok).
-- **Dosya yükleme:** MinIO yok → S3-uyumlu bir depo (Cloudflare R2 / Backblaze B2) gerekir, yoksa dosya
-  yükleme çalışmaz (mesajlaşma dosyasız çalışır — MVP'de ertelenebilir).
+- **Dosya yükleme:** MinIO yok → varsayılan `Files__Provider=local` (host diski, ücretsiz); Azure Blob
+  veya S3 de seçilebilir. Deposuz mesajlaşma çalışır. Bkz. §6.
 
 ---
 
@@ -36,10 +36,11 @@ formatında ayarla (repo'ya secret koyma):
 | `SuperAdmin__Email` / `SuperAdmin__Password` | ilk süper admin |
 | `App__PublicBaseUrl` | `https://<siten>.monsterasp.net` (maildeki linkler bunu kullanır) |
 | `Email__Provider` | `smtp` |
-| `Email__Host` / `Email__Port` / `Email__UseSsl` | `smtp.gmail.com` / `587` / `true` |
-| `Email__Username` / `Email__Password` / `Email__From` | Gmail + **App Password** (2FA gerekli); From = Username |
+| `Email__Host` / `Email__Port` / `Email__UseSsl` | `smtp.resend.com` / `587` / `true` (Resend; 465 KULLANMA — .NET STARTTLS ister) |
+| `Email__Username` / `Email__Password` | `resend` / Resend **API key** (`re_...`) |
+| `Email__From` | doğrulanmış domain'deki adres (ör. `no-reply@<domain>`) |
 | `Seed__Demo` | ilk demo için `true`, gerçek prod'da `false` |
-| `S3__ServiceUrl` / `S3__BucketName` / `S3__AccessKey` / `S3__SecretKey` / `S3__ForcePathStyle` | dosya için R2/B2 (bkz. §6) — yoksa dosya yükleme kapalı |
+| `Files__Provider` | dosya deposu: `local` (ücretsiz, host diski — varsayılan) / `azure` / `s3` (bkz. §6) |
 
 > ASP.NET Core config sağlayıcısı env var'ları `Section:Key` olarak okur; `__` (çift alt çizgi) `:` demektir.
 
@@ -56,19 +57,38 @@ formatında ayarla (repo'ya secret koyma):
 MonsterASP.NET SSL sağlar. Uygulama `UseForwardedHeaders` ile gerçek şemayı okur (redirect döngüsü yok).
 Ekstra ayar gerekmez.
 
-## 6. Dosya yükleme için S3 (opsiyonel — Cloudflare R2 örneği)
-1. Cloudflare R2'de bir bucket aç (ücretsiz katman). API token → Access Key / Secret Key.
-2. Panelde ayarla: `S3__ServiceUrl=https://<accountid>.r2.cloudflarestorage.com`,
-   `S3__BucketName=<bucket>`, `S3__AccessKey`, `S3__SecretKey`, `S3__ForcePathStyle=true`.
-3. `S3FileStorage` değişmez — presigned PUT/GET R2 ile çalışır. (Backblaze B2 de aynı mantık.)
-Bunu atlar isen: dosya yükleme buton/akışı hata verir; mesajlaşma ve diğer her şey çalışır.
+## 6. Dosya yükleme deposu (3 seçenek — provider config'le seçilir)
+
+`IFileStorage` seam'inin üç implementasyonu var; `Files:Provider` env'i seçer. Yükleme/indirme her
+zaman backend-proxy (`PutAsync`/`GetAsync`), presigned yol kullanılmaz.
+
+### 6a. Host diski — ÜCRETSİZ, seçilen varsayılan (MVP/test)
+Ek bulut hesabı/ücret yok; dosyalar hosting'in kendi diskinde, servis edilmeyen bir klasörde.
+- `Files__Provider=local`
+- (opsiyonel) `LocalStorage__RootPath=<mutlak yol>` — boşsa `App_Data/uploads` (content root altında).
+`App_Data` IIS tarafından public servis edilmez; indirme yalnız yetkili API proxy'sinden geçer.
+**Dikkat:** dosyalar host diskinde durur → deploy'da `App_Data` klasörünü silme/üzerine yazma;
+free tier disk kotası geçerli. Tek-instance için uygun (çok-instance'ta paylaşımlı disk gerekir).
+
+### 6b. Azure Blob Storage (Microsoft) — küçük ücret
+`AzureBlobStorage` (`Azure.Storage.Blobs`); container private, ilk kullanımda otomatik açılır.
+- `Files__Provider=azure`
+- `AzureBlob__ConnectionString=<connection string>` (Storage account → Access keys)
+- `AzureBlob__ContainerName=attachments`
+
+### 6c. S3-uyumlu (AWS S3 / MinIO / R2 / B2)
+- `Files__Provider=s3` + `S3__ServiceUrl` (AWS'de boş) / `S3__BucketName` / `S3__AccessKey` /
+  `S3__SecretKey` / `S3__ForcePathStyle` / `S3__Region`. (AWSSDK v4 CRC checksum'ları AWS-dışı
+  store'lar için otomatik kapatıldı.)
+
+Deposuz da çalışır: dosya yükleme buton/akışı hata verir, mesajlaşma ve diğer her şey çalışır.
 
 ## 7. Sorun giderme
 - **500.30 / açılışta çöküyor:** genelde bağlantı dizesi. `web.config`'te geçici olarak
   `stdoutLogEnabled="true"` yapıp `logs/` altındaki çıktıyı oku, sonra kapat.
 - **.NET sürüm hatası:** self-contained publish bunu çözer (runtime içeride). Framework-dependent
   yayınlama yaptıysan host'ta .NET 10 olmayabilir → self-contained kullan.
-- **Mail gitmiyor:** Gmail App Password kullan (normal şifre değil), `From==Username`, 587+SSL.
+- **Mail gitmiyor:** Resend'de domain **doğrulanmış** olmalı; `From` o domain'den; user=`resend`, pass=API key; port **587** (465 değil — .NET `System.Net.Mail` implicit SSL/465 desteklemez, STARTTLS/587 ister).
 - **Şema oluşmadı:** ilk request'te migration çalışır; DB kullanıcısının tablo oluşturma yetkisi olmalı.
 
 ## 8. Bilinen sınırlar (bu deploy)

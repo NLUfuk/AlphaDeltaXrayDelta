@@ -68,6 +68,16 @@ export function useMyTickets() {
   })
 }
 
+// Companies the customer already works with (has a ticket at) — the only ones they can message from the
+// portal. First contact with a new company is that company's public form, not the portal.
+export type MyCompany = { id: string; name: string }
+export function useMyCompanies() {
+  return useQuery({
+    queryKey: ['my-companies'],
+    queryFn: async () => (await api.get<MyCompany[]>('/tickets/my-companies')).data,
+  })
+}
+
 // Board filters map straight onto the backend TicketListQuery (search/assignee/priority). Empty fields
 // are dropped so the query key stays stable when nothing is set.
 export type KanbanFilters = { search?: string; assignedToId?: string; priority?: number }

@@ -42,18 +42,45 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasher, PasswordHasherAdapter>();
         services.AddScoped<IPermissionService, PermissionService>();
 
-        // File storage (S3-compatible) + CAPTCHA gate + file limits (spec §10, §12, §13)
+        // File storage + CAPTCHA gate + file limits (spec §10, §12, §13). Provider is a named variation
+        // point (spec §3/§12): "local" = host disk (free single-instance prod/test, MonsterASP),
+        // "azure" = Azure Blob, anything else = S3-compatible (dev MinIO / any S3 store). Three real
+        // implementations behind IFileStorage, so the seam earns its keep (SCOPE DISCIPLINE).
         services.Configure<CrmKanban.Application.Files.FileOptions>(config.GetSection("Files"));
-        services.Configure<Files.S3Options>(config.GetSection(Files.S3Options.SectionName));
-        services.AddSingleton<Amazon.S3.IAmazonS3>(sp =>
+        switch ((config["Files:Provider"] ?? "s3").ToLowerInvariant())
         {
-            var o = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Files.S3Options>>().Value;
-            var cfg = new Amazon.S3.AmazonS3Config { ForcePathStyle = o.ForcePathStyle };
-            if (!string.IsNullOrWhiteSpace(o.ServiceUrl)) cfg.ServiceURL = o.ServiceUrl;
-            else cfg.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(o.Region);
-            return new Amazon.S3.AmazonS3Client(new Amazon.Runtime.BasicAWSCredentials(o.AccessKey, o.SecretKey), cfg);
-        });
-        services.AddSingleton<IFileStorage, Files.S3FileStorage>();
+            case "local":
+                services.Configure<Files.LocalStorageOptions>(config.GetSection(Files.LocalStorageOptions.SectionName));
+                services.AddSingleton<IFileStorage, Files.LocalFileStorage>();
+                break;
+            case "azure":
+                services.Configure<Files.AzureBlobOptions>(config.GetSection(Files.AzureBlobOptions.SectionName));
+                services.AddSingleton(sp =>
+                {
+                    var o = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Files.AzureBlobOptions>>().Value;
+                    var container = new Azure.Storage.Blobs.BlobContainerClient(o.ConnectionString, o.ContainerName);
+                    container.CreateIfNotExists(Azure.Storage.Blobs.Models.PublicAccessType.None); // private, idempotent
+                    return container;
+                });
+                services.AddSingleton<IFileStorage, Files.AzureBlobStorage>();
+                break;
+            default: // "s3" / MinIO
+                services.Configure<Files.S3Options>(config.GetSection(Files.S3Options.SectionName));
+                services.AddSingleton<Amazon.S3.IAmazonS3>(sp =>
+                {
+                    var o = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Files.S3Options>>().Value;
+                    var cfg = new Amazon.S3.AmazonS3Config { ForcePathStyle = o.ForcePathStyle };
+                    // AWSSDK v4 adds CRC checksum headers on PUT by default; non-AWS S3-compatible stores
+                    // (MinIO, R2, B2) reject them. Only send/validate when required.
+                    cfg.RequestChecksumCalculation = Amazon.Runtime.RequestChecksumCalculation.WHEN_REQUIRED;
+                    cfg.ResponseChecksumValidation = Amazon.Runtime.ResponseChecksumValidation.WHEN_REQUIRED;
+                    if (!string.IsNullOrWhiteSpace(o.ServiceUrl)) cfg.ServiceURL = o.ServiceUrl;
+                    else cfg.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(o.Region);
+                    return new Amazon.S3.AmazonS3Client(new Amazon.Runtime.BasicAWSCredentials(o.AccessKey, o.SecretKey), cfg);
+                });
+                services.AddSingleton<IFileStorage, Files.S3FileStorage>();
+                break;
+        }
 
         services.Configure<Captcha.CaptchaOptions>(config.GetSection(Captcha.CaptchaOptions.SectionName));
         services.AddSingleton<ICaptchaValidator, Captcha.CaptchaValidator>();

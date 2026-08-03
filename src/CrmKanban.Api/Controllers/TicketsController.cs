@@ -30,6 +30,12 @@ public sealed class TicketsController(
     public async Task<ActionResult<IReadOnlyList<StatusDto>>> Statuses([FromQuery] Guid? companyId, CancellationToken ct) =>
         Ok(await queries.ListStatusesAsync(companyId, ct));
 
+    /// <summary>Companies the logged-in customer already works with — feeds the portal's "new message"
+    /// picker so they only see companies they've contacted (spec §18.5).</summary>
+    [HttpGet("my-companies")]
+    public async Task<ActionResult<IReadOnlyList<CustomerCompanyDto>>> MyCompanies(CancellationToken ct) =>
+        Ok(await queries.ListMyCompaniesAsync(ct));
+
     // ---- moderation (zero-trust public intake, spec §10) ----
 
     [HttpGet("moderation/{companyId:guid}")]

@@ -1,15 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 
 // Portal (anonymous + logged-in customer) endpoints, separate from the staff-scoped ticket hooks.
-export type PublicCompany = { id: string; name: string; slug: string }
-
-export function usePublicCompanies() {
-  return useQuery({
-    queryKey: ['public-companies'],
-    queryFn: async () => (await api.get<PublicCompany[]>('/public/companies')).data,
-  })
-}
 
 export function useRegister() {
   return useMutation({

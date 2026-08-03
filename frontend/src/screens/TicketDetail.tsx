@@ -47,7 +47,7 @@ export default function TicketDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Link to="/" className="inline-flex items-center gap-1 text-sm text-primary"><Icon name="arrow-left" />Panoya dön</Link>
+      <Link to="/" className="inline-flex items-center gap-1 text-sm text-primary"><Icon name="arrow-left" />{isStaff ? 'Panoya dön' : 'Taleplerime dön'}</Link>
 
       <Card className="p-5">
         <div className="flex items-center gap-2">
@@ -68,6 +68,9 @@ export default function TicketDetail() {
           </dl>
         )}
       </Card>
+
+      {/* Customer sees a plain progress view (not the staff board): received → in progress → resolved. */}
+      {!isStaff && <CustomerProgress category={ticket.category} />}
 
       {/* Actions: staff manage status/assignee/priority; customer may cancel or complete a non-terminal ticket. */}
       {isStaff ? (
@@ -161,6 +164,42 @@ export default function TicketDetail() {
         </form>
       </Card>
     </div>
+  )
+}
+
+// Customer-facing progress: collapse the six status categories into three plain stages the customer
+// understands. Not the staff kanban — just "received → in progress → resolved" (Cancelled is off-path).
+const CUSTOMER_STAGES = ['Talebiniz alındı', 'İşlemde', 'Sonuçlandı'] as const
+function customerStage(category: number): number {
+  if (category === 0) return 0 // Open
+  if (category === 4) return 2 // Closed
+  return 1 // Pending / Answered / Waiting → in progress
+}
+
+function CustomerProgress({ category }: { category: number }) {
+  if (category === 5) // Cancelled
+    return (
+      <Card className="flex items-center gap-2 p-4 text-sm text-slate-600">
+        <Icon name="close-circle-outline" className="text-slate-400" />Bu talep iptal edildi.
+      </Card>
+    )
+  const current = customerStage(category)
+  return (
+    <Card className="p-4">
+      <div className="flex items-center">
+        {CUSTOMER_STAGES.map((label, i) => (
+          <div key={i} className={i < CUSTOMER_STAGES.length - 1 ? 'flex flex-1 items-center' : 'flex items-center'}>
+            <div className="flex flex-col items-center gap-1">
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${i <= current ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'}`}>
+                {i < current ? '✓' : i + 1}
+              </span>
+              <span className={`text-center text-xs ${i <= current ? 'font-medium text-ink' : 'text-slate-400'}`}>{label}</span>
+            </div>
+            {i < CUSTOMER_STAGES.length - 1 && <div className={`mx-2 h-0.5 flex-1 ${i < current ? 'bg-primary' : 'bg-slate-200'}`} />}
+          </div>
+        ))}
+      </div>
+    </Card>
   )
 }
 

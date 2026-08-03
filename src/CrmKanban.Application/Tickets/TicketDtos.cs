@@ -10,6 +10,11 @@ public sealed record CreateTicketRequest(
 /// No priority/category — those are staff-set; the customer only chooses the company and writes.</summary>
 public sealed record CustomerCreateTicketRequest(Guid CompanyId, string Title, string Body);
 
+/// <summary>A company the logged-in customer already has a relationship with (has opened a ticket there).
+/// Feeds the portal's "new message" picker — a customer only messages companies they already contacted;
+/// first contact happens through that company's public form (spec §18.5).</summary>
+public sealed record CustomerCompanyDto(Guid Id, string Name);
+
 public sealed record EditTicketRequest(string Title, string Body);
 
 public sealed record AssignTicketRequest(Guid? AssigneeUserId);

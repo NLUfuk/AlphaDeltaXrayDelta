@@ -58,6 +58,16 @@ public sealed class TicketCommandService(
         if (company.IsArchived || !company.IsActive)
             throw new ConflictException("company.form_closed", "This company is not accepting requests.");
 
+        // Relationship scope (spec §7, §18.5): a customer may only open a portal request to a company
+        // they already contacted (i.e. already have a ticket with). First contact is the company's public
+        // form, never the portal — this keeps a customer from messaging arbitrary tenants. Enforced at the
+        // data layer, not just hidden in the UI.
+        var related = await db.Tickets.IgnoreQueryFilters()
+            .AnyAsync(t => t.OpenedById == userId && t.CompanyId == request.CompanyId && t.DeletedAt == null, ct);
+        if (!related)
+            throw new ForbiddenException("company.not_related",
+                "You can only message a company you have already contacted through its form.");
+
         var initialStatus = await InitialStatusAsync(request.CompanyId, ct);
         var ticket = new Ticket(request.CompanyId, company.AllocateTicketNumber(), userId,
             initialStatus.Id, request.Title, request.Body);

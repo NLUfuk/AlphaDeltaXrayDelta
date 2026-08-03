@@ -80,6 +80,13 @@ public class CustomerWriteAccessTests
         return (comments, commands);
     }
 
+    private static TicketQueryService QueriesFor(DbContextOptions<CrmDbContext> options, ICurrentUserService user)
+    {
+        var db = new CrmDbContext(options, user);
+        var authz = new TicketAuthorizationService(user, new FakePermissionService(), db);
+        return new TicketQueryService(db, user, authz, Options.Create(new TicketOptions()));
+    }
+
     [Fact]
     public async Task Customer_can_comment_on_their_own_ticket()
     {
@@ -111,7 +118,34 @@ public class CustomerWriteAccessTests
     }
 
     [Fact]
-    public async Task Customer_can_open_a_ticket_to_a_company_they_picked()
+    public async Task Customer_can_open_a_follow_up_to_a_company_they_already_contacted()
+    {
+        var options = Store();
+        Guid companyId;
+        await using (var seed = new CrmDbContext(options, new FakeCurrentUser(Guid.NewGuid(), isSuperAdmin: true)))
+        {
+            seed.TicketStatuses.Add(new TicketStatus("Açık", StatusCategory.Open, "#000", 1, isTerminal: false, id: OpenStatusId));
+            var company = new Company("Acme", "acme", Guid.NewGuid());
+            seed.Companies.Add(company);
+            // First contact already happened (via the public form): the customer has a ticket here.
+            seed.Tickets.Add(new Ticket(company.Id, "ACME-1", CustomerId, OpenStatusId, "İlk talep", "gövde"));
+            await seed.SaveChangesAsync();
+            companyId = company.Id;
+        }
+        var customer = new FakeCurrentUser(CustomerId, isSuperAdmin: false); // not a member, but related to Acme
+
+        var ticketId = await ServicesFor(options, customer).Commands
+            .CreateAsCustomerAsync(new CustomerCreateTicketRequest(companyId, "Fiyat listesi", "Toptan fiyat rica ederim."));
+
+        await using var read = new CrmDbContext(options, new FakeCurrentUser(Guid.NewGuid(), isSuperAdmin: true));
+        var ticket = await read.Tickets.IgnoreQueryFilters().SingleAsync(t => t.Id == ticketId);
+        ticket.OpenedById.Should().Be(CustomerId);
+        ticket.CompanyId.Should().Be(companyId);
+        ticket.ApprovalState.Should().Be(TicketApprovalState.Approved, "a verified customer's ticket enters the pool directly");
+    }
+
+    [Fact]
+    public async Task Customer_cannot_open_a_ticket_to_a_company_they_never_contacted()
     {
         var options = Store();
         Guid companyId;
@@ -123,16 +157,36 @@ public class CustomerWriteAccessTests
             await seed.SaveChangesAsync();
             companyId = company.Id;
         }
-        var customer = new FakeCurrentUser(CustomerId, isSuperAdmin: false); // not a member of Acme
+        var customer = new FakeCurrentUser(CustomerId, isSuperAdmin: false); // no relationship with Acme
 
-        var ticketId = await ServicesFor(options, customer).Commands
-            .CreateAsCustomerAsync(new CustomerCreateTicketRequest(companyId, "Fiyat listesi", "Toptan fiyat rica ederim."));
+        var act = () => ServicesFor(options, customer).Commands
+            .CreateAsCustomerAsync(new CustomerCreateTicketRequest(companyId, "Merhaba", "İlk kez yazıyorum."));
 
-        await using var read = new CrmDbContext(options, new FakeCurrentUser(Guid.NewGuid(), isSuperAdmin: true));
-        var ticket = await read.Tickets.IgnoreQueryFilters().SingleAsync(t => t.Id == ticketId);
-        ticket.OpenedById.Should().Be(CustomerId);
-        ticket.CompanyId.Should().Be(companyId);
-        ticket.ApprovalState.Should().Be(TicketApprovalState.Approved, "a verified customer's ticket enters the pool directly");
+        await act.Should().ThrowAsync<ForbiddenException>("first contact must go through the company's public form, not the portal");
+    }
+
+    [Fact]
+    public async Task My_companies_lists_only_companies_the_customer_has_contacted()
+    {
+        var options = Store();
+        Guid acmeId, betaId;
+        await using (var seed = new CrmDbContext(options, new FakeCurrentUser(Guid.NewGuid(), isSuperAdmin: true)))
+        {
+            seed.TicketStatuses.Add(new TicketStatus("Açık", StatusCategory.Open, "#000", 1, isTerminal: false, id: OpenStatusId));
+            var acme = new Company("Acme", "acme", Guid.NewGuid());
+            var beta = new Company("Beta", "beta", Guid.NewGuid());
+            seed.Companies.AddRange(acme, beta);
+            seed.Tickets.Add(new Ticket(acme.Id, "ACME-1", CustomerId, OpenStatusId, "Talep", "x"));      // customer ↔ Acme
+            seed.Tickets.Add(new Ticket(beta.Id, "BETA-1", Guid.NewGuid(), OpenStatusId, "Başka", "y"));  // someone else ↔ Beta
+            await seed.SaveChangesAsync();
+            acmeId = acme.Id; betaId = beta.Id;
+        }
+        var customer = new FakeCurrentUser(CustomerId, isSuperAdmin: false);
+
+        var companies = await QueriesFor(options, customer).ListMyCompaniesAsync();
+
+        companies.Should().ContainSingle(c => c.Id == acmeId);
+        companies.Should().NotContain(c => c.Id == betaId);
     }
 
     [Fact]

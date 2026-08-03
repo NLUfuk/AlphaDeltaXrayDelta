@@ -34,6 +34,23 @@ public sealed class TicketQueryService(
         return await PaginateAsync(baseQuery, query, ct);
     }
 
+    /// <summary>Companies the customer already has a relationship with = the distinct companies of their
+    /// own tickets (customers aren't members, so relationship is established by opening a ticket, first
+    /// via the company's public form). Feeds the portal's "new message" picker so a customer only ever
+    /// sees the companies they actually work with — not every company in the system (spec §7, §18.5).</summary>
+    public async Task<IReadOnlyList<CustomerCompanyDto>> ListMyCompaniesAsync(CancellationToken ct = default)
+    {
+        var userId = RequireUserId();
+        var companyIds = await db.Tickets.IgnoreQueryFilters()
+            .Where(t => t.OpenedById == userId && t.DeletedAt == null)
+            .Select(t => t.CompanyId).Distinct().ToListAsync(ct);
+        return await db.Companies.IgnoreQueryFilters()
+            .Where(c => companyIds.Contains(c.Id) && c.IsActive && c.ArchivedAt == null)
+            .OrderBy(c => c.Name)
+            .Select(c => new CustomerCompanyDto(c.Id, c.Name))
+            .ToListAsync(ct);
+    }
+
     public async Task<TicketDetail> GetDetailAsync(Guid ticketId, CancellationToken ct = default)
     {
         // Load ignoring the tenant filter, then let authz enforce the caller's relationship — this is

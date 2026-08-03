@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toApiError } from '../lib/api'
 import { errorMessage, priority, statusCategory } from '../lib/messages'
-import { useCreateCustomerTicket, usePublicCompanies } from '../lib/public'
-import { useMyTickets } from '../lib/tickets'
+import { useCreateCustomerTicket } from '../lib/public'
+import { useMyCompanies, useMyTickets } from '../lib/tickets'
 import { Alert, Badge, Button, Field, Icon, Input } from '../ui/primitives'
 
 // A customer's own ticket list (spec §17.4) + a "new message" composer that opens a request to a
@@ -55,7 +55,7 @@ export default function CustomerTickets() {
 }
 
 function NewMessage({ onDone }: { onDone: () => void }) {
-  const { data: companies } = usePublicCompanies()
+  const { data: companies, isLoading } = useMyCompanies()
   const create = useCreateCustomerTicket()
   const [form, setForm] = useState({ companyId: '', title: '', body: '' })
   const [error, setError] = useState<string | null>(null)
@@ -71,6 +71,17 @@ function NewMessage({ onDone }: { onDone: () => void }) {
       setError(errorMessage(code, message))
     }
   }
+
+  // A customer can only message a company they already work with. With none yet, the portal has nothing
+  // to open a request against — first contact is the company's own form link (spec §18.5).
+  if (!isLoading && (companies?.length ?? 0) === 0)
+    return (
+      <div className="rounded-xl border border-line bg-surface p-5 text-sm text-muted">
+        Henüz bir firmayla iletişiminiz yok. Yeni bir firmaya ilk talebinizi, o firmanın size verdiği
+        <span className="font-medium text-ink"> talep formu bağlantısından</span> gönderin. Firma yanıt
+        verdikten sonra buradan da o firmayla yazışabilirsiniz.
+      </div>
+    )
 
   return (
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-line bg-surface p-5">
