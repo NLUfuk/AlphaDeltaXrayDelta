@@ -1,22 +1,30 @@
 @import 'tailwindcss';
 
-/* Minimalist, modern theme: near-neutral slate canvas, a single restrained indigo accent,
-   hairline borders instead of heavy shadows, generous whitespace. */
+/* StarAdmin-inspired theme: deep-blue primary (#1F3BB3), Manrope type, light-gray canvas
+   (#F4F5F7) with white cards and soft shadows, a fixed light sidebar. Screens read these
+   tokens/primitives, so the whole app follows this palette from one place. */
 @theme {
-  --color-primary: #4f46e5;        /* indigo-600 */
-  --color-primary-hover: #4338ca;  /* indigo-700 */
-  --color-accent: #0ea5e9;         /* sky-500 */
-  --color-canvas: #f8fafc;         /* slate-50 */
-  --color-surface: #ffffff;
-  --color-ink: #0f172a;            /* slate-900 */
-  --color-muted: #64748b;          /* slate-500 */
-  --color-line: #e8ebf0;
+  --color-primary: #1f3bb3;        /* StarAdmin primary (blue) */
+  --color-primary-hover: #182f8f;
+  --color-accent: #5e50f9;         /* StarAdmin blue/purple accent */
+  --color-success: #34b1aa;
+  --color-info: #51b1e1;
+  --color-warning: #e29e09;
+  --color-danger: #f95f53;
+  --color-canvas: #f4f5f7;         /* content background */
+  --color-surface: #ffffff;        /* cards, sidebar, navbar */
+  --color-ink: #1f2533;            /* body text */
+  --color-muted: #6c7383;          /* StarAdmin navbar/muted text */
+  --color-line: #eceef3;           /* hairline borders */
+
+  --shadow-card: 0 1px 2px rgba(23, 32, 63, 0.04), 0 4px 16px -8px rgba(23, 32, 63, 0.12);
+  --shadow-sidebar: 6px 0 24px -18px #b7bcd1;
 }
 
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink);
-  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Manrope', 'Segoe UI', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }

@@ -1,13 +1,13 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 
-// Atomic primitives (spec §4.2): minimalist — one indigo accent, hairline borders, soft surfaces.
-// Screens compose these; they never re-write button/input markup inline.
+// Atomic primitives (spec §4.2): StarAdmin look — deep-blue primary, soft-shadow surfaces,
+// Manrope type. Screens compose these; they never re-write button/input markup inline.
 
 type Variant = 'primary' | 'secondary' | 'danger'
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-primary text-white hover:bg-primary-hover',
+  primary: 'bg-primary text-white shadow-sm hover:bg-primary-hover',
   secondary: 'bg-surface text-ink border border-line hover:bg-canvas',
-  danger: 'bg-red-600 text-white hover:bg-red-700',
+  danger: 'bg-danger text-white shadow-sm hover:brightness-95',
 }
 
 export function Button({ variant = 'primary', className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
@@ -38,7 +38,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 }
 
 export function Card({ className = '', children }: { className?: string; children: ReactNode }) {
-  return <div className={`rounded-xl border border-line bg-surface ${className}`}>{children}</div>
+  return <div className={`rounded-xl border border-line bg-surface shadow-card ${className}`}>{children}</div>
 }
 
 export function Alert({ children }: { children: ReactNode }) {

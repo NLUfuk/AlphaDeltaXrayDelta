@@ -302,6 +302,18 @@ Kullanıcı canlı test ederken müşteri deneyimindeki boşluğu bildirdi: mü�
 - *Enumeration önlemi:* GetEffective'te aynı `permission.view_forbidden` kodu — hedefin süper admin olduğunu hata farkından anlamak mümkün olmasın.
 - *Türkçe etiketler statik harita, DB değil:* yetki anahtarları sabit geliştirici-metni (UI-editable business config değil), `PermissionKeys.All` gibi. Statik `PermissionLabels` minimal doğru seam (migration/DB kolonu YAGNI). Bilinmeyen anahtar ham anahtara düşer → yeni permission boş render olmaz.
 
+### Faz 20 — StarAdmin görsel kimliği (foundation) ✅ (2026-08-03)
+- [x] **Tema token'ları (`index.css`):** StarAdmin paleti — primary `#1F3BB3`, aksan `#5E50F9`, canvas `#F4F5F7`, kart gölgesi, hairline border. Font **Manrope** (Google Fonts, `index.html`).
+- [x] **Layout (`Shell.tsx`):** üst-tab → **sol sabit sidebar (240px, açık/beyaz)** + beyaz sticky navbar. Kategori başlıkları (Menü/Yönetim), aktif öğe mavi tint + sol aksan çizgisi. Mobilde off-canvas (hamburger + backdrop).
+- [x] **Primitives:** Button (primary/danger gölgeli), Card (`shadow-card`) StarAdmin görünümüne çekildi.
+- [x] Canlıda doğrulandı (localhost:8080, ekran görüntüsü): Pano + Yetkiler ekranları yeni kimlikte. Build temiz.
+
+**Karar/Varsayım (Faz 20):**
+- *StarAdmin'i kopyalamak yerine yeniden üretmek:* şablon Bootstrap 5 + jQuery + 60 vendor lib; app React 19 + Tailwind v4. Şablonu sürüklemek YAGNI + React'le çatışır. Sadece **görsel token'lar** (renk/font/layout) Tailwind'de yeniden üretildi. Görsel kimliğin %90'ı 3 dosyada (token+shell+primitives) → tüm ekranlar tek diff'le döndü.
+- *Açık sidebar:* kullanıcı StarAdmin'in iki resmi varyantından açık olanı seçti.
+- *Manrope Google Fonts ile:* self-host yerine `<link>` (mdi zaten bundle'da). İstenirse woff2 self-host'a çevrilir.
+- *Kalan (polish, kritik değil):* bazı ekranlar hâlâ `text-slate-*` gibi ham renk kullanıyor (token yerine); çalışıyor ama ekran ekran tokenize edilebilir. Kanban/Dashboard kartları StarAdmin KPI-kart stiline daha da yaklaştırılabilir.
+
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 
 - Teslim/demo tarihi (Faz 3 sonu demo öneriliyor).
