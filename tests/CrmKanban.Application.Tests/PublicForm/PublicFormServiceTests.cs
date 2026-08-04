@@ -80,7 +80,17 @@ public class PublicFormServiceTests
         return company.Id;
     }
 
-    private static PublicFormService ServiceFor(DbContextOptions<CrmDbContext> options, bool captchaOk = true)
+    /// <summary>A signed-in customer (no company membership) — the /c/{slug} caller.</summary>
+    private sealed class SignedIn(Guid id) : ICurrentUserService
+    {
+        public Guid? UserId => id;
+        public bool IsAuthenticated => true;
+        public bool IsSuperAdmin => false;
+        public IReadOnlyCollection<Guid> CompanyIds => [];
+    }
+
+    private static PublicFormService ServiceFor(
+        DbContextOptions<CrmDbContext> options, bool captchaOk = true, ICurrentUserService? caller = null)
     {
         var db = new CrmDbContext(options, new Anonymous());
         // The public form never calls authz, but AttachmentService needs one; a real instance over the
@@ -91,7 +101,7 @@ public class PublicFormServiceTests
         var settings = new Application.Settings.SettingsService(db, new Anonymous());
         var formFields = new Application.Forms.FormFieldService(db, new Anonymous());
         return new PublicFormService(db, new FakeCaptcha(captchaOk), attachments, formFields, new FixedClock(),
-            settings, Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
+            settings, caller ?? new Anonymous(), Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
     }
 
     private static PublicFormSubmitRequest Request(bool consent = true) =>
@@ -258,5 +268,43 @@ public class PublicFormServiceTests
         var act = () => ServiceFor(options).SubmitAsync("nope", Request());
 
         await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    // ---- signed-in customer path (/c/{slug}), the first contact that creates the relationship ----
+
+    [Fact]
+    public async Task A_signed_in_customer_request_enters_the_pool_directly_and_creates_the_relationship()
+    {
+        var options = Store();
+        var companyId = await SeedCompanyAsync(options);
+        var customer = new User("jane@example.com", "Jane", "Doe");
+        await using (var seed = new CrmDbContext(options, new SuperAdmin()))
+        {
+            seed.Users.Add(customer);
+            await seed.SaveChangesAsync();
+        }
+
+        var result = await ServiceFor(options, caller: new SignedIn(customer.Id))
+            .SubmitAsCustomerAsync(Slug, new CustomerFormSubmitRequest("Teklif", "Fiyat alabilir miyim?"));
+
+        result.TicketNumber.Should().StartWith("ACME-");
+        await using var read = new CrmDbContext(options, new SuperAdmin());
+        var ticket = await read.Tickets.SingleAsync();
+        ticket.CompanyId.Should().Be(companyId);
+        ticket.OpenedById.Should().Be(customer.Id);
+        ticket.ApprovalState.Should().Be(TicketApprovalState.Approved,
+            "the address was already proven by the emailed code — no moderation hold");
+        (await read.EmailQueue.CountAsync()).Should().Be(0, "the account already exists; nothing to activate");
+    }
+
+    [Fact]
+    public async Task An_anonymous_caller_cannot_use_the_signed_in_request_path()
+    {
+        var options = Store();
+        await SeedCompanyAsync(options);
+
+        var act = () => ServiceFor(options).SubmitAsCustomerAsync(Slug, new CustomerFormSubmitRequest("t", "b"));
+
+        await act.Should().ThrowAsync<UnauthorizedException>();
     }
 }

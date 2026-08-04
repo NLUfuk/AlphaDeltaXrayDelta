@@ -4,13 +4,14 @@ namespace CrmKanban.Application.Files;
 
 /// <summary>
 /// Zero-trust validation for anonymous public uploads (spec §10). A customer may only submit
-/// document files — pdf, txt, doc, docx — and NOTHING else. Because the bytes flow through the API
+/// documents (pdf, txt, doc, docx) and images (png, jpg, webp) — NOTHING else. Because the bytes flow through the API
 /// (not a direct presigned PUT), we inspect the real content: the extension, the declared
 /// content-type, AND the file signature (magic bytes) must all agree. The client is never trusted;
 /// a .pdf that isn't really a PDF, or an .exe renamed to .txt, is rejected here.
 ///
-/// This is intentionally stricter than the authenticated attachment allow-list (which also permits
-/// images/Office spreadsheets): the public intake surface is the least-trusted one.
+/// Still stricter than the authenticated attachment allow-list (which also permits Office
+/// spreadsheets and gif): the public intake surface is the least-trusted one. Images are allowed
+/// because a photo is how a customer shows a defect — but only as real image bytes, never by name.
 /// </summary>
 public static class PublicFileValidator
 {
@@ -27,6 +28,11 @@ public static class PublicFileValidator
         new("doc",  "application/msword",
             head => StartsWith(head, 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1)), // OLE2 compound doc
         new("txt",  "text/plain", LooksLikeText),
+        new("png",  "image/png",
+            head => StartsWith(head, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)), // PNG signature
+        new("jpg",  "image/jpeg", head => StartsWith(head, 0xFF, 0xD8, 0xFF)),          // JPEG SOI + marker
+        new("jpeg", "image/jpeg", head => StartsWith(head, 0xFF, 0xD8, 0xFF)),
+        new("webp", "image/webp", IsWebp),                                              // RIFF….WEBP
     ];
 
     /// <summary>The extensions a customer may upload — surfaced to the UI's accept filter.</summary>
@@ -46,7 +52,7 @@ public static class PublicFileValidator
         var ext = System.IO.Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
         var kind = Allowed.FirstOrDefault(k => k.Ext == ext)
             ?? throw new BadRequestException("attachment.type_not_allowed",
-                "Only PDF, TXT, DOC and DOCX files are accepted.");
+                "Only PDF, TXT, DOC, DOCX, PNG, JPG and WEBP files are accepted.");
 
         // Declared content-type must match the extension's canonical type (browsers send "text/plain"
         // for .txt, sometimes "application/octet-stream" — accept that fallback only for the extension's sake).
@@ -57,7 +63,7 @@ public static class PublicFileValidator
 
         if (!kind.SignatureOk(head))
             throw new BadRequestException("attachment.content_mismatch",
-                "The file's contents do not match a valid PDF, TXT, DOC or DOCX file.");
+                "The file's contents do not match the type its name claims.");
     }
 
     /// <summary>The canonical content-type to store the object under, derived from its extension (the
@@ -67,6 +73,11 @@ public static class PublicFileValidator
         var ext = System.IO.Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
         return Allowed.First(k => k.Ext == ext).ContentType;
     }
+
+    // WEBP is a RIFF container: "RIFF" + 4 size bytes + "WEBP".
+    private static bool IsWebp(ReadOnlySpan<byte> head) =>
+        head.Length >= 12 && StartsWith(head, 0x52, 0x49, 0x46, 0x46) &&
+        head[8] == 0x57 && head[9] == 0x45 && head[10] == 0x42 && head[11] == 0x50;
 
     private static bool StartsWith(ReadOnlySpan<byte> head, params byte[] sig) =>
         head.Length >= sig.Length && head[..sig.Length].SequenceEqual(sig);

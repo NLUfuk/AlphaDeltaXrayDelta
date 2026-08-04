@@ -3,6 +3,7 @@ import { toApiError } from '../../lib/api'
 import { errorMessage } from '../../lib/messages'
 import { useCompanies, useCreateCompany, useInvite, useMembers, useRemoveMember, type Company } from '../../lib/admin'
 import { Alert, Button, Field, Input } from '../../ui/primitives'
+import { CustomerLink } from '../../ui/CustomerLink'
 
 // Companies (spec §8/§9): an admin opens their own; the list + members drive assignment/permission UIs.
 export default function Companies() {
@@ -71,6 +72,12 @@ function CompanyCard({ company }: { company: Company }) {
         </div>
         <Button variant="secondary" onClick={() => setOpen(!open)}>{open ? 'Gizle' : 'Üyeler'}</Button>
       </div>
+
+      {!company.isArchived && (
+        <div className="mt-3">
+          <CustomerLink slug={company.slug} companyName={company.name} />
+        </div>
+      )}
 
       {open && (
         <div className="mt-3 space-y-3 border-t pt-3">

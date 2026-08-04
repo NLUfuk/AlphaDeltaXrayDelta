@@ -11,6 +11,10 @@ public sealed class EmailOptions
 
     public string Provider { get; init; } = "log"; // "log" | "smtp"
     public string From { get; init; } = "no-reply@crm-kanban.local";
+
+    /// <summary>Display name shown instead of the raw address ("Anadolu Tekstil Destek"). Optional —
+    /// relays (Brevo, Resend) send the bare address when it is empty.</summary>
+    public string? FromName { get; init; }
     public string? Host { get; init; }
     public int Port { get; init; } = 587;
     public bool UseSsl { get; init; } = true;

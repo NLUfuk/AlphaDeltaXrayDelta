@@ -8,6 +8,16 @@ public sealed record LoginRequest(string Email, string Password);
 /// activation link (reuses the invite/accept flow) — so only identity + name are collected here.</summary>
 public sealed record RegisterRequest(string Email, string FirstName, string LastName);
 
+/// <summary>Customer registration through a company's sign-in link (/c/{slug}). Unlike
+/// <see cref="RegisterRequest"/> the password is chosen here and the address is proven by typing the
+/// emailed code (<see cref="VerifyCodeRequest"/>) — no link to click, and the account is bound to the
+/// company whose link they came through by the first request they send.</summary>
+public sealed record CustomerRegisterRequest(string Email, string FirstName, string LastName, string Password);
+
+/// <summary>The emailed 6-digit confirmation code typed on the company sign-in page. A match activates
+/// the account and issues a session.</summary>
+public sealed record VerifyCodeRequest(string Email, string Code);
+
 public sealed record RefreshRequest(string RefreshToken);
 
 /// <summary>A super admin asks to act as another user (support/debug). Mints a normal session for the

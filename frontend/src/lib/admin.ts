@@ -2,7 +2,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api'
 
 export type UserCompany = { companyId: string; companyName: string; role: number }
-export type UserRow = { id: string; email: string; name: string; isSuperAdmin: boolean; canCreateCompany: boolean; isActive: boolean; companies: UserCompany[] }
+// `companies` = staff memberships (role-bearing); `customerOf` = company names a customer works with,
+// derived from their tickets (customers have no membership).
+export type UserRow = {
+  id: string
+  email: string
+  name: string
+  isSuperAdmin: boolean
+  canCreateCompany: boolean
+  isActive: boolean
+  companies: UserCompany[]
+  customerOf: string[]
+}
 export type Company = { id: string; name: string; slug: string; ownerAdminId: string; isActive: boolean; isArchived: boolean; ticketNumberPrefix: string }
 export type Member = { userId: string; email: string; name: string; role: number }
 export type PermissionInfo = { key: string; group: string; label: string; groupLabel: string }
@@ -10,8 +21,23 @@ export type Effective = { userId: string; companyId: string; permissions: string
 export type InviteResult = { userId: string; rawToken: string; expiresAt: string }
 
 // ---- users / admins (super admin) ----
-export function useUsers() {
-  return useQuery({ queryKey: ['users'], queryFn: async () => (await api.get<UserRow[]>('/users')).data })
+// Search runs on the server: the list is capped at 100 rows, so filtering client-side would hide matches.
+export function useUsers(search?: string) {
+  const term = search?.trim() || undefined
+  return useQuery({
+    queryKey: ['users', term ?? ''],
+    queryFn: async () => (await api.get<UserRow[]>('/users', { params: term ? { search: term } : undefined })).data,
+    placeholderData: (prev) => prev, // keep the table on screen while a new search resolves
+  })
+}
+
+/** KVKK erasure (spec §16): masks personal fields and deactivates; ticket history stays. Super admin only. */
+export function useAnonymizeUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: string) => api.post(`/kvkk/anonymize/${userId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
+  })
 }
 export function useCreateAdmin() {
   const qc = useQueryClient()

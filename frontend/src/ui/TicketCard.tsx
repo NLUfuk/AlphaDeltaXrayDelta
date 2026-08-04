@@ -1,23 +1,26 @@
 import { Link } from 'react-router-dom'
-import { priority } from '../lib/messages'
+import { priority as priorityOf } from '../lib/messages'
 import type { TicketListItem } from '../lib/tickets'
-import { Badge } from './primitives'
+import { Icon } from './primitives'
 
 // Composed component (spec §4.2): one card, reused by the board (and later the customer list).
-// Drag = status change. The card stays a real <Link> (keyboard focus, open-in-new-tab), but we set
-// dataTransfer on dragstart — without it Firefox never fires drop — and surface a "dragging" style.
+// Odoo's opportunity card shapes it: title first, number underneath, priority as stars and the
+// assignee as an avatar in the footer. Drag = status change. The card stays a real <Link> (keyboard
+// focus, open-in-new-tab), but we set dataTransfer on dragstart — without it Firefox never fires drop.
 export function TicketCard({
   ticket,
+  assigneeName,
   onDragStart,
   onDragEnd,
   dragging,
 }: {
   ticket: TicketListItem
+  assigneeName?: string
   onDragStart?: () => void
   onDragEnd?: () => void
   dragging?: boolean
 }) {
-  const p = priority(ticket.priority)
+  const p = priorityOf(ticket.priority)
   const draggable = !!onDragStart
   return (
     <Link
@@ -31,15 +34,40 @@ export function TicketCard({
         onDragStart?.()
       }}
       onDragEnd={onDragEnd}
-      className={`block rounded-md border border-line bg-surface p-3 shadow-sm transition hover:border-primary/40 ${
+      className={`block rounded-md border border-line bg-surface p-3 shadow-sm transition hover:shadow-card ${
         draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       } ${dragging ? 'opacity-40 ring-2 ring-primary/40' : ''}`}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted">{ticket.number}</span>
-        <Badge label={p.label} color={p.color} />
+      <p className="text-sm font-semibold leading-snug text-ink">{ticket.title}</p>
+      <p className="mt-0.5 text-xs text-muted">{ticket.number}</p>
+      <div className="mt-2 flex items-center justify-between">
+        <Stars value={ticket.priority} title={p.label} />
+        {assigneeName ? <Avatar name={assigneeName} /> : <span className="text-xs text-muted">atanmadı</span>}
       </div>
-      <p className="mt-1 text-sm text-ink">{ticket.title}</p>
     </Link>
+  )
+}
+
+// Priority as Odoo's star row: Low renders empty, Urgent fills all three.
+function Stars({ value, title }: { value: number; title: string }) {
+  return (
+    <span className="flex gap-0.5 text-sm" title={`Öncelik: ${title}`}>
+      {[1, 2, 3].map((step) => (
+        <Icon key={step} name={value >= step ? 'star' : 'star-outline'}
+          className={value >= step ? 'text-amber-400' : 'text-muted/50'} />
+      ))}
+    </span>
+  )
+}
+
+function Avatar({ name }: { name: string }) {
+  const initials = name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+  return (
+    <span
+      title={name}
+      className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary"
+    >
+      {initials}
+    </span>
   )
 }

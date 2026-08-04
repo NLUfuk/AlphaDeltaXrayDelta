@@ -81,6 +81,13 @@ public class NotificationServiceTests
         return await read.EmailQueue.Select(e => e.ToEmail).ToListAsync();
     }
 
+    private static async Task<List<(string Email, string Template)>> QueuedAsync(DbContextOptions<CrmDbContext> options)
+    {
+        await using var read = new CrmDbContext(options, new SuperAdmin());
+        return (await read.EmailQueue.Select(e => new { e.ToEmail, e.TemplateKey }).ToListAsync())
+            .Select(x => (x.ToEmail, x.TemplateKey)).ToList();
+    }
+
     [Fact]
     public async Task Internal_note_never_emails_the_customer_and_not_the_actor()
     {
@@ -203,5 +210,83 @@ public class NotificationServiceTests
 
         sender.Sent.Should().ContainSingle().Which.Should().Be(CustomerEmail);
         (await db.EmailQueue.IgnoreQueryFilters().SingleAsync()).Status.Should().Be(EmailStatus.Sent);
+    }
+
+    // ---- audience: the customer reads "talebiniz…", staff read one generic update notice ----
+
+    [Fact]
+    public async Task A_status_change_reaches_both_the_customer_and_the_assignee_in_their_own_voice()
+    {
+        var options = Store();
+        var s = await SeedAsync(options);
+        await using (var db = new CrmDbContext(options, new SuperAdmin()))
+        {
+            // An admin (neither opener nor assignee) moves the ticket → both sides must hear about it.
+            db.TicketEvents.Add(new TicketEvent(Company, s.TicketId, s.AdminId, TicketEventType.StatusChanged, "Yeni", "İşlemde"));
+            await db.SaveChangesAsync();
+            await ServiceOver(db, new RecordingSender()).FanOutEventsAsync();
+        }
+
+        var queued = await QueuedAsync(options);
+        queued.Should().Contain((CustomerEmail, "ticket_status_changed"), "the opener is a customer");
+        queued.Should().Contain((StaffEmail, "ticket_staff_update"), "the assignee works at the company");
+    }
+
+    [Fact]
+    public async Task A_staff_opened_ticket_never_sends_its_opener_the_customer_worded_mail()
+    {
+        var options = Store();
+        var s = await SeedAsync(options);
+        await using (var db = new CrmDbContext(options, new SuperAdmin()))
+        {
+            // Staff-opened ticket: the admin is the opener, the personel is the assignee.
+            var ticket = new Ticket(Company, "ACME-2", s.AdminId, Guid.NewGuid(), "Internal", "body");
+            ticket.Assign(s.StaffId);
+            db.Tickets.Add(ticket);
+            db.TicketEvents.Add(new TicketEvent(Company, ticket.Id, s.CustomerId, TicketEventType.CommentAdded, null, null));
+            await db.SaveChangesAsync();
+            await ServiceOver(db, new RecordingSender()).FanOutEventsAsync();
+        }
+
+        var queued = await QueuedAsync(options);
+        queued.Should().OnlyContain(q => q.Template == "ticket_staff_update",
+            "both recipients work at the company — nobody gets 'talebiniz…'");
+        queued.Select(q => q.Email).Should().BeEquivalentTo([AdminEmail, StaffEmail]);
+    }
+
+    [Fact]
+    public async Task A_priority_change_tells_the_assignee_but_never_the_customer()
+    {
+        var options = Store();
+        var s = await SeedAsync(options);
+        await using (var db = new CrmDbContext(options, new SuperAdmin()))
+        {
+            db.TicketEvents.Add(new TicketEvent(Company, s.TicketId, s.AdminId, TicketEventType.PriorityChanged, "Normal", "High"));
+            await db.SaveChangesAsync();
+            await ServiceOver(db, new RecordingSender()).FanOutEventsAsync();
+        }
+
+        var queued = await QueuedAsync(options);
+        queued.Should().ContainSingle().Which.Should().Be((StaffEmail, "ticket_staff_update"),
+            "priority is internal triage — the customer is not told");
+    }
+
+    [Fact]
+    public async Task The_staff_notice_payload_names_what_changed()
+    {
+        var options = Store();
+        var s = await SeedAsync(options);
+        await using (var db = new CrmDbContext(options, new SuperAdmin()))
+        {
+            db.TicketEvents.Add(new TicketEvent(Company, s.TicketId, s.AdminId, TicketEventType.StatusChanged, "Yeni", "İşlemde"));
+            await db.SaveChangesAsync();
+            await ServiceOver(db, new RecordingSender()).FanOutEventsAsync();
+        }
+
+        await using var read = new CrmDbContext(options, new SuperAdmin());
+        var staffMail = await read.EmailQueue.SingleAsync(e => e.TemplateKey == "ticket_staff_update");
+        // Read it the way the sender does — the stored JSON escapes non-ASCII.
+        var payload = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(staffMail.Payload)!;
+        payload["change"].Should().Be("durum güncellendi: İşlemde", "the {{change}} token names the change");
     }
 }

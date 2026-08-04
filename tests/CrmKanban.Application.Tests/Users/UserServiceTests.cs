@@ -64,6 +64,33 @@ public class UserServiceTests
     }
 
     [Fact]
+    public async Task The_user_list_shows_staff_by_membership_and_customers_by_the_companies_they_wrote_to()
+    {
+        var options = Store();
+        var superAdmin = new FakeUser(true, Guid.NewGuid());
+        await using var db = new CrmDbContext(options, superAdmin);
+        var company = new Company("Acme", "acme", Guid.NewGuid());
+        var staff = new User("staff@acme.com", "Staff", "Member");
+        var customer = new User("buyer@x.com", "Buyer", "Person");
+        var statusId = Guid.NewGuid();
+        db.TicketStatuses.Add(new TicketStatus("Open", Domain.Enums.StatusCategory.Open, "#000", 1, false, id: statusId));
+        db.Companies.Add(company);
+        db.Users.AddRange(staff, customer);
+        db.Memberships.Add(new Membership(staff.Id, company.Id, Domain.Enums.RoleType.Personel));
+        db.Tickets.Add(new Ticket(company.Id, company.AllocateTicketNumber(), customer.Id, statusId, "Teklif", "…"));
+        await db.SaveChangesAsync();
+
+        var list = await Service(db, superAdmin).ListAsync(null);
+
+        var staffRow = list.Single(u => u.Email == "staff@acme.com");
+        staffRow.Companies.Should().ContainSingle(c => c.CompanyName == "Acme");
+        var customerRow = list.Single(u => u.Email == "buyer@x.com");
+        customerRow.Companies.Should().BeEmpty("a customer has no membership");
+        customerRow.CustomerOf.Should().ContainSingle()
+            .Which.Should().Be("Acme", "the relationship comes from their ticket");
+    }
+
+    [Fact]
     public async Task Duplicate_email_is_rejected()
     {
         var options = Store();

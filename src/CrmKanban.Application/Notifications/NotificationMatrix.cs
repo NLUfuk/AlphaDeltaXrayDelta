@@ -19,7 +19,20 @@ public enum RecipientSlot { Opener, Assignee, CompanyAdmin }
 /// {Opener, Assignee} into just the Assignee when the customer is the author, and into
 /// {Opener, other-assignee} when staff authors — matching both §14 rows with one entry.
 /// </summary>
-public sealed record MatrixEntry(RecipientSlot[] Slots, string TemplateKey, bool NotifyOpenerEvenIfActor, bool Critical);
+/// <param name="TemplateKey">Customer-voice template ("talebiniz…"), used for the opener when the opener
+/// is a customer (not a member of the ticket's company).</param>
+/// <param name="StaffTemplateKey">Template for recipients who work at the company. Null = use
+/// <paramref name="TemplateKey"/> (for events that are staff-only anyway, e.g. assignment/internal note).
+/// Staff get one generic "this ticket changed" mail rather than a customer-worded one.</param>
+public sealed record MatrixEntry(
+    RecipientSlot[] Slots, string TemplateKey, bool NotifyOpenerEvenIfActor, bool Critical,
+    string? StaffTemplateKey = null);
+
+/// <summary>The generic staff-facing update mail: "X nolu talepte güncelleme var" + what changed.</summary>
+public static class StaffTemplate
+{
+    public const string Update = "ticket_staff_update";
+}
 
 public static class NotificationMatrix
 {
@@ -28,19 +41,19 @@ public static class NotificationMatrix
         {
             [TicketEventType.Created] = new(
                 [RecipientSlot.Opener, RecipientSlot.CompanyAdmin], "ticket_created",
-                NotifyOpenerEvenIfActor: true, Critical: true), // opener gets the ticket-number receipt
+                NotifyOpenerEvenIfActor: true, Critical: true, StaffTemplate.Update), // opener gets the ticket-number receipt
 
             [TicketEventType.StatusChanged] = new(
                 [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_status_changed",
-                NotifyOpenerEvenIfActor: false, Critical: false),
+                NotifyOpenerEvenIfActor: false, Critical: false, StaffTemplate.Update),
 
             [TicketEventType.Reopened] = new(
                 [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_reopened",
-                NotifyOpenerEvenIfActor: false, Critical: false),
+                NotifyOpenerEvenIfActor: false, Critical: false, StaffTemplate.Update),
 
             [TicketEventType.CommentAdded] = new(
                 [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_comment_added",
-                NotifyOpenerEvenIfActor: false, Critical: false),
+                NotifyOpenerEvenIfActor: false, Critical: false, StaffTemplate.Update),
 
             [TicketEventType.InternalNoteAdded] = new(
                 [RecipientSlot.Assignee, RecipientSlot.CompanyAdmin], "ticket_internal_note_added",
@@ -54,26 +67,36 @@ public static class NotificationMatrix
             // so the opener (customer) is always the recipient. Rejection is critical — the customer must
             // learn their request was not accepted.
             [TicketEventType.Approved] = new(
-                [RecipientSlot.Opener], "ticket_approved",
-                NotifyOpenerEvenIfActor: false, Critical: false),
+                [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_approved",
+                NotifyOpenerEvenIfActor: false, Critical: false, StaffTemplate.Update),
 
             [TicketEventType.Rejected] = new(
-                [RecipientSlot.Opener], "ticket_rejected",
-                NotifyOpenerEvenIfActor: false, Critical: true),
+                [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_rejected",
+                NotifyOpenerEvenIfActor: false, Critical: true, StaffTemplate.Update),
 
             // A file added to the ticket (spec §7). Same recipients as a comment; the actor is removed, so
             // whoever uploaded it isn't mailed their own upload.
             [TicketEventType.AttachmentAdded] = new(
                 [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_attachment_added",
-                NotifyOpenerEvenIfActor: false, Critical: false),
+                NotifyOpenerEvenIfActor: false, Critical: false, StaffTemplate.Update),
 
             // Title/body edit (checklist §7). Spec §14's default was "nobody"; the product owner chose to
             // notify the opener + assignee so the customer sees content changes. Actor is removed.
             [TicketEventType.Edited] = new(
                 [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_edited",
+                NotifyOpenerEvenIfActor: false, Critical: false, StaffTemplate.Update),
+            // Internal bookkeeping: the assignee needs to know, the customer does not (priority and
+            // category are staff concepts — mailing them would leak internal triage and add noise).
+            [TicketEventType.PriorityChanged] = new(
+                [RecipientSlot.Assignee], StaffTemplate.Update,
+                NotifyOpenerEvenIfActor: false, Critical: false),
+
+            [TicketEventType.CategoryChanged] = new(
+                [RecipientSlot.Assignee], StaffTemplate.Update,
                 NotifyOpenerEvenIfActor: false, Critical: false),
         };
 
-    // PriorityChanged, CategoryChanged, Deleted, Unassigned → nobody (spec §14).
+    // Deleted, Unassigned → nobody. (Unassigned would have to mail the *previous* assignee; the event
+    // carries their id in OldValue but no recipient slot resolves to it — add one if it's ever wanted.)
     public static MatrixEntry? For(TicketEventType type) => Default.GetValueOrDefault(type);
 }

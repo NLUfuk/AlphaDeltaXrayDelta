@@ -15,3 +15,12 @@ public sealed class PublicFormSubmitRequestValidator : AbstractValidator<PublicF
         RuleFor(x => x.KvkkConsent).Equal(true).WithMessage("KVKK consent is required.");
     }
 }
+
+public sealed class CustomerFormSubmitRequestValidator : AbstractValidator<CustomerFormSubmitRequest>
+{
+    public CustomerFormSubmitRequestValidator()
+    {
+        RuleFor(x => x.Title).NotEmpty().MaximumLength(300);
+        RuleFor(x => x.Body).NotEmpty().MaximumLength(10000);
+    }
+}

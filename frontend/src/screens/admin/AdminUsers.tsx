@@ -1,145 +1,306 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toApiError } from '../../lib/api'
 import { errorMessage } from '../../lib/messages'
 import { useAuth } from '../../lib/auth'
-import { useCreateAdmin, useUsers, type UserRow } from '../../lib/admin'
-import { Alert, Button, Field, Input } from '../../ui/primitives'
+import { useAnonymizeUser, useCreateAdmin, useUsers, type UserRow } from '../../lib/admin'
+import { Alert, Button, Card, Field, Icon, Input } from '../../ui/primitives'
 
-const roleLabel = (r: number) => (r === 1 ? 'Admin' : 'Personel')
-const globalRole = (u: UserRow) => (u.isSuperAdmin ? 'Süper Admin' : u.canCreateCompany ? 'Admin' : 'Müşteri')
+// One vocabulary for "what kind of account is this" — the table, the filter and the badges all read it.
+type Kind = 'super' | 'admin' | 'staff' | 'customer'
+const KINDS: Record<Kind, { label: string; className: string }> = {
+  super: { label: 'Süper Admin', className: 'bg-primary/10 text-primary' },
+  admin: { label: 'Admin', className: 'bg-indigo-100 text-indigo-700' },
+  staff: { label: 'Personel', className: 'bg-canvas text-muted' },
+  customer: { label: 'Müşteri', className: 'bg-emerald-100 text-emerald-700' },
+}
 
-// Group the flat user list by company. A user in several companies appears under each; users with no
-// membership (customers, super admins) fall into the "unassigned" bucket.
-function groupByCompany(users: UserRow[]) {
-  const map = new Map<string, { name: string; rows: { u: UserRow; role: number }[] }>()
-  const unassigned: UserRow[] = []
+const kindOf = (u: UserRow, role?: number): Kind =>
+  u.isSuperAdmin ? 'super' : role === 1 || (role === undefined && u.canCreateCompany) ? 'admin' : role === 2 ? 'staff' : 'customer'
+
+/// Company groups (staff, by membership) + one bucket for everyone else, split by kind.
+function group(users: UserRow[]) {
+  const companies = new Map<string, { name: string; rows: { u: UserRow; role: number }[] }>()
+  const customers: UserRow[] = []
+  const others: UserRow[] = []
   for (const u of users) {
-    if (u.companies.length === 0) { unassigned.push(u); continue }
-    for (const c of u.companies) {
-      const g = map.get(c.companyId) ?? { name: c.companyName, rows: [] }
-      g.rows.push({ u, role: c.role })
-      map.set(c.companyId, g)
-    }
+    if (u.companies.length > 0) {
+      for (const c of u.companies) {
+        const g = companies.get(c.companyId) ?? { name: c.companyName, rows: [] }
+        g.rows.push({ u, role: c.role })
+        companies.set(c.companyId, g)
+      }
+    } else if (u.isSuperAdmin || u.canCreateCompany) others.push(u)
+    else customers.push(u)
   }
   return {
-    companies: [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'tr')),
-    unassigned,
+    companies: [...companies.values()].sort((a, b) => a.name.localeCompare(b.name, 'tr')),
+    customers,
+    others,
   }
 }
 
-// Super-admin: create admin accounts + list users (spec §9). The invite token is shown after creation
-// because email is a dev log sender in this environment — it's how the admin completes signup.
+// Super-admin console: create admin accounts, search every account, step into one, or erase it (KVKK).
 export default function AdminUsers() {
-  const { data: users, error } = useUsers()
+  const [search, setSearch] = useState('')
+  const [kindFilter, setKindFilter] = useState<'' | Kind>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'pending'>('')
+  const { data: users, error, isFetching } = useUsers(search)
   const { user, impersonate } = useAuth()
   const navigate = useNavigate()
   const create = useCreateAdmin()
+  const anonymize = useAnonymizeUser()
   const [form, setForm] = useState({ email: '', firstName: '', lastName: '' })
-  const [token, setToken] = useState<string | null>(null)
+  const [invited, setInvited] = useState<{ email: string; link: string } | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
 
-  async function stepInto(userId: string) {
+  const filtered = useMemo(() => (users ?? []).filter((u) => {
+    if (statusFilter === 'active' && !u.isActive) return false
+    if (statusFilter === 'pending' && u.isActive) return false
+    if (!kindFilter) return true
+    if (kindFilter === 'staff' || kindFilter === 'admin')
+      return u.companies.some((c) => kindOf(u, c.role) === kindFilter)
+    return kindOf(u) === kindFilter
+  }), [users, kindFilter, statusFilter])
+
+  const groups = group(filtered)
+
+  async function run(fn: () => Promise<void>) {
     setErr(null)
     try {
-      await impersonate(userId)
-      navigate('/', { replace: true })
+      await fn()
     } catch (e) {
       const { code, message } = toApiError(e)
       setErr(errorMessage(code, message))
     }
   }
 
-  async function submit(e: React.FormEvent) {
+  const stepInto = (userId: string) => run(async () => {
+    await impersonate(userId)
+    navigate('/', { replace: true })
+  })
+
+  const erase = (u: UserRow) => run(() => anonymize.mutateAsync(u.id).then(() => {}))
+
+  const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    setErr(null)
-    setToken(null)
-    try {
+    setInvited(null)
+    return run(async () => {
       const res = await create.mutateAsync(form)
-      setToken(res.rawToken)
+      setInvited({ email: form.email, link: `${window.location.origin}/invite?token=${res.rawToken}` })
       setForm({ email: '', firstName: '', lastName: '' })
-    } catch (e2) {
-      const { code, message } = toApiError(e2)
-      setErr(errorMessage(code, message))
-    }
+    })
   }
 
   if (error) return <p className="text-red-600">Kullanıcılar yüklenemedi (süper admin gerekli).</p>
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <h1 className="text-lg font-semibold text-ink">Kullanıcılar & Admin oluşturma</h1>
-
-      <form onSubmit={submit} className="space-y-3 rounded-lg bg-surface p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-muted">Yeni admin</h2>
-        {err && <Alert>{err}</Alert>}
-        {token && (
-          <div className="rounded-md bg-green-50 p-3 text-sm text-green-800">
-            Admin oluşturuldu. Davet (şifre belirleme) token'ı:
-            <code className="mt-1 block break-all font-mono text-xs">{token}</code>
-          </div>
-        )}
-        <div className="flex gap-3">
-          <Field label="Ad"><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required /></Field>
-          <Field label="Soyad"><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required /></Field>
+    <div className="space-y-4">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-lg font-semibold text-ink">Kullanıcılar</h1>
+          <span className="text-sm text-muted">{users?.length ?? 0} hesap{isFetching && ' · yükleniyor…'}</span>
         </div>
-        <Field label="E-posta"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></Field>
-        <Button type="submit" disabled={create.isPending}>Admin oluştur</Button>
-      </form>
+        <Button onClick={() => setShowCreate(!showCreate)} className="gap-1.5">
+          <Icon name="account-plus-outline" />Yeni admin
+        </Button>
+      </header>
 
-      {(() => {
-        const { companies, unassigned } = groupByCompany(users ?? [])
+      {err && <Alert>{err}</Alert>}
 
-        const row = (u: UserRow, roleText: string) => (
-          <tr key={u.id} className="border-t">
-            <td className="py-1">{u.email}</td>
-            <td>{u.name}</td>
-            <td>{roleText}</td>
-            <td>{u.isActive ? 'Aktif' : 'Bekliyor'}</td>
-            <td className="text-right">
-              {/* Impersonation is SuperAdmin-only and never targets another super admin or an inactive/self account. */}
-              {!u.isSuperAdmin && u.isActive && u.id !== user?.id && (
-                <button onClick={() => stepInto(u.id)} className="text-xs font-medium text-primary hover:underline">
-                  Kimliğine gir
-                </button>
-              )}
-            </td>
-          </tr>
-        )
+      {showCreate && (
+        <Card className="space-y-3 p-4">
+          <h2 className="text-sm font-semibold text-muted">Yeni admin hesabı</h2>
+          <p className="text-xs text-muted">
+            Admin hesabını yalnız süper admin açar; davet e-postası gönderilir, admin parolasını belirleyip
+            kendi şirketini oluşturur.
+          </p>
+          <form onSubmit={submit} className="space-y-3">
+            <div className="flex gap-3">
+              <Field label="Ad"><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required /></Field>
+              <Field label="Soyad"><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required /></Field>
+            </div>
+            <Field label="E-posta"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></Field>
+            <Button type="submit" disabled={create.isPending}>{create.isPending ? 'Oluşturuluyor…' : 'Oluştur ve davet gönder'}</Button>
+          </form>
+          {invited && <InviteResult email={invited.email} link={invited.link} />}
+        </Card>
+      )}
 
-        const table = (rows: React.ReactNode) => (
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted">
-              <tr><th className="py-1">E-posta</th><th>Ad</th><th>Rol</th><th>Durum</th><th></th></tr>
-            </thead>
-            <tbody>{rows}</tbody>
-          </table>
-        )
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="w-64">
+          <Input placeholder="Ara (ad / e-posta)…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <select
+          className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-ink"
+          value={kindFilter} onChange={(e) => setKindFilter(e.target.value as '' | Kind)}
+        >
+          <option value="">Tür: tümü</option>
+          {(Object.keys(KINDS) as Kind[]).map((k) => <option key={k} value={k}>{KINDS[k].label}</option>)}
+        </select>
+        <select
+          className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-ink"
+          value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'pending')}
+        >
+          <option value="">Durum: tümü</option>
+          <option value="active">Aktif</option>
+          <option value="pending">Davet bekliyor</option>
+        </select>
+        {(search || kindFilter || statusFilter) && (
+          <button onClick={() => { setSearch(''); setKindFilter(''); setStatusFilter('') }} className="text-sm text-muted hover:text-ink">
+            Temizle
+          </button>
+        )}
+      </div>
 
-        return (
-          <div className="space-y-4">
-            {companies.map((g) => (
-              <div key={g.name} className="rounded-lg bg-surface p-4 shadow-sm">
-                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
-                  {g.name}
-                  <span className="rounded-full bg-canvas px-2 text-xs font-normal text-muted">{g.rows.length}</span>
-                </h2>
-                {table(g.rows.map(({ u, role }) => row(u, roleLabel(role))))}
-              </div>
+      {filtered.length === 0 && <p className="text-sm text-muted">Bu filtrelere uyan hesap yok.</p>}
+
+      <div className="space-y-4">
+        {groups.companies.map((g) => (
+          <UserGroup key={g.name} title={g.name} icon="office-building-outline" count={g.rows.length}>
+            {g.rows.map(({ u, role }) => (
+              <UserTableRow key={u.id + role} u={u} kind={kindOf(u, role)} self={u.id === user?.id}
+                onStepInto={stepInto} onErase={erase} />
             ))}
+          </UserGroup>
+        ))}
 
-            {unassigned.length > 0 && (
-              <div className="rounded-lg bg-surface p-4 shadow-sm">
-                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
-                  Şirkete bağlı olmayan (müşteri / süper admin)
-                  <span className="rounded-full bg-canvas px-2 text-xs font-normal text-muted">{unassigned.length}</span>
-                </h2>
-                {table(unassigned.map((u) => row(u, globalRole(u))))}
-              </div>
+        {groups.customers.length > 0 && (
+          <UserGroup title="Müşteriler" icon="account-multiple-outline" count={groups.customers.length}>
+            {groups.customers.map((u) => (
+              <UserTableRow key={u.id} u={u} kind="customer" self={u.id === user?.id}
+                onStepInto={stepInto} onErase={erase} />
+            ))}
+          </UserGroup>
+        )}
+
+        {groups.others.length > 0 && (
+          <UserGroup title="Şirketi olmayan yöneticiler" icon="shield-account-outline" count={groups.others.length}>
+            {groups.others.map((u) => (
+              <UserTableRow key={u.id} u={u} kind={kindOf(u)} self={u.id === user?.id}
+                onStepInto={stepInto} onErase={erase} />
+            ))}
+          </UserGroup>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function UserGroup({ title, icon, count, children }: { title: string; icon: string; count: number; children: React.ReactNode }) {
+  return (
+    <Card className="overflow-hidden">
+      <h2 className="flex items-center gap-2 border-b border-line px-4 py-3 text-sm font-semibold text-ink">
+        <Icon name={icon} className="text-muted" />{title}
+        <span className="rounded-full bg-canvas px-2 text-xs font-normal text-muted">{count}</span>
+      </h2>
+      {/* Wide table scrolls inside the card instead of pushing the page sideways. */}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[46rem] text-sm">
+          <thead className="text-left text-xs uppercase tracking-wide text-muted">
+            <tr className="border-b border-line">
+              <th className="px-4 py-2 font-medium">Kullanıcı</th>
+              <th className="px-2 py-2 font-medium">Tür</th>
+              <th className="px-2 py-2 font-medium">Durum</th>
+              <th className="px-2 py-2 font-medium">İlişkili firmalar</th>
+              <th className="px-4 py-2" />
+            </tr>
+          </thead>
+          <tbody>{children}</tbody>
+        </table>
+      </div>
+    </Card>
+  )
+}
+
+function UserTableRow({
+  u, kind, self, onStepInto, onErase,
+}: {
+  u: UserRow
+  kind: Kind
+  self: boolean
+  onStepInto: (id: string) => void
+  onErase: (u: UserRow) => void
+}) {
+  const k = KINDS[kind]
+  const [confirming, setConfirming] = useState(false)
+  // Impersonation and erasure are SuperAdmin-only and never target a super admin or the caller itself
+  // (the backend enforces both; the UI just doesn't offer what would be refused).
+  const actionable = !u.isSuperAdmin && !self
+  return (
+    <tr className="border-b border-line last:border-0 hover:bg-canvas/60">
+      <td className="px-4 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            {u.name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+          </span>
+          <span>
+            <span className="block font-medium text-ink">{u.name}</span>
+            <span className="block text-xs text-muted">{u.email}</span>
+          </span>
+        </div>
+      </td>
+      <td className="px-2 py-2.5">
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${k.className}`}>{k.label}</span>
+      </td>
+      <td className="px-2 py-2.5">
+        <span className={`text-xs font-medium ${u.isActive ? 'text-emerald-600' : 'text-amber-600'}`}>
+          {u.isActive ? 'Aktif' : 'Davet bekliyor'}
+        </span>
+      </td>
+      <td className="px-2 py-2.5 text-xs text-muted">
+        {u.customerOf.length > 0 ? u.customerOf.join(', ') : u.companies.length > 0 ? '—' : 'henüz talep yok'}
+      </td>
+      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+        {/* Erasure is irreversible, so it takes a second click — inline, not a browser dialog. */}
+        {confirming ? (
+          <span className="text-xs text-muted">
+            Kişisel bilgiler maskelenip hesap kapatılacak (talep geçmişi kalır).
+            <button onClick={() => { setConfirming(false); onErase(u) }} className="ml-2 font-medium text-red-600 hover:underline">
+              Sil
+            </button>
+            <button onClick={() => setConfirming(false)} className="ml-2 font-medium text-muted hover:text-ink">
+              Vazgeç
+            </button>
+          </span>
+        ) : (
+          <>
+            {actionable && u.isActive && (
+              <button onClick={() => onStepInto(u.id)} className="text-xs font-medium text-primary hover:underline">
+                Kimliğine gir
+              </button>
             )}
-          </div>
-        )
-      })()}
+            {actionable && (
+              <button onClick={() => setConfirming(true)} className="ml-3 text-xs font-medium text-red-600 hover:underline">
+                Hesabı sil
+              </button>
+            )}
+          </>
+        )}
+      </td>
+    </tr>
+  )
+}
+
+/// The invite link is emailed; it is shown here too because a super admin often onboards someone
+/// over the phone — and because a bounced mail would otherwise leave no way to complete signup.
+function InviteResult({ email, link }: { email: string; link: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+      <p><b>{email}</b> için hesap oluşturuldu; parola belirleme daveti e-postayla gönderildi.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input readOnly value={link} onFocus={(e) => e.currentTarget.select()}
+          className="min-w-0 flex-1 rounded-md border border-emerald-200 bg-surface px-2 py-1.5 text-xs text-ink" />
+        <Button
+          variant="secondary" type="button"
+          onClick={async () => { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+          className="gap-1.5 py-1.5"
+        >
+          <Icon name={copied ? 'check' : 'content-copy'} />{copied ? 'Kopyalandı' : 'Bağlantıyı kopyala'}
+        </Button>
+      </div>
     </div>
   )
 }

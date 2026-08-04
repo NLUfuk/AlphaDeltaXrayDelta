@@ -4,10 +4,28 @@ import { useAuth } from '../lib/auth'
 import { useMembers } from '../lib/admin'
 import { PRIORITIES, formatDateTime, priority, statusCategory } from '../lib/messages'
 import {
-  downloadAttachment,
+  downloadAttachment, isImage, useAttachmentBlobUrl,
   useAddComment, useAssignTicket, useChangeTicketStatus, useSetTicketPriority, useStatuses, useTicket, useUploadAttachment,
+  type Attachment,
 } from '../lib/tickets'
 import { Badge, Button, Card, Icon, Input } from '../ui/primitives'
+
+// Server-side allow-list mirrored for the picker; the backend re-checks bytes either way.
+const ACCEPT = '.png,.jpg,.jpeg,.webp,.pdf,.txt,.doc,.docx'
+
+/// An image attachment shown inline. The bytes come through the authed API (private bucket, no public
+/// URL), so we render an object URL rather than pointing <img> at the endpoint.
+function ImageThumb({ attachment }: { attachment: Attachment }) {
+  const url = useAttachmentBlobUrl(attachment.id, true)
+  if (!url)
+    return <div className="h-24 w-24 animate-pulse rounded-md border border-line bg-canvas" title={attachment.fileName} />
+  return (
+    <a href={url} target="_blank" rel="noreferrer" title={attachment.fileName}>
+      <img src={url} alt={attachment.fileName}
+        className="h-24 w-24 rounded-md border border-line object-cover transition hover:border-primary" />
+    </a>
+  )
+}
 
 export default function TicketDetail() {
   const { id = '' } = useParams()
@@ -111,28 +129,38 @@ export default function TicketDetail() {
           <label className="inline-flex cursor-pointer items-center gap-1 text-sm text-primary">
             <Icon name="paperclip" />
             {upload.isPending ? 'Yükleniyor…' : 'Dosya ekle'}
-            <input type="file" className="hidden" onChange={pickFile} disabled={upload.isPending} />
+            <input type="file" accept={ACCEPT} className="hidden" onChange={pickFile} disabled={upload.isPending} />
           </label>
         </div>
         {ticket.attachments.length === 0 ? (
           <p className="text-sm text-muted">Ek yok.</p>
         ) : (
-          <ul className="space-y-1">
-            {ticket.attachments.map((a) => (
-              <li key={a.id}>
-                <button
-                  type="button"
-                  onClick={() => downloadAttachment(a.id, a.fileName)}
-                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                >
-                  <Icon name="download" />{a.fileName}
-                  <span className="text-xs text-muted">({Math.max(1, Math.round(a.size / 1024))} KB)</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            {ticket.attachments.some((a) => isImage(a.contentType)) && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {ticket.attachments.filter((a) => isImage(a.contentType)).map((a) => (
+                  <ImageThumb key={a.id} attachment={a} />
+                ))}
+              </div>
+            )}
+            <ul className="space-y-1">
+              {ticket.attachments.filter((a) => !isImage(a.contentType)).map((a) => (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => downloadAttachment(a.id, a.fileName)}
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    <Icon name="download" />{a.fileName}
+                    <span className="text-xs text-muted">({Math.max(1, Math.round(a.size / 1024))} KB)</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
         {upload.isError && <p className="mt-1 text-sm text-red-600">Yükleme başarısız (tip veya boyut).</p>}
+        <p className="mt-2 text-xs text-muted">Görsel (PNG, JPG, WEBP) ve belge (PDF, TXT, DOC, DOCX) yükleyebilirsiniz.</p>
       </Card>
 
       <div className="space-y-2">

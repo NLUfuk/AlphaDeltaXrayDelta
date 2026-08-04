@@ -5,8 +5,10 @@ namespace CrmKanban.Infrastructure.Persistence.Seed;
 /// <summary>
 /// v1 default email templates (spec §14). Keys match the notification matrix; bodies use
 /// {{placeholder}} tokens filled from the queued message payload. Available tokens:
-///  - ticket events: ticketNumber, title, newValue, oldValue, link (deep link to the ticket)
-///  - account emails: name, companyName, link (one-time activation/reset link)
+///  - ticket events: ticketNumber, title, newValue, oldValue, change (what happened, Turkish), link
+///  - account emails: name, companyName, link (one-time activation/reset link), code + minutes (sign-in code)
+/// Ticket mails come in two voices: the customer-worded ones below and the single staff-worded
+/// ticket_staff_update; NotificationService picks per recipient (member of the company or not).
 /// Only these render — any other {{token}} is left literal, so never introduce one that isn't in the
 /// payload. Super-admin editable (Faz 15 /admin/templates); seeded insert-if-missing by Key, so edits
 /// are never overwritten on restart.
@@ -21,8 +23,8 @@ public static class DefaultEmailTemplates
                 "Talebi görüntüle")),
 
         T("11111111-0000-0000-0000-000000000002", "ticket_status_changed",
-            "Talebinizin durumu güncellendi — {{ticketNumber}}",
-            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebinizin durumu <b>{{newValue}}</b> olarak güncellendi.</p>",
+            "{{ticketNumber}} numaralı talebiniz: {{newValue}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> numaralı <b>{{title}}</b> başlıklı talebiniz <b>{{newValue}}</b> durumuna alınmıştır.</p>",
                 "Talebi görüntüle")),
 
         T("11111111-0000-0000-0000-000000000003", "ticket_reopened",
@@ -65,6 +67,13 @@ public static class DefaultEmailTemplates
             Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> — <b>{{title}}</b> talebinin başlığı veya içeriği güncellendi.</p>",
                 "Talebi görüntüle")),
 
+        // Staff-facing counterpart of every ticket mail above: one generic "something changed here"
+        // notice for people who work at the company (the customer-worded templates would read wrong).
+        T("11111111-0000-0000-0000-000000000016", "ticket_staff_update",
+            "{{ticketNumber}} — {{change}}",
+            Compose("<p>Merhaba,</p><p><b>{{ticketNumber}}</b> numaralı <b>{{title}}</b> kaydınızda güncelleme var: <b>{{change}}</b>. Lütfen göz atın.</p>",
+                "Kaydı görüntüle")),
+
         // --- Account lifecycle (one-time link) ---
 
         // First-time customer who submitted the public form (spec §9): clicking the link verifies the
@@ -85,6 +94,14 @@ public static class DefaultEmailTemplates
             "Parolanızı sıfırlayın",
             Account("<p>Merhaba {{name}},</p><p>Parolanızı sıfırlamak için aşağıdaki butonu kullanın. Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz; parolanız değişmez.</p>",
                 "Parolamı sıfırla")),
+
+        // Customer sign-up on a company's sign-in page (/c/{slug}): a typed code, not a link.
+        T("11111111-0000-0000-0000-000000000015", "account_code",
+            "{{companyName}} — doğrulama kodunuz: {{code}}",
+            "<p>Merhaba {{name}},</p><p><b>{{companyName}}</b> için kaydınızı tamamlamak üzere aşağıdaki doğrulama kodunu giriş ekranına yazın.</p>" +
+            "<p style=\"margin:24px 0;font-size:32px;font-weight:700;letter-spacing:8px;color:#1f3bb3\">{{code}}</p>" +
+            "<p style=\"color:#94a3b8;font-size:12px\">Kod {{minutes}} dakika geçerlidir. Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz.</p>" +
+            Footer),
 
         // Staff invitation (spec §9).
         T("11111111-0000-0000-0000-000000000008", "staff_invite",

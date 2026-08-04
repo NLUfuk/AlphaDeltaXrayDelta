@@ -51,10 +51,13 @@ public sealed class NotificationService(
             .Where(t => ticketIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, ct);
 
         var companyIds = events.Select(e => e.CompanyId).Distinct().ToList();
-        var adminsByCompany = (await db.Memberships.IgnoreQueryFilters()
-                .Where(m => companyIds.Contains(m.CompanyId) && m.Role == RoleType.Admin)
-                .Select(m => new { m.CompanyId, m.UserId }).ToListAsync(ct))
+        var memberships = await db.Memberships.IgnoreQueryFilters()
+            .Where(m => companyIds.Contains(m.CompanyId) && m.DeletedAt == null)
+            .Select(m => new { m.CompanyId, m.UserId, m.Role }).ToListAsync(ct);
+        var adminsByCompany = memberships.Where(m => m.Role == RoleType.Admin)
             .ToLookup(x => x.CompanyId, x => x.UserId);
+        // Who works at the company — decides which voice the mail speaks in (see PickTemplate).
+        var staffOf = memberships.Select(m => (m.CompanyId, m.UserId)).ToHashSet();
 
         // (recipient, ticket, eventType) dedupe within this tick = debounce.
         var seen = new HashSet<(Guid, Guid, TicketEventType)>();
@@ -84,7 +87,8 @@ public sealed class NotificationService(
         {
             if (!entry.Critical && optedOut.Contains((userId, ev.EventType))) continue; // per-user opt-out
             if (!emailById.TryGetValue(userId, out var email) || string.IsNullOrWhiteSpace(email)) continue;
-            db.EmailQueue.Add(new EmailQueue(email, entry.TemplateKey, BuildPayload(ev, ticket)));
+            var isStaff = staffOf.Contains((ticket.CompanyId, userId));
+            db.EmailQueue.Add(new EmailQueue(email, PickTemplate(entry, isStaff), BuildPayload(ev, ticket)));
         }
 
         await db.SaveChangesAsync(ct);
@@ -146,16 +150,51 @@ public sealed class NotificationService(
         return set;
     }
 
+    /// <summary>Same event, two voices: the customer who opened the ticket reads "talebiniz…" (a template
+    /// per event type), while everyone who works at the company gets one generic "this ticket changed"
+    /// mail that names the change. A staff-opened ticket therefore never mails its opener customer copy.</summary>
+    private static string PickTemplate(MatrixEntry entry, bool recipientIsStaff) =>
+        recipientIsStaff ? entry.StaffTemplateKey ?? entry.TemplateKey : entry.TemplateKey;
+
     private string BuildPayload(TicketEvent ev, Ticket ticket) =>
         JsonSerializer.Serialize(new Dictionary<string, string>
         {
             ["ticketNumber"] = ticket.Number,
             ["title"] = ticket.Title,
             ["event"] = ev.EventType.ToString(),
+            ["change"] = ChangeText(ev),
             ["oldValue"] = ev.OldValue ?? "",
             ["newValue"] = ev.NewValue ?? "",
             ["link"] = $"{_baseUrl}/tickets/{ticket.Id}", // deep link so ticket emails are actionable
         });
+
+    /// <summary>What changed, in Turkish, for the staff update mail's subject/body ({{change}}).</summary>
+    private static string ChangeText(TicketEvent ev) => ev.EventType switch
+    {
+        TicketEventType.Created => "yeni talep oluşturuldu",
+        TicketEventType.StatusChanged => $"durum güncellendi: {ev.NewValue}",
+        TicketEventType.Reopened => "talep yeniden açıldı",
+        TicketEventType.CommentAdded => "yeni yorum eklendi",
+        TicketEventType.InternalNoteAdded => "iç not eklendi",
+        TicketEventType.Assigned => "talep atandı",
+        TicketEventType.PriorityChanged => $"öncelik değişti: {PriorityText(ev.NewValue)}",
+        TicketEventType.CategoryChanged => "kategori değişti",
+        TicketEventType.AttachmentAdded => "yeni dosya eklendi",
+        TicketEventType.Edited => "başlık/içerik güncellendi",
+        TicketEventType.Approved => "talep onaylandı",
+        TicketEventType.Rejected => "talep reddedildi",
+        _ => "güncelleme var",
+    };
+
+    /// <summary>Priority events carry the enum name; staff should read Turkish.</summary>
+    private static string PriorityText(string? value) => value switch
+    {
+        nameof(Priority.Low) => "Düşük",
+        nameof(Priority.Normal) => "Normal",
+        nameof(Priority.High) => "Yüksek",
+        nameof(Priority.Urgent) => "Acil",
+        _ => value ?? "",
+    };
 
     private static Dictionary<string, string> Deserialize(string json) =>
         JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? [];

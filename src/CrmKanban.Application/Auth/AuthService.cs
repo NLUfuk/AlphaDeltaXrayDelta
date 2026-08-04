@@ -1,6 +1,7 @@
 using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Common;
 using CrmKanban.Domain.Entities;
+using CrmKanban.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -71,6 +72,90 @@ public sealed class AuthService(
             new Dictionary<string, string> { ["name"] = $"{user.FirstName} {user.LastName}".Trim() });
         await db.SaveChangesAsync(ct);
     }
+
+    /// <summary>Customer registration from a company's sign-in link (/c/{slug}). Creates (or reuses) the
+    /// account with the chosen password, holds it inactive, and emails a 6-digit confirmation code — the
+    /// customer types it back to prove the address (spec §9; the emailed-link variant is
+    /// <see cref="RegisterAsync"/>). Uniform 204 to the caller: an existing active account is not
+    /// revealed and keeps its own password — the code then acts as a one-time login instead.</summary>
+    public async Task RegisterCustomerAsync(string slug, CustomerRegisterRequest request, CancellationToken ct = default)
+    {
+        var company = await CompanyLookup.OpenBySlugAsync(db, slug, ct);
+        var email = request.Email.Trim().ToLowerInvariant();
+        var now = clock.UtcNow;
+
+        var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == email, ct);
+        if (user is null)
+        {
+            user = new User(email, request.FirstName, request.LastName);
+            user.Deactivate(); // activated by the code
+            db.Users.Add(user);
+        }
+        // An account that can already log in keeps its password (this is not a reset path — the code only
+        // proves the mailbox). A pending/passwordless one takes the password chosen here.
+        if (!user.IsActive || user.PasswordHash is null)
+            user.SetPasswordHash(passwordHasher.Hash(user, request.Password));
+
+        // Only the newest code is live: consume any earlier pending ones so a re-send invalidates them.
+        var earlier = await db.Invitations.IgnoreQueryFilters()
+            .Where(i => i.UserId == user.Id && i.Kind == InvitationKind.Code && i.AcceptedAt == null)
+            .ToListAsync(ct);
+        foreach (var old in earlier)
+            old.Accept(now);
+
+        var code = NewCode();
+        db.Invitations.Add(new Invitation(user.Id, HashCode(user.Id, code),
+            now.AddMinutes(_auth.VerificationCodeMinutes), invitedById: null, InvitationKind.Code));
+        db.EmailQueue.Add(new EmailQueue(email, "account_code", System.Text.Json.JsonSerializer.Serialize(
+            new Dictionary<string, string>
+            {
+                ["name"] = $"{request.FirstName} {request.LastName}".Trim(),
+                ["companyName"] = company.Name,
+                ["code"] = code,
+                ["minutes"] = _auth.VerificationCodeMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            })));
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Verifies the emailed 6-digit code and logs the customer in. The code is looked up BY USER
+    /// (never by token — 6 digits are too few to be a lookup key) and capped at
+    /// <see cref="AuthOptions.MaxCodeAttempts"/> failed tries, after which a new code must be requested.</summary>
+    public async Task<AuthResult> VerifyCodeAsync(string slug, VerifyCodeRequest request, CancellationToken ct = default)
+    {
+        await CompanyLookup.OpenBySlugAsync(db, slug, ct); // the company link must still be open
+        var email = request.Email.Trim().ToLowerInvariant();
+        var now = clock.UtcNow;
+
+        var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == email, ct);
+        var invitation = user is null ? null : await db.Invitations.IgnoreQueryFilters()
+            .Where(i => i.UserId == user.Id && i.Kind == InvitationKind.Code && i.AcceptedAt == null)
+            .OrderByDescending(i => i.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (user is null || invitation is null || !invitation.IsPending(now))
+            throw new UnauthorizedException("auth.invalid_code", "The code is invalid or has expired.");
+        if (invitation.Attempts >= _auth.MaxCodeAttempts)
+            throw new UnauthorizedException("auth.code_locked", "Too many attempts. Request a new code.");
+
+        if (invitation.TokenHash != HashCode(user.Id, request.Code.Trim()))
+        {
+            invitation.RecordFailedAttempt();
+            await db.SaveChangesAsync(ct);
+            throw new UnauthorizedException("auth.invalid_code", "The code is invalid or has expired.");
+        }
+
+        invitation.Accept(now);
+        user.Activate();
+        return await IssueAsync(user, ct); // saves the accepted invitation too
+    }
+
+    /// <summary>A 6-digit code, uniformly random (no modulo bias: 000000-999999 drawn directly).</summary>
+    private static string NewCode() => System.Security.Cryptography.RandomNumberGenerator
+        .GetInt32(0, 1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Codes are salted with the user id before hashing — a 6-digit value alone would be
+    /// trivially reversible from a stolen database row.</summary>
+    private static string HashCode(Guid userId, string code) => TokenHasher.Hash($"{userId:N}:{code}");
 
     public async Task<AuthResult> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {

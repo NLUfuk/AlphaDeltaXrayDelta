@@ -26,6 +26,26 @@ public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest
     }
 }
 
+public sealed class CustomerRegisterRequestValidator : AbstractValidator<CustomerRegisterRequest>
+{
+    public CustomerRegisterRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Password).StrongPassword();
+    }
+}
+
+public sealed class VerifyCodeRequestValidator : AbstractValidator<VerifyCodeRequest>
+{
+    public VerifyCodeRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(x => x.Code).NotEmpty().Matches("^[0-9]{6}$").WithMessage("The code is 6 digits.");
+    }
+}
+
 internal static class PasswordRules
 {
     public static IRuleBuilderOptions<T, string> StrongPassword<T>(this IRuleBuilder<T, string> rule) =>

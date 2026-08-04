@@ -23,6 +23,7 @@ public sealed class PublicFormService(
     Forms.FormFieldService formFields,
     IClock clock,
     Settings.SettingsService settings,
+    ICurrentUserService currentUser,
     IOptions<AuthOptions> authOptions,
     IOptions<AppOptions> appOptions)
 {
@@ -58,21 +59,10 @@ public sealed class PublicFormService(
         var email = request.Email.Trim().ToLowerInvariant();
         var (user, inviteToken) = await ResolveCustomerAsync(email, request.FirstName, request.LastName, now, ct);
 
-        var status = await InitialStatusAsync(company.Id, ct);
-        var ticket = new Ticket(company.Id, company.AllocateTicketNumber(), user.Id, status.Id, request.Title, request.Body);
-        ticket.SetCustomFields(await BuildCustomFieldsJsonAsync(company.Id, request.CustomFields, ct));
         // Zero-trust intake (spec §10): a first-time (unknown) customer's ticket is held for manual
         // approval before it enters the pool; a known customer (existing user) goes straight in.
-        if (inviteToken is not null)
-            ticket.MarkPendingApproval();
-        db.Tickets.Add(ticket);
-        db.TicketEvents.Add(new TicketEvent(company.Id, ticket.Id, user.Id, TicketEventType.Created, null, ticket.Number));
-
-        if (request.Attachments is { Count: > 0 } files)
-        {
-            foreach (var a in attachments.BuildPublicAttachments(company.Id, ticket.Id, files, user.Id))
-                db.Attachments.Add(a);
-        }
+        var ticket = await AddTicketAsync(company, user.Id, request.Title, request.Body, request.CustomFields,
+            pendingApproval: inviteToken is not null, request.Attachments, ct);
 
         // First-time customer: email the account-activation link. Clicking it verifies the address and
         // lets them set a password (spec §9). Known customers already have an account — no email.
@@ -88,6 +78,44 @@ public sealed class PublicFormService(
         return new PublicFormResult(ticket.Number, inviteToken is not null);
     }
 
+    /// <summary>A signed-in customer sends a request through the company's own link (/c/{slug}) — the
+    /// first-contact channel that creates the relationship the portal then scopes to (Faz 17). No CAPTCHA
+    /// or KVKK re-consent: they consented and proved their address when they registered, which is also why
+    /// the ticket enters the pool directly instead of waiting for moderation.</summary>
+    public async Task<PublicFormResult> SubmitAsCustomerAsync(
+        string slug, CustomerFormSubmitRequest request, CancellationToken ct = default)
+    {
+        var userId = currentUser.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
+        var company = await CompanyLookup.OpenBySlugAsync(db, slug, ct);
+        var ticket = await AddTicketAsync(company, userId, request.Title, request.Body, request.CustomFields,
+            pendingApproval: false, request.Attachments, ct);
+        await db.SaveChangesAsync(ct);
+        return new PublicFormResult(ticket.Number, NewAccount: false);
+    }
+
+    /// <summary>Shared ticket construction for both intake paths (anonymous form / signed-in customer):
+    /// number allocation, custom fields, the Created event and attachments. Does not save.</summary>
+    private async Task<Ticket> AddTicketAsync(
+        Company company, Guid openedById, string title, string body,
+        IReadOnlyDictionary<string, string>? customFields, bool pendingApproval,
+        IReadOnlyList<AttachmentDescriptor>? files, CancellationToken ct)
+    {
+        var status = await InitialStatusAsync(company.Id, ct);
+        var ticket = new Ticket(company.Id, company.AllocateTicketNumber(), openedById, status.Id, title, body);
+        ticket.SetCustomFields(await BuildCustomFieldsJsonAsync(company.Id, customFields, ct));
+        if (pendingApproval)
+            ticket.MarkPendingApproval();
+        db.Tickets.Add(ticket);
+        db.TicketEvents.Add(new TicketEvent(company.Id, ticket.Id, openedById, TicketEventType.Created, null, ticket.Number));
+
+        if (files is { Count: > 0 })
+        {
+            foreach (var a in attachments.BuildPublicAttachments(company.Id, ticket.Id, files, openedById))
+                db.Attachments.Add(a);
+        }
+        return ticket;
+    }
+
     /// <summary>Zero-trust upload of a file for the first form, before the ticket exists (spec §10). The
     /// bytes stream through the API and are inspected (extension + content-type + magic bytes, pdf/txt/
     /// doc/docx only) before storage. Anonymous; the slug must resolve to an open company so keys can't
@@ -99,16 +127,8 @@ public sealed class PublicFormService(
         return await attachments.StorePublicUploadAsync($"public/{company.Id:N}", fileName, contentType, content, ct);
     }
 
-    private async Task<Company> OpenCompanyBySlugAsync(string slug, CancellationToken ct)
-    {
-        var normalizedSlug = slug.Trim().ToLowerInvariant();
-        var company = await db.Companies.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(c => c.Slug == normalizedSlug, ct)
-            ?? throw new NotFoundException("company.not_found", "No company matches this form link.");
-        if (company.IsArchived || !company.IsActive)
-            throw new ConflictException("company.form_closed", "This form is no longer accepting submissions.");
-        return company;
-    }
+    private Task<Company> OpenCompanyBySlugAsync(string slug, CancellationToken ct) =>
+        CompanyLookup.OpenBySlugAsync(db, slug, ct);
 
     /// <summary>Links to an existing user by email, or creates a pending customer + one-time invite token.</summary>
     private async Task<(User User, string? InviteToken)> ResolveCustomerAsync(

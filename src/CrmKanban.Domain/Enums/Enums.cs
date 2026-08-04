@@ -99,3 +99,12 @@ public enum TicketEventType
     Rejected = 12,
     AttachmentAdded = 13,
 }
+
+/// <summary>How an account token is delivered and redeemed (spec §9). A link token is high-entropy and
+/// looked up by token; a code is short, typed by the customer, and looked up by user with an attempt cap.
+/// They are never interchangeable — see the Invitation entity.</summary>
+public enum InvitationKind
+{
+    Link = 0,
+    Code = 1,
+}

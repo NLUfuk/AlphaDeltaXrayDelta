@@ -85,7 +85,10 @@ public sealed class InvitationService(
     public async Task AcceptInviteAsync(AcceptInviteRequest request, CancellationToken ct = default)
     {
         var hash = TokenHasher.Hash(request.Token);
-        var invitation = await db.Invitations.IgnoreQueryFilters().FirstOrDefaultAsync(i => i.TokenHash == hash, ct);
+        // Link tokens only: the short sign-in codes live in the same table but must never be redeemable
+        // here — their 6-digit space would be brute-forceable through this by-token lookup.
+        var invitation = await db.Invitations.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(i => i.TokenHash == hash && i.Kind == InvitationKind.Link, ct);
         var now = clock.UtcNow;
         if (invitation is null || !invitation.IsPending(now))
             throw new UnauthorizedException("invite.invalid", "This invitation is invalid or has expired.");

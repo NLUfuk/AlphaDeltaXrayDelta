@@ -66,8 +66,14 @@ $env:DOCKER_BUILDKIT = '0'
 $env:COMPOSE_DOCKER_CLI_BUILD = '0'
 
 Write-Host "Building and starting the stack..." -ForegroundColor Cyan
+# docker writes build progress to stderr; under ErrorActionPreference='Stop' PowerShell turns that
+# into a terminating NativeCommandError and the script "fails" on a successful build. The exit code
+# below is the real verdict, so silence the stream-level error for this one call.
+$ErrorActionPreference = 'Continue'
 docker compose up --build -d
-if ($LASTEXITCODE -ne 0) { throw "docker compose failed (exit $LASTEXITCODE)." }
+$code = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+if ($code -ne 0) { throw "docker compose failed (exit $code)." }
 
 # Wait for the SPA/API to answer (API applies migrations + seed on startup).
 Write-Host "Waiting for the app to become ready..." -NoNewline

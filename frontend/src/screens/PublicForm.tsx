@@ -9,7 +9,7 @@ type PublicField = { id: string; label: string; type: number; required: boolean;
 type FormConfig = { companyName: string; kvkkText: string; brandName: string; primaryColor: string; logoUrl: string | null; fields: PublicField[] }
 type Descriptor = { key: string; fileName: string; contentType: string; size: number }
 
-const ACCEPT = '.pdf,.txt,.doc,.docx'
+const ACCEPT = '.png,.jpg,.jpeg,.webp,.pdf,.txt,.doc,.docx'
 
 // Anonymous public ticket form (spec §10). Branding + KVKK text come from the config endpoint. Files
 // are uploaded through the API, which inspects the bytes (pdf/txt/doc/docx only) before storing —
@@ -127,7 +127,7 @@ export default function PublicForm() {
           <div>
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-line px-3 py-2 text-sm text-muted hover:border-primary">
               <Icon name="paperclip" />
-              <span>{uploading ? 'Yükleniyor…' : 'Dosya ekle (yalnız PDF, TXT, DOC, DOCX)'}</span>
+              <span>{uploading ? 'Yükleniyor…' : 'Dosya/görsel ekle (PNG, JPG, WEBP, PDF, TXT, DOC, DOCX)'}</span>
               <input type="file" accept={ACCEPT} multiple onChange={onPick} disabled={uploading} className="hidden" />
             </label>
             {files.length > 0 && (

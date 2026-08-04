@@ -90,8 +90,9 @@ public class AttachmentServiceTests
             new TicketAuthorizationService(new FakeUser(Guid.NewGuid(), true), new FakePermissionService(), db),
             new FixedClock(), Options.Create(Opt));
 
-        var png = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A };
-        var act = () => svc.StorePublicUploadAsync("public/x", "photo.png", "image/png", new MemoryStream(png));
+        // SVG carries script — an image to the user, an XSS vector in a browser. Not on the allow-list.
+        var svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"u8.ToArray();
+        var act = () => svc.StorePublicUploadAsync("public/x", "logo.svg", "image/svg+xml", new MemoryStream(svg));
 
         (await act.Should().ThrowAsync<BadRequestException>()).Which.Code.Should().Be("attachment.type_not_allowed");
     }

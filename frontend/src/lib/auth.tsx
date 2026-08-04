@@ -15,6 +15,8 @@ type AuthContext = {
   loading: boolean
   impersonating: boolean
   login: (email: string, password: string) => Promise<void>
+  /** Adopts a session minted elsewhere (customer code verification returns the same AuthResult). */
+  adoptSession: (result: { accessToken: string; refreshToken: string; user: User }) => void
   logout: () => Promise<void>
   impersonate: (userId: string) => Promise<void>
   stopImpersonation: () => Promise<void>
@@ -41,6 +43,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data } = await api.post('/auth/login', { email, password })
     tokens.set(data.accessToken, data.refreshToken)
     setUser(data.user)
+  }
+
+  function adoptSession(result: { accessToken: string; refreshToken: string; user: User }) {
+    tokens.set(result.accessToken, result.refreshToken)
+    setUser(result.user)
   }
 
   async function logout() {
@@ -74,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Ctx.Provider value={{ user, loading, impersonating, login, logout, impersonate, stopImpersonation }}>
+    <Ctx.Provider value={{ user, loading, impersonating, login, adoptSession, logout, impersonate, stopImpersonation }}>
       {children}
     </Ctx.Provider>
   )

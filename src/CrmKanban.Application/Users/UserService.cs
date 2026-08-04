@@ -67,8 +67,20 @@ public sealed class UserService(
             g => (IReadOnlyList<UserCompanyDto>)g.Select(x => new UserCompanyDto(x.CompanyId, x.Name, (int)x.Role))
                 .OrderBy(x => x.CompanyName).ToList());
 
+        // Customers have no membership; their company relationship is "has a ticket there" (Faz 17).
+        // Only resolved for users without a membership — staff are already grouped by their company.
+        var customerIds = users.Where(u => !byUser.ContainsKey(u.Id)).Select(u => u.Id).ToList();
+        var customerOf = customerIds.Count == 0
+            ? []
+            : (await (
+                from t in db.Tickets.IgnoreQueryFilters().Where(t => customerIds.Contains(t.OpenedById) && t.DeletedAt == null)
+                join c in db.Companies.IgnoreQueryFilters() on t.CompanyId equals c.Id
+                select new { t.OpenedById, c.Name }).Distinct().ToListAsync(ct))
+              .GroupBy(x => x.OpenedById)
+              .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(x => x.Name).OrderBy(n => n).ToList());
+
         return users.Select(u => new UserDto(u.Id, u.Email, u.Name, u.IsSuperAdmin, u.CanCreateCompany, u.IsActive,
-            byUser.GetValueOrDefault(u.Id, []))).ToList();
+            byUser.GetValueOrDefault(u.Id, []), customerOf.GetValueOrDefault(u.Id, []))).ToList();
     }
 
     private Guid RequireSuperAdmin()

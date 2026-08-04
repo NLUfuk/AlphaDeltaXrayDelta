@@ -102,6 +102,23 @@ export function useTicket(id: string) {
   })
 }
 
+// Staff opens a ticket straight on the board (Odoo's "Yeni" / per-column quick create). The backend
+// always starts it in the initial (pool) status, so a card added to another column is moved right
+// after creation — the same status endpoint the drag-and-drop uses.
+export function useCreateTicket(companyId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (v: { title: string; body: string; priority: number; targetStatusId?: string }) => {
+      const { data } = await api.post<{ id: string }>('/tickets', {
+        companyId, title: v.title, body: v.body, priority: v.priority,
+      })
+      if (v.targetStatusId) await api.post(`/tickets/${data.id}/status`, { targetStatusId: v.targetStatusId })
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['kanban', companyId] }),
+  })
+}
+
 export function useChangeStatus(companyId: string | undefined) {
   const qc = useQueryClient()
   return useMutation({
@@ -220,6 +237,24 @@ export function useUploadAttachment(ticketId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ticket', ticketId] }),
   })
 }
+
+/** Image attachments are fetched as blobs (an <img src> can't carry the Bearer header) and shown inline. */
+export function useAttachmentBlobUrl(id: string, enabled: boolean) {
+  const { data } = useQuery({
+    queryKey: ['attachment-blob', id],
+    enabled,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const res = await api.get(`/tickets/attachments/${id}/download`, { responseType: 'blob' })
+      return URL.createObjectURL(res.data as Blob)
+    },
+  })
+  // ponytail: object URLs live until the tab is closed — a handful of thumbnails per ticket. Revoke on
+  // unmount if a ticket ever carries enough images for it to matter.
+  return data
+}
+
+export const isImage = (contentType: string) => contentType.startsWith('image/')
 
 /** Downloads an attachment through the authed client (a plain <a> can't send the Bearer header). */
 export async function downloadAttachment(id: string, fileName: string) {

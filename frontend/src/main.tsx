@@ -13,6 +13,7 @@ import Shell from './screens/Shell'
 import Home from './screens/Home'
 import TicketDetail from './screens/TicketDetail'
 import PublicForm from './screens/PublicForm'
+import CustomerAccess from './screens/CustomerAccess'
 import AcceptInvite from './screens/AcceptInvite'
 import Register from './screens/Register'
 import ForgotPassword from './screens/ForgotPassword'
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
   { path: '/forgot-password', element: <ForgotPassword /> },
   { path: '/invite', element: <AcceptInvite /> },
   { path: '/form/:slug', element: <PublicForm /> },
+  { path: '/c/:slug', element: <CustomerAccess /> },
   {
     path: '/',
     element: <Shell />,

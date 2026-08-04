@@ -20,7 +20,15 @@ public sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSend
         if (!string.IsNullOrEmpty(_opt.Username))
             client.Credentials = new NetworkCredential(_opt.Username, _opt.Password);
 
-        using var message = new MailMessage(_opt.From, toEmail, subject, htmlBody) { IsBodyHtml = true };
+        var from = string.IsNullOrWhiteSpace(_opt.FromName)
+            ? new MailAddress(_opt.From)
+            : new MailAddress(_opt.From, _opt.FromName);
+        using var message = new MailMessage(from, new MailAddress(toEmail))
+        {
+            Subject = subject,
+            Body = htmlBody,
+            IsBodyHtml = true,
+        };
         await client.SendMailAsync(message, ct);
     }
 }
