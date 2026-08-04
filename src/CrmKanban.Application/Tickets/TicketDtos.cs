@@ -42,7 +42,7 @@ public sealed record TicketListItem(
     string StatusColor, Priority Priority, Guid? AssignedToId, Guid? CategoryId, DateTime CreatedAt);
 
 public sealed record CommentDto(
-    Guid Id, Guid AuthorId, string Body, bool IsInternal, bool IsEdited, DateTime CreatedAt, DateTime? EditedAt);
+    Guid Id, Guid AuthorId, string AuthorName, string Body, bool IsInternal, bool IsEdited, DateTime CreatedAt, DateTime? EditedAt);
 
 public sealed record TicketDetail(
     Guid Id, string Number, Guid CompanyId, string Title, string Body,

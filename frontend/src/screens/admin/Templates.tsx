@@ -11,7 +11,7 @@ export default function Templates() {
   const [selected, setSelected] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ subject: string; body: string } | null>(null)
 
-  if (isLoading) return <p className="text-slate-500">Yükleniyor…</p>
+  if (isLoading) return <p className="text-muted">Yükleniyor…</p>
   if (error) return <p className="text-red-600">Şablonlar yüklenemedi (süper admin gerekli).</p>
 
   const activeKey = selected ?? data?.[0]?.key ?? ''
@@ -35,7 +35,7 @@ export default function Templates() {
                 key={t.key}
                 onClick={() => { setSelected(t.key); setDraft(null) }}
                 className={`block w-full border-l-2 px-4 py-2 text-left text-sm transition-colors ${
-                  t.key === activeKey ? 'border-primary bg-primary/5 font-medium text-primary' : 'border-transparent text-slate-600 hover:bg-canvas'
+                  t.key === activeKey ? 'border-primary bg-primary/5 font-medium text-primary' : 'border-transparent text-muted hover:bg-canvas'
                 }`}
               >
                 {TEMPLATE_LABELS[t.key] ?? t.key}
@@ -56,7 +56,7 @@ export default function Templates() {
               value={view.body}
               onChange={(e) => setDraft({ ...view, body: e.target.value })}
             />
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-muted">
               Yer tutucular: <code>{'{{ticketNumber}}'}</code> <code>{'{{title}}'}</code> <code>{'{{newValue}}'}</code>{' '}
               <code>{'{{name}}'}</code> <code>{'{{companyName}}'}</code> <code>{'{{link}}'}</code>
             </p>

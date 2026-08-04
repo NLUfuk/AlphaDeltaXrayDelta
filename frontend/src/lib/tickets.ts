@@ -28,6 +28,7 @@ export type KanbanColumn = {
 export type Comment = {
   id: string
   authorId: string
+  authorName: string
   body: string
   isInternal: boolean
   isEdited: boolean

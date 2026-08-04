@@ -27,13 +27,13 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow">
+    <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
+      <div className="w-full max-w-sm rounded-lg bg-surface p-8 shadow-card">
         {done ? (
           <div className="text-center">
             <Icon name="email-check-outline" className="text-4xl text-emerald-500" />
-            <h1 className="mt-2 text-lg font-semibold text-slate-800">E-postanı kontrol et</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="mt-2 text-lg font-semibold text-ink">E-postanı kontrol et</h1>
+            <p className="mt-1 text-sm text-muted">
               Bu adrese kayıtlı bir hesap varsa <b>{email}</b> adresine parola sıfırlama bağlantısı gönderdik.
               Bağlantıya tıklayıp yeni parolanı belirleyebilirsin.
             </p>
@@ -41,8 +41,8 @@ export default function ForgotPassword() {
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-4">
-            <h1 className="text-xl font-semibold text-slate-800">Parolamı unuttum</h1>
-            <p className="text-sm text-slate-500">E-posta adresini gir; sana bir sıfırlama bağlantısı gönderelim.</p>
+            <h1 className="text-xl font-semibold text-ink">Parolamı unuttum</h1>
+            <p className="text-sm text-muted">E-posta adresini gir; sana bir sıfırlama bağlantısı gönderelim.</p>
             {error && <Alert>{error}</Alert>}
             <Field label="E-posta">
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
@@ -50,7 +50,7 @@ export default function ForgotPassword() {
             <Button type="submit" className="w-full" disabled={forgot.isPending}>
               {forgot.isPending ? 'Gönderiliyor…' : 'Sıfırlama bağlantısı gönder'}
             </Button>
-            <p className="text-center text-sm text-slate-500">
+            <p className="text-center text-sm text-muted">
               <Link to="/login" className="font-medium text-primary hover:underline">Giriş yap</Link>
             </p>
           </form>

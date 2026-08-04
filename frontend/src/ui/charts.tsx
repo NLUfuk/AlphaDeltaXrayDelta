@@ -7,16 +7,16 @@ const SERIES = { opened: '#2a78d6', closed: '#eb6834' } // validated categorical
 /** Labeled horizontal bars for magnitude-by-category (status distribution, staff load). */
 export function BarList({ rows }: { rows: { label: string; value: number; color: string }[] }) {
   const max = Math.max(1, ...rows.map((r) => r.value))
-  if (rows.length === 0) return <p className="text-sm text-slate-400">Veri yok.</p>
+  if (rows.length === 0) return <p className="text-sm text-muted">Veri yok.</p>
   return (
     <div className="space-y-2">
       {rows.map((r) => (
         <div key={r.label} className="flex items-center gap-2 text-sm">
-          <span className="w-36 shrink-0 truncate text-slate-600">{r.label}</span>
+          <span className="w-36 shrink-0 truncate text-muted">{r.label}</span>
           <div className="h-4 flex-1 overflow-hidden rounded bg-canvas">
             <div className="h-full rounded" style={{ width: `${(r.value / max) * 100}%`, backgroundColor: r.color }} title={String(r.value)} />
           </div>
-          <span className="w-8 text-right tabular-nums text-slate-500">{r.value}</span>
+          <span className="w-8 text-right tabular-nums text-muted">{r.value}</span>
         </div>
       ))}
     </div>
@@ -25,7 +25,7 @@ export function BarList({ rows }: { rows: { label: string; value: number; color:
 
 /** Opened vs closed over time — two-series line with a legend (identity by color + legend, not color alone). */
 export function TrendChart({ data }: { data: { date: string; opened: number; closed: number }[] }) {
-  if (data.length === 0) return <p className="text-sm text-slate-400">Trend verisi yok.</p>
+  if (data.length === 0) return <p className="text-sm text-muted">Trend verisi yok.</p>
   const w = 360, h = 150, pad = { l: 8, r: 8, t: 8, b: 20 }
   const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
   const max = Math.max(1, ...data.flatMap((d) => [d.opened, d.closed]))
@@ -45,7 +45,7 @@ export function TrendChart({ data }: { data: { date: string; opened: number; clo
 
   return (
     <div>
-      <div className="mb-2 flex gap-4 text-xs text-slate-500">
+      <div className="mb-2 flex gap-4 text-xs text-muted">
         <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full" style={{ backgroundColor: SERIES.opened }} /> Açılan</span>
         <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full" style={{ backgroundColor: SERIES.closed }} /> Kapanan</span>
       </div>

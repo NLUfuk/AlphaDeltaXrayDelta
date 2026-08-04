@@ -23,15 +23,15 @@ export default function Permissions() {
 
   return (
     <div className="max-w-2xl space-y-4">
-      <h1 className="text-lg font-semibold text-slate-800">Yetki atama</h1>
+      <h1 className="text-lg font-semibold text-ink">Yetki atama</h1>
 
       <div className="flex gap-3">
-        <select className="rounded-md border border-slate-300 px-3 py-2" value={companyId}
+        <select className="rounded-md border border-line px-3 py-2" value={companyId}
           onChange={(e) => { setCompanyId(e.target.value); setUserId('') }}>
           <option value="">Şirket seç…</option>
           {companies?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <select className="rounded-md border border-slate-300 px-3 py-2" value={userId}
+        <select className="rounded-md border border-line px-3 py-2" value={userId}
           onChange={(e) => setUserId(e.target.value)} disabled={!companyId}>
           <option value="">Üye seç…</option>
           {members?.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
@@ -41,8 +41,8 @@ export default function Permissions() {
       {userId && (
         <div className="space-y-4">
           {groups.map(([g, gLabel]) => (
-            <section key={g} className="rounded-lg bg-white p-4 shadow-sm">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{gLabel}</h2>
+            <section key={g} className="rounded-lg bg-surface p-4 shadow-sm">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{gLabel}</h2>
               <div className="space-y-2">
                 {catalog!.filter((p) => p.group === g).map((p) => (
                   <div key={p.key} className="flex items-center justify-between text-sm">

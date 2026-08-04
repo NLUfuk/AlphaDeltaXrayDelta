@@ -68,10 +68,10 @@ export default function AdminUsers() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-lg font-semibold text-slate-800">Kullanıcılar & Admin oluşturma</h1>
+      <h1 className="text-lg font-semibold text-ink">Kullanıcılar & Admin oluşturma</h1>
 
-      <form onSubmit={submit} className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-600">Yeni admin</h2>
+      <form onSubmit={submit} className="space-y-3 rounded-lg bg-surface p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-muted">Yeni admin</h2>
         {err && <Alert>{err}</Alert>}
         {token && (
           <div className="rounded-md bg-green-50 p-3 text-sm text-green-800">
@@ -109,7 +109,7 @@ export default function AdminUsers() {
 
         const table = (rows: React.ReactNode) => (
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-slate-400">
+            <thead className="text-left text-xs text-muted">
               <tr><th className="py-1">E-posta</th><th>Ad</th><th>Rol</th><th>Durum</th><th></th></tr>
             </thead>
             <tbody>{rows}</tbody>
@@ -119,20 +119,20 @@ export default function AdminUsers() {
         return (
           <div className="space-y-4">
             {companies.map((g) => (
-              <div key={g.name} className="rounded-lg bg-white p-4 shadow-sm">
-                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <div key={g.name} className="rounded-lg bg-surface p-4 shadow-sm">
+                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
                   {g.name}
-                  <span className="rounded-full bg-slate-100 px-2 text-xs font-normal text-slate-500">{g.rows.length}</span>
+                  <span className="rounded-full bg-canvas px-2 text-xs font-normal text-muted">{g.rows.length}</span>
                 </h2>
                 {table(g.rows.map(({ u, role }) => row(u, roleLabel(role))))}
               </div>
             ))}
 
             {unassigned.length > 0 && (
-              <div className="rounded-lg bg-white p-4 shadow-sm">
-                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <div className="rounded-lg bg-surface p-4 shadow-sm">
+                <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
                   Şirkete bağlı olmayan (müşteri / süper admin)
-                  <span className="rounded-full bg-slate-100 px-2 text-xs font-normal text-slate-500">{unassigned.length}</span>
+                  <span className="rounded-full bg-canvas px-2 text-xs font-normal text-muted">{unassigned.length}</span>
                 </h2>
                 {table(unassigned.map((u) => row(u, globalRole(u))))}
               </div>

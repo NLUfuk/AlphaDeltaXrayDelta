@@ -27,10 +27,10 @@ export default function Companies() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-lg font-semibold text-slate-800">Şirketler</h1>
+      <h1 className="text-lg font-semibold text-ink">Şirketler</h1>
 
-      <form onSubmit={submit} className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-600">Yeni şirket</h2>
+      <form onSubmit={submit} className="space-y-3 rounded-lg bg-surface p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-muted">Yeni şirket</h2>
         {err && <Alert>{err}</Alert>}
         <div className="flex gap-3">
           <Field label="Ad"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></Field>
@@ -62,11 +62,11 @@ function CompanyCard({ company }: { company: Company }) {
   }
 
   return (
-    <div className="rounded-lg bg-white p-4 shadow-sm">
+    <div className="rounded-lg bg-surface p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <span className="font-medium text-slate-800">{company.name}</span>
-          <span className="ml-2 text-xs text-slate-400">/{company.slug} · {company.ticketNumberPrefix}</span>
+          <span className="font-medium text-ink">{company.name}</span>
+          <span className="ml-2 text-xs text-muted">/{company.slug} · {company.ticketNumberPrefix}</span>
           {company.isArchived && <span className="ml-2 text-xs text-red-500">arşivli</span>}
         </div>
         <Button variant="secondary" onClick={() => setOpen(!open)}>{open ? 'Gizle' : 'Üyeler'}</Button>
@@ -74,10 +74,10 @@ function CompanyCard({ company }: { company: Company }) {
 
       {open && (
         <div className="mt-3 space-y-3 border-t pt-3">
-          <ul className="text-sm text-slate-600">
+          <ul className="text-sm text-muted">
             {members?.map((m) => (
               <li key={m.userId} className="flex items-center gap-2 py-0.5">
-                <span>{m.name} — {m.email} <span className="text-slate-400">({m.role === 1 ? 'Admin' : 'Personel'})</span></span>
+                <span>{m.name} — {m.email} <span className="text-muted">({m.role === 1 ? 'Admin' : 'Personel'})</span></span>
                 {m.userId !== company.ownerAdminId && (
                   <button
                     onClick={() => removeMember.mutate({ companyId: company.id, userId: m.userId })}
@@ -96,7 +96,7 @@ function CompanyCard({ company }: { company: Company }) {
             <Field label="Soyad"><Input className="w-28" value={inv.lastName} onChange={(e) => setInv({ ...inv, lastName: e.target.value })} required /></Field>
             <Field label="E-posta"><Input className="w-48" type="email" value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} required /></Field>
             <Field label="Rol">
-              <select className="rounded-md border border-slate-300 px-2 py-2" value={inv.role} onChange={(e) => setInv({ ...inv, role: Number(e.target.value) })}>
+              <select className="rounded-md border border-line px-2 py-2" value={inv.role} onChange={(e) => setInv({ ...inv, role: Number(e.target.value) })}>
                 <option value={2}>Personel</option>
                 <option value={1}>Admin</option>
               </select>

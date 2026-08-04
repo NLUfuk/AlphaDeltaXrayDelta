@@ -15,7 +15,7 @@ export default function Settings() {
   const rows = data?.filter((s) => s.group === active) ?? []
   const dirty = rows.filter((s) => edits[s.key] !== undefined && edits[s.key] !== s.value)
 
-  if (isLoading) return <p className="text-slate-500">Yükleniyor…</p>
+  if (isLoading) return <p className="text-muted">Yükleniyor…</p>
   if (error) return <p className="text-red-600">Ayarlar yüklenemedi (süper admin gerekli).</p>
 
   async function save() {
@@ -41,7 +41,7 @@ export default function Settings() {
                 key={g}
                 onClick={() => setGroup(g)}
                 className={`block w-full border-l-2 px-4 py-2 text-left text-sm transition-colors ${
-                  g === active ? 'border-primary bg-primary/5 font-medium text-primary' : 'border-transparent text-slate-600 hover:bg-canvas'
+                  g === active ? 'border-primary bg-primary/5 font-medium text-primary' : 'border-transparent text-muted hover:bg-canvas'
                 }`}
               >
                 {GROUP_LABELS[g] ?? g}
@@ -58,7 +58,7 @@ export default function Settings() {
               return (
                 <div key={s.key}>
                   <div className="text-sm font-medium text-ink">{meta.label}</div>
-                  <p className="mb-1 text-xs text-slate-400">{meta.help}</p>
+                  <p className="mb-1 text-xs text-muted">{meta.help}</p>
                   <Input
                     value={edits[s.key] ?? s.value}
                     onChange={(e) => setEdits({ ...edits, [s.key]: e.target.value })}

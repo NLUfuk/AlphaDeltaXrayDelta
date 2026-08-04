@@ -33,21 +33,21 @@ export default function AcceptInvite() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow">
+    <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
+      <div className="w-full max-w-sm rounded-lg bg-surface p-8 shadow-card">
         {done ? (
           <div className="text-center">
             <Icon name="check-circle-outline" className="text-4xl text-emerald-500" />
-            <h1 className="mt-2 text-lg font-semibold text-slate-800">Hesabınız etkinleştirildi</h1>
-            <p className="mt-1 text-sm text-slate-500">Artık parolanızla giriş yapabilirsiniz.</p>
+            <h1 className="mt-2 text-lg font-semibold text-ink">Hesabınız etkinleştirildi</h1>
+            <p className="mt-1 text-sm text-muted">Artık parolanızla giriş yapabilirsiniz.</p>
             <Link to="/login" className="mt-4 inline-block font-medium text-primary hover:underline">Giriş yap →</Link>
           </div>
         ) : !token ? (
           <Alert>Geçersiz bağlantı — token bulunamadı. Lütfen e-postanızdaki bağlantıyı kullanın.</Alert>
         ) : (
           <form onSubmit={submit} className="space-y-4">
-            <h1 className="text-xl font-semibold text-slate-800">Parola belirle</h1>
-            <p className="text-sm text-slate-500">Hesabınızı etkinleştirmek için bir parola belirleyin.</p>
+            <h1 className="text-xl font-semibold text-ink">Parola belirle</h1>
+            <p className="text-sm text-muted">Hesabınızı etkinleştirmek için bir parola belirleyin.</p>
             {error && <Alert>{error}</Alert>}
             <Field label="Parola">
               <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus minLength={8} />

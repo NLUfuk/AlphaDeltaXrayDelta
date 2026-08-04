@@ -31,13 +31,13 @@ export default function Register() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow">
+    <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
+      <div className="w-full max-w-sm rounded-lg bg-surface p-8 shadow-card">
         {done ? (
           <div className="text-center">
             <Icon name="email-check-outline" className="text-4xl text-emerald-500" />
-            <h1 className="mt-2 text-lg font-semibold text-slate-800">E-postanı kontrol et</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="mt-2 text-lg font-semibold text-ink">E-postanı kontrol et</h1>
+            <p className="mt-1 text-sm text-muted">
               <b>{form.email}</b> adresine hesabını etkinleştirme bağlantısı gönderdik. Bağlantıya tıklayıp
               parolanı belirledikten sonra giriş yapabilirsin.
             </p>
@@ -45,8 +45,8 @@ export default function Register() {
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-4">
-            <h1 className="text-xl font-semibold text-slate-800">Kayıt ol</h1>
-            <p className="text-sm text-slate-500">Kendi e-postanla hesap oluştur, taleplerini takip et ve firmalarla yazış.</p>
+            <h1 className="text-xl font-semibold text-ink">Kayıt ol</h1>
+            <p className="text-sm text-muted">Kendi e-postanla hesap oluştur, taleplerini takip et ve firmalarla yazış.</p>
             {error && <Alert>{error}</Alert>}
             <div className="flex gap-3">
               <Field label="Ad"><Input value={form.firstName} onChange={set('firstName')} required autoFocus /></Field>
@@ -56,7 +56,7 @@ export default function Register() {
             <Button type="submit" className="w-full" disabled={register.isPending}>
               {register.isPending ? 'Gönderiliyor…' : 'Kayıt ol'}
             </Button>
-            <p className="text-center text-sm text-slate-500">
+            <p className="text-center text-sm text-muted">
               Zaten hesabın var mı? <Link to="/login" className="font-medium text-primary hover:underline">Giriş yap</Link>
             </p>
           </form>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
+import { isDark, toggleTheme } from '../lib/theme'
 import { Button, Icon } from '../ui/primitives'
 
 type NavItem = { to: string; label: string; icon: string; end?: boolean }
@@ -23,7 +24,7 @@ const CUSTOMER_NAV: NavItem[] = [
   { to: '/', label: 'Taleplerim', icon: 'ticket-outline', end: true },
 ]
 
-function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate: () => void }) {
+function NavLinks({ items, onNavigate, collapsed }: { items: NavItem[]; onNavigate: () => void; collapsed: boolean }) {
   return (
     <>
       {items.map((it) => (
@@ -32,31 +33,43 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate: () => v
           to={it.to}
           end={it.end}
           onClick={onNavigate}
+          title={collapsed ? it.label : undefined}
           className={({ isActive }) =>
-            `flex items-center gap-3 border-l-[3px] px-5 py-2.5 text-sm transition-colors ${
+            `flex items-center gap-3 border-l-[3px] py-2.5 text-sm transition-colors ${
+              collapsed ? 'justify-center px-0' : 'px-5'
+            } ${
               isActive
                 ? 'border-primary bg-primary/8 font-semibold text-primary'
-                : 'border-transparent text-[#484848] hover:bg-canvas hover:text-ink'
+                : 'border-transparent text-muted hover:bg-canvas hover:text-ink'
             }`
           }
         >
           <Icon name={it.icon} className="text-lg" />
-          {it.label}
+          {!collapsed && it.label}
         </NavLink>
       ))}
     </>
   )
 }
 
-/** Protected layout (spec §17.8): StarAdmin-style fixed light sidebar + white top navbar. */
+/** Protected layout (spec §17.8): StarAdmin-style fixed sidebar + top navbar. The sidebar collapses to
+ * an icon rail (desktop) and the whole app has a dark theme — both toggled from the navbar, both persisted. */
 export default function Shell() {
   const { user, loading, logout, impersonating, stopImpersonation } = useAuth()
   const [open, setOpen] = useState(false) // mobile off-canvas sidebar
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('crm.sidebar') === 'collapsed')
+  const [dark, setDark] = useState(isDark())
   if (loading) return <div className="p-8 text-muted">Yükleniyor…</div>
   if (!user) return <Navigate to="/login" replace />
 
   const isStaff = user.isSuperAdmin || user.companies.length > 0
   const close = () => setOpen(false)
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      const next = !c
+      localStorage.setItem('crm.sidebar', next ? 'collapsed' : 'open')
+      return next
+    })
 
   return (
     <div className="min-h-screen">
@@ -73,29 +86,29 @@ export default function Shell() {
       <div className="flex">
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-surface shadow-[var(--shadow-sidebar)] transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-surface shadow-[var(--shadow-sidebar)] transition-all lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
             open ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          } ${collapsed ? 'lg:w-16' : 'lg:w-60'}`}
         >
-          <div className="flex h-16 shrink-0 items-center gap-2.5 px-5">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-sm font-bold text-white">K</span>
-            <span className="text-lg font-extrabold tracking-tight text-ink">CRM Kanban</span>
+          <div className={`flex h-16 shrink-0 items-center gap-2.5 ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-sm font-bold text-white">K</span>
+            {!collapsed && <span className="text-lg font-extrabold tracking-tight text-ink">CRM Kanban</span>}
           </div>
           <nav className="flex-1 overflow-y-auto pb-6">
             {isStaff ? (
               <>
-                <p className="px-5 pb-1 pt-4 text-[11px] font-bold uppercase tracking-widest text-slate-400">Menü</p>
-                <NavLinks items={NAV} onNavigate={close} />
+                {!collapsed && <p className="px-5 pb-1 pt-4 text-[11px] font-bold uppercase tracking-widest text-muted">Menü</p>}
+                <NavLinks items={NAV} onNavigate={close} collapsed={collapsed} />
                 {user.isSuperAdmin && (
                   <>
-                    <p className="px-5 pb-1 pt-5 text-[11px] font-bold uppercase tracking-widest text-slate-400">Yönetim</p>
-                    <NavLinks items={SUPER_NAV} onNavigate={close} />
+                    {!collapsed && <p className="px-5 pb-1 pt-5 text-[11px] font-bold uppercase tracking-widest text-muted">Yönetim</p>}
+                    <NavLinks items={SUPER_NAV} onNavigate={close} collapsed={collapsed} />
                   </>
                 )}
               </>
             ) : (
               <div className="pt-4">
-                <NavLinks items={CUSTOMER_NAV} onNavigate={close} />
+                <NavLinks items={CUSTOMER_NAV} onNavigate={close} collapsed={collapsed} />
               </div>
             )}
           </nav>
@@ -107,14 +120,32 @@ export default function Shell() {
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-line bg-surface/90 px-5 backdrop-blur">
-            <button
-              className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas lg:hidden"
-              onClick={() => setOpen(true)}
-              aria-label="Menü"
-            >
-              <Icon name="menu" className="text-xl" />
-            </button>
-            <div className="flex flex-1 items-center justify-end gap-3 text-sm text-muted">
+            <div className="flex items-center gap-1">
+              <button
+                className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas lg:hidden"
+                onClick={() => setOpen(true)}
+                aria-label="Menü"
+              >
+                <Icon name="menu" className="text-xl" />
+              </button>
+              <button
+                className="hidden h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas lg:grid"
+                onClick={toggleCollapsed}
+                aria-label={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
+                title={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
+              >
+                <Icon name={collapsed ? 'chevron-double-right' : 'chevron-double-left'} className="text-xl" />
+              </button>
+            </div>
+            <div className="flex items-center justify-end gap-3 text-sm text-muted">
+              <button
+                className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas"
+                onClick={() => setDark(toggleTheme())}
+                aria-label={dark ? 'Açık temaya geç' : 'Koyu temaya geç'}
+                title={dark ? 'Açık tema' : 'Koyu tema'}
+              >
+                <Icon name={dark ? 'weather-sunny' : 'weather-night'} className="text-xl" />
+              </button>
               <NavLink to="/account" className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-primary/5" title="Hesabım">
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                   {user.name.slice(0, 1).toUpperCase()}

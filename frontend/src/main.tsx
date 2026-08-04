@@ -4,7 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createBrowserRouter } from 'react-router-dom'
 import './assets/mdi/css/materialdesignicons.min.css'
 import './index.css'
+import { initTheme } from './lib/theme'
 import { AuthProvider } from './lib/auth'
+
+initTheme() // apply saved/system dark mode before first paint
 import Login from './screens/Login'
 import Shell from './screens/Shell'
 import Home from './screens/Home'

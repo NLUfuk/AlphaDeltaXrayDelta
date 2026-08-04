@@ -95,7 +95,7 @@ function FieldRow({ field, onDelete, onUpdate }: {
       <span className="text-muted">{typeLabel}</span>
       <button
         onClick={() => onUpdate({ ...field, isActive: !field.isActive })}
-        className={`rounded-full px-2 py-0.5 text-xs ${field.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
+        className={`rounded-full px-2 py-0.5 text-xs ${field.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-canvas text-muted'}`}
       >
         {field.isActive ? 'Aktif' : 'Pasif'}
       </button>

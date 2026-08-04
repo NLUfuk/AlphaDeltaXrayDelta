@@ -67,7 +67,11 @@ public sealed class TicketQueryService(
             commentsQuery = commentsQuery.Where(c => !c.IsInternal); // customers never see internal notes
 
         var comments = await commentsQuery.OrderBy(c => c.CreatedAt)
-            .Select(c => new CommentDto(c.Id, c.AuthorId, c.Body, c.IsInternal, c.EditedAt != null, c.CreatedAt, c.EditedAt))
+            .Select(c => new CommentDto(
+                c.Id, c.AuthorId,
+                db.Users.IgnoreQueryFilters().Where(u => u.Id == c.AuthorId)
+                    .Select(u => u.FirstName + " " + u.LastName).FirstOrDefault() ?? "—",
+                c.Body, c.IsInternal, c.EditedAt != null, c.CreatedAt, c.EditedAt))
             .ToListAsync(ct);
 
         // Attachments visible to this caller: ticket-level (CommentId == null) plus those on comments the

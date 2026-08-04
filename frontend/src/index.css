@@ -21,6 +21,21 @@
   --shadow-sidebar: 6px 0 24px -18px #b7bcd1;
 }
 
+/* Dark theme: override the same tokens under .dark on <html>, so every bg-surface/text-ink/etc.
+   utility follows without touching a single screen. Toggled from the navbar; persisted in localStorage. */
+.dark {
+  --color-primary: #5b73e8;
+  --color-primary-hover: #6d82ec;
+  --color-canvas: #0f1117;
+  --color-surface: #1a1d27;
+  --color-ink: #e6e8ee;
+  --color-muted: #9aa0b0;
+  --color-line: #2a2e3a;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px -8px rgba(0, 0, 0, 0.5);
+  --shadow-sidebar: 6px 0 24px -18px #000;
+  color-scheme: dark;
+}
+
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink);

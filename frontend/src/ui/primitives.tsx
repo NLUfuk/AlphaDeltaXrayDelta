@@ -22,7 +22,7 @@ export function Button({ variant = 'primary', className = '', ...props }: Button
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 ${className}`}
+      className={`w-full rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 ${className}`}
       {...props}
     />
   )
@@ -31,7 +31,7 @@ export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInpu
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-1 flex-col gap-1">
-      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</span>
       {children}
     </label>
   )

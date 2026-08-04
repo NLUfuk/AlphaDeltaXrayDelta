@@ -31,15 +31,15 @@ export function TicketCard({
         onDragStart?.()
       }}
       onDragEnd={onDragEnd}
-      className={`block rounded-md border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-300 ${
+      className={`block rounded-md border border-line bg-surface p-3 shadow-sm transition hover:border-primary/40 ${
         draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       } ${dragging ? 'opacity-40 ring-2 ring-primary/40' : ''}`}
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-slate-400">{ticket.number}</span>
+        <span className="text-xs font-medium text-muted">{ticket.number}</span>
         <Badge label={p.label} color={p.color} />
       </div>
-      <p className="mt-1 text-sm text-slate-800">{ticket.title}</p>
+      <p className="mt-1 text-sm text-ink">{ticket.title}</p>
     </Link>
   )
 }

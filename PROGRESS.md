@@ -2,7 +2,7 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 2026-08-03 |
+| Son güncelleme | 2026-08-04 |
 | Aktif faz | **Faz 0-19 tamam. 144 test yeşil** (16 domain + 121 application + 7 API/HTTP). **Faz 19 (2026-08-03):** süper admin görünmezliği (member list + effective-view + assign-target sızıntıları kapatıldı) + ham yetki anahtarları Türkçeleştirildi + **yetki Ver/Reddet toggle 500 bug'ı düzeltildi** (remove+add → yerinde güncelle). **Faz 16-18 (2026-08-03):** (16) süper admin impersonation UI; (17) müşteri portalı ilişki-scope'u (yalnız iş yaptığı firmalar) + müşteri süreç göstergesi; **deploy config:** SMTP→Resend (canlı doğrulandı), depolama→host diski `local` (+azure/s3 provider); (18) hesap sayfası (`/account`: bilgi + parola değiştir + KVKK hesap silme) + mail şablonları anlamsallaştırıldı (buton/footer + ticket deep-link). Kalan: operasyonel (TLS→MonsterASP, CAPTCHA provider, prod secret) — ONERILER P0 |
 | Genel durum | Faz 0-8 + onboarding/RBAC + Faz 9 tamam. **Faz 9 (2026-07-31):** (1) müşteri self-registration e-posta doğrulama akışı uçtan uca bağlandı — public form yeni müşteride `account_invite` mailini kuyruğa atıyor, `/invite` ekranı token'la şifre belirleyip hesabı aktive ediyor (personel daveti de `staff_invite` maili gönderiyor); (2) müşteri yüzeyi: `Home` dispatcher (personel→kanban, müşteri→Taleplerim), `CustomerTickets` listesi, müşteri-sade nav; (3) **bug fix:** müşteri yazma yolu (`CommentService`/`TicketCommandService` ticket load) tenant filtresiyle yüklüyordu → müşterinin şirket scope'u yok → kendi ticket'ına yorum/iptal 404; `IgnoreQueryFilters + authz` deseniyle düzeltildi; (4) kanban drag-drop: `dataTransfer` set (Firefox), `onDragEnd` temizliği, kendi kolonuna no-op drop engeli, sürükleme görsel geri bildirimi; (5) CRM-tadında demo seed (teklif/talep + müşteri-personel yorum thread'leri) + `Seed:Demo` bayrağıyla Production'da da çalıştırılabilir. **96 test yeşil** (+3 müşteri yazma-yolu). Docker stack `up.ps1` ile ayağa kaldırıldı, e2e doğrulandı (login/public-form→mail→invite→müşteri yorum) |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
@@ -313,6 +313,26 @@ Kullanıcı canlı test ederken müşteri deneyimindeki boşluğu bildirdi: mü�
 - *Açık sidebar:* kullanıcı StarAdmin'in iki resmi varyantından açık olanı seçti.
 - *Manrope Google Fonts ile:* self-host yerine `<link>` (mdi zaten bundle'da). İstenirse woff2 self-host'a çevrilir.
 - *Kalan (polish, kritik değil):* bazı ekranlar hâlâ `text-slate-*` gibi ham renk kullanıyor (token yerine); çalışıyor ama ekran ekran tokenize edilebilir. Kanban/Dashboard kartları StarAdmin KPI-kart stiline daha da yaklaştırılabilir.
+
+### Faz 21 — StarAdmin tokenizasyon (polish tamam) ✅ (2026-08-04)
+Faz 20 foundation'ının bıraktığı "ham renk" borcu kapatıldı: 17 dosyadaki tüm `text-slate-*` / `bg-slate-*` / `border-slate-*` / `bg-white` / `hover:border-blue-300` kullanımları tema token'larına çevrildi (`text-ink`/`text-muted`/`bg-canvas`/`bg-surface`/`border-line`/`border-primary/40`). Artık ekranların hiçbirinde ham Tailwind rengi yok — palet tek yerden (`index.css`) yönetiliyor.
+- [x] Kök-neden yaklaşım: shade→token haritası (slate-400/500/600→muted, 700/800→ink, bg-slate-50/100→canvas, border-slate-*→line, bg-white→surface) tek geçişte uygulandı; charts SVG hex serileri (dataviz kategorik renkler) ve semantik durum renkleri (red/amber = hata/uyarı) bilinçli korundu.
+- [x] Auth kartları (Login/Register/Invite/Forgot) düz `shadow`→`shadow-card` (StarAdmin yumuşak gölge).
+- [x] Dashboard KPI tile'ları + Kanban sütunları zaten StarAdmin stilindeydi (icon-tile + büyük sayı; renkli sütun başlığı + sayaç) — dokunulmadı, YAGNI.
+- [x] Doğrulama: `tsc -b` + `vite build` temiz (0 hata); dev server (5173) + API (7084) canlı, health 200 / login 200.
+
+**Karar (Faz 21):** *Ekran-ekran token swap, KPI kart yeniden-yazımı değil.* Görsel kimlik Faz 20'de kurulmuştu; kalan tek eksik ham renklerin token'a çevrilmesiydi. Dashboard/Kanban kartları zaten hedef stildeydi → yeniden yazmak gereksiz diff olurdu (SCOPE DISCIPLINE). Semantik renkler (hata/uyarı/dataviz) paletten ayrı tutuldu — bunlar marka değil anlam taşıyor.
+
+### Faz 22 — Dark tema + sidebar collapse + yorum düzeltmeleri + zengin seed ✅ (2026-08-04)
+- [x] **Dark tema:** `.dark` altında aynı token'lar yeniden maplendi (`index.css`) → tek sınıf değişmeden tüm app koyu temaya döner. Navbar'da güneş/ay toggle butonu; `lib/theme.ts` (localStorage + sistem tercihi, ilk boyamadan önce `main.tsx`'te init → FOUC yok).
+- [x] **Sidebar collapse:** navbar'da chevron butonu → sidebar 240px ↔ 64px ikon-rayı (desktop), localStorage'da kalıcı; daraltılınca etiketler/başlıklar gizli, ikonlar `title` ile. Mobil off-canvas korundu.
+- [x] **Yorum yazarı görünmüyordu (kök-neden):** `CommentDto`'da yazar adı yoktu. `AuthorName` eklendi (Users join, `FirstName+' '+LastName`); UI yorumda yazarı gösteriyor.
+- [x] **Yorum saati İstanbul değildi (kök-neden = backend serileştirme):** `datetime2` kolonları `Kind=Unspecified` dönüyor → JSON'da `Z` yok → tarayıcı UTC anı yerel sanıyordu. `UtcDateTimeConverter` (+nullable) global eklendi → tüm tarihler `Z`'li UTC. Frontend `formatDateTime` her tarihi `Europe/Istanbul` olarak render eder (izleyen makinenin TZ'sinden bağımsız).
+- [x] **Audit interceptor latent bug:** `CreatedAt` her Added'da koşulsuz `now`'a eziliyordu → seed'in trend için tarih yayması **no-op**'tu. `if (CreatedAt == default)` ile önceden set edilen tarih korunur (normal akışta domain saati ellemez → hep default → davranış aynı).
+- [x] **Zengin demo seed (tech debt #29 kapandı):** iç notlar (staff-only, amber), gerçek ekler (byte'lar `IFileStorage.PutAsync` ile depolanır → indirme round-trip'i çalışır), özel public-form alanları (tekstil: Sipariş No/Ürün Kategorisi/Ek açıklama) + eşleşen `CustomFieldsJson` taşıyan ticket, gerçekçi/yayılmış zaman damgaları (ticket + yorum kronolojisi). Canlı doğrulandı: iç not spread'i, TEKSTIL-1 custom fields + ek indirme (57B, içerik eşleşti).
+- [x] **Doğrulama:** 144 test yeşil (16+121+7), backend build + frontend `tsc -b` temiz. DB drop→migrate→enriched seed; superadmin `ChangeMe!2026Dev`, demo admin `admin@tekstil.local`/`Demo!2026Pass`.
+
+**Karar (Faz 22):** *Timezone kök-nedeni backend'de düzeltildi, sadece UI'da maskelenmedi.* Kullanıcı "UI'da halletmek doğru mu" diye sordu — hayır: `Z`'siz UTC her tüketiciyi yanıltır (mail, export, API). Converter tek yerde tüm sistemi düzeltir; UI ayrıca İstanbul'a sabitler (Türk CRM'i tek saat okur). Seed'e byte'lı ek koymak "dangling row" yerine gerçek indirme testini mümkün kıldı.
 
 ## Bir sonraki oturum — açık uçlar (spec §18.21-24)
 

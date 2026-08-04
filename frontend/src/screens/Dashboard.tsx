@@ -11,7 +11,7 @@ export default function Dashboard() {
   const companyId = user?.isSuperAdmin ? null : (user?.companies[0]?.companyId ?? null)
   const { data: r, isLoading, error } = useReport(companyId)
 
-  if (isLoading) return <p className="text-slate-500">Yükleniyor…</p>
+  if (isLoading) return <p className="text-muted">Yükleniyor…</p>
   if (error || !r) return <p className="text-red-600">Rapor yüklenemedi (yetki gerekebilir).</p>
 
   // Open = not in a terminal category (Closed=4 / Cancelled=5).
@@ -24,7 +24,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-ink">{companyId ? 'Şirket Raporu' : 'Global Rapor'}</h1>
-          <p className="text-sm text-slate-400">Ticket performans özeti</p>
+          <p className="text-sm text-muted">Ticket performans özeti</p>
         </div>
         <Button variant="secondary" onClick={() => downloadCsv(companyId)}><Icon name="download" className="mr-1" />CSV indir</Button>
       </div>
@@ -54,7 +54,7 @@ function Tile({ label, value, accent, icon }: { label: string; value: number | s
       </span>
       <div>
         <div className="text-2xl font-semibold text-ink tabular-nums">{value}</div>
-        <div className="text-xs text-slate-400">{label}</div>
+        <div className="text-xs text-muted">{label}</div>
       </div>
     </Card>
   )
@@ -63,7 +63,7 @@ function Tile({ label, value, accent, icon }: { label: string; value: number | s
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card className="p-5">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
       {children}
     </Card>
   )

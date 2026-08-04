@@ -35,9 +35,9 @@ export default function CustomerTickets() {
             const cat = statusCategory(t.category)
             const p = priority(t.priority)
             return (
-              <Link key={t.id} to={`/tickets/${t.id}`} className="block rounded-lg border border-line bg-white p-4 shadow-sm transition hover:border-primary">
+              <Link key={t.id} to={`/tickets/${t.id}`} className="block rounded-lg border border-line bg-surface p-4 shadow-sm transition hover:border-primary">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-400">{t.number}</span>
+                  <span className="text-xs font-medium text-muted">{t.number}</span>
                   <div className="flex gap-2">
                     <Badge label={cat.label} color={t.statusColor || cat.color} />
                     <Badge label={p.label} color={p.color} />
@@ -91,7 +91,7 @@ function NewMessage({ onDone }: { onDone: () => void }) {
           value={form.companyId}
           onChange={(e) => setForm({ ...form, companyId: e.target.value })}
           required
-          className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
         >
           <option value="" disabled>Firma seçin…</option>
           {companies?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -104,7 +104,7 @@ function NewMessage({ onDone }: { onDone: () => void }) {
           onChange={(e) => setForm({ ...form, body: e.target.value })}
           required
           rows={4}
-          className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
         />
       </Field>
       <Button type="submit" disabled={create.isPending || !form.companyId}>

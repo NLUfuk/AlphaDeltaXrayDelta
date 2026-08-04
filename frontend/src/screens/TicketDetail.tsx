@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useMembers } from '../lib/admin'
-import { PRIORITIES, priority, statusCategory } from '../lib/messages'
+import { PRIORITIES, formatDateTime, priority, statusCategory } from '../lib/messages'
 import {
   downloadAttachment,
   useAddComment, useAssignTicket, useChangeTicketStatus, useSetTicketPriority, useStatuses, useTicket, useUploadAttachment,
@@ -25,7 +25,7 @@ export default function TicketDetail() {
   const [body, setBody] = useState('')
   const [internal, setInternal] = useState(false)
 
-  if (isLoading) return <p className="text-slate-500">Yükleniyor…</p>
+  if (isLoading) return <p className="text-muted">Yükleniyor…</p>
   if (error || !ticket) return <p className="text-red-600">Ticket yüklenemedi.</p>
 
   const cat = statusCategory(ticket.category)
@@ -51,18 +51,18 @@ export default function TicketDetail() {
 
       <Card className="p-5">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-slate-400">{ticket.number}</span>
+          <span className="text-xs font-medium text-muted">{ticket.number}</span>
           <Badge label={cat.label} color={cat.color} />
           <Badge label={p.label} color={p.color} />
         </div>
         <h1 className="mt-2 text-lg font-semibold text-ink">{ticket.title}</h1>
-        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{ticket.body}</p>
+        <p className="mt-2 whitespace-pre-wrap text-sm text-muted">{ticket.body}</p>
         {ticket.customFields.length > 0 && (
           <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 border-t border-line pt-3 text-sm">
             {ticket.customFields.map((f, i) => (
               <div key={i} className="contents">
-                <dt className="font-medium text-slate-500">{f.label}</dt>
-                <dd className="text-slate-700">{f.value}</dd>
+                <dt className="font-medium text-muted">{f.label}</dt>
+                <dd className="text-ink">{f.value}</dd>
               </div>
             ))}
           </dl>
@@ -107,7 +107,7 @@ export default function TicketDetail() {
 
       <Card className="p-4">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ekler</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted">Ekler</span>
           <label className="inline-flex cursor-pointer items-center gap-1 text-sm text-primary">
             <Icon name="paperclip" />
             {upload.isPending ? 'Yükleniyor…' : 'Dosya ekle'}
@@ -115,7 +115,7 @@ export default function TicketDetail() {
           </label>
         </div>
         {ticket.attachments.length === 0 ? (
-          <p className="text-sm text-slate-400">Ek yok.</p>
+          <p className="text-sm text-muted">Ek yok.</p>
         ) : (
           <ul className="space-y-1">
             {ticket.attachments.map((a) => (
@@ -126,7 +126,7 @@ export default function TicketDetail() {
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                 >
                   <Icon name="download" />{a.fileName}
-                  <span className="text-xs text-slate-400">({Math.max(1, Math.round(a.size / 1024))} KB)</span>
+                  <span className="text-xs text-muted">({Math.max(1, Math.round(a.size / 1024))} KB)</span>
                 </button>
               </li>
             ))}
@@ -137,16 +137,17 @@ export default function TicketDetail() {
 
       <div className="space-y-2">
         {ticket.comments.map((c) => (
-          <div key={c.id} className={`rounded-lg p-3 text-sm shadow-sm ${c.isInternal ? 'bg-amber-50 text-amber-900' : 'bg-white text-slate-700'}`}>
-            <div className="mb-1 flex items-center gap-2 text-xs text-slate-400">
+          <div key={c.id} className={`rounded-lg p-3 text-sm shadow-sm ${c.isInternal ? 'bg-amber-50 text-amber-900' : 'bg-surface text-ink'}`}>
+            <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+              <span className="font-semibold text-ink">{c.authorName}</span>
               {c.isInternal && <Badge label="İç not" color="#d97706" />}
-              {new Date(c.createdAt).toLocaleString('tr-TR')}
+              <span>{formatDateTime(c.createdAt)}</span>
               {c.isEdited && <span>(düzenlendi)</span>}
             </div>
             <p className="whitespace-pre-wrap">{c.body}</p>
           </div>
         ))}
-        {ticket.comments.length === 0 && <p className="text-sm text-slate-400">Henüz yorum yok.</p>}
+        {ticket.comments.length === 0 && <p className="text-sm text-muted">Henüz yorum yok.</p>}
       </div>
 
       <Card className="p-4">
@@ -154,7 +155,7 @@ export default function TicketDetail() {
           <Input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Yorum yaz…" />
           <div className="flex items-center justify-between">
             {isStaff ? (
-              <label className="flex items-center gap-2 text-sm text-slate-600">
+              <label className="flex items-center gap-2 text-sm text-muted">
                 <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
                 İç not (müşteri görmez)
               </label>
@@ -179,8 +180,8 @@ function customerStage(category: number): number {
 function CustomerProgress({ category }: { category: number }) {
   if (category === 5) // Cancelled
     return (
-      <Card className="flex items-center gap-2 p-4 text-sm text-slate-600">
-        <Icon name="close-circle-outline" className="text-slate-400" />Bu talep iptal edildi.
+      <Card className="flex items-center gap-2 p-4 text-sm text-muted">
+        <Icon name="close-circle-outline" className="text-muted" />Bu talep iptal edildi.
       </Card>
     )
   const current = customerStage(category)
@@ -190,12 +191,12 @@ function CustomerProgress({ category }: { category: number }) {
         {CUSTOMER_STAGES.map((label, i) => (
           <div key={i} className={i < CUSTOMER_STAGES.length - 1 ? 'flex flex-1 items-center' : 'flex items-center'}>
             <div className="flex flex-col items-center gap-1">
-              <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${i <= current ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'}`}>
+              <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${i <= current ? 'bg-primary text-white' : 'bg-canvas text-muted'}`}>
                 {i < current ? '✓' : i + 1}
               </span>
-              <span className={`text-center text-xs ${i <= current ? 'font-medium text-ink' : 'text-slate-400'}`}>{label}</span>
+              <span className={`text-center text-xs ${i <= current ? 'font-medium text-ink' : 'text-muted'}`}>{label}</span>
             </div>
-            {i < CUSTOMER_STAGES.length - 1 && <div className={`mx-2 h-0.5 flex-1 ${i < current ? 'bg-primary' : 'bg-slate-200'}`} />}
+            {i < CUSTOMER_STAGES.length - 1 && <div className={`mx-2 h-0.5 flex-1 ${i < current ? 'bg-primary' : 'bg-line'}`} />}
           </div>
         ))}
       </div>
@@ -206,7 +207,7 @@ function CustomerProgress({ category }: { category: number }) {
 function Control({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</span>
       {children}
     </label>
   )
@@ -214,7 +215,7 @@ function Control({ label, children }: { label: string; children: React.ReactNode
 
 function Select({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: React.ReactNode }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-white px-3 py-2 text-sm outline-none focus:border-primary">
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary">
       {children}
     </select>
   )

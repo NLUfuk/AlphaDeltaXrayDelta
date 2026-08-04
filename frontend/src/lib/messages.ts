@@ -1,6 +1,12 @@
 // Single message catalog (spec §4.3): status/error text lives here, never inline in components.
 // Code reads the semantic category, never the display name (which super admin can rename, §4.3/§12).
 
+// Timestamps arrive as UTC (ISO with Z). Always render them in Istanbul time, regardless of the
+// viewer's machine timezone — a Turkish CRM should read one clock for everyone.
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul', dateStyle: 'medium', timeStyle: 'short' })
+}
+
 // Backend error code → user message. Unknown codes fall back to the server message.
 const ERRORS: Record<string, string> = {
   'auth.required': 'Oturum açmanız gerekiyor.',

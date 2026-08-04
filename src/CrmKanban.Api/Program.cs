@@ -26,7 +26,13 @@ try
         .ReadFrom.Services(services)
         .Enrich.FromLogContext());
 
-    builder.Services.AddControllers(options => options.Filters.Add<ValidationFilter>());
+    builder.Services.AddControllers(options => options.Filters.Add<ValidationFilter>())
+        .AddJsonOptions(o =>
+        {
+            // All timestamps are UTC; emit a 'Z' so the SPA can localize them (see UtcDateTimeConverter).
+            o.JsonSerializerOptions.Converters.Add(new CrmKanban.Api.UtcDateTimeConverter());
+            o.JsonSerializerOptions.Converters.Add(new CrmKanban.Api.NullableUtcDateTimeConverter());
+        });
     builder.Services.AddOpenApi();
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);

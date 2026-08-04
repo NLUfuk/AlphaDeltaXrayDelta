@@ -29,9 +29,9 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-lg bg-white p-8 shadow">
-        <h1 className="text-xl font-semibold text-slate-800">Giriş</h1>
+    <div className="flex min-h-screen items-center justify-center bg-canvas">
+      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-lg bg-surface p-8 shadow-card">
+        <h1 className="text-xl font-semibold text-ink">Giriş</h1>
         {error && <Alert>{error}</Alert>}
         <Field label="E-posta">
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
@@ -42,10 +42,10 @@ export default function Login() {
         <Button type="submit" className="w-full" disabled={busy}>
           {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
         </Button>
-        <p className="text-center text-sm text-slate-500">
+        <p className="text-center text-sm text-muted">
           <Link to="/forgot-password" className="font-medium text-primary hover:underline">Parolamı unuttum</Link>
         </p>
-        <p className="text-center text-sm text-slate-500">
+        <p className="text-center text-sm text-muted">
           Hesabın yok mu? <Link to="/register" className="font-medium text-primary hover:underline">Kayıt ol</Link>
         </p>
       </form>

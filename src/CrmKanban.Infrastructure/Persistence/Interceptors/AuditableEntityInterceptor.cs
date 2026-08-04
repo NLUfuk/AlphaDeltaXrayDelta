@@ -34,7 +34,10 @@ public sealed class AuditableEntityInterceptor(IClock clock) : SaveChangesInterc
             switch (entry.State)
             {
                 case EntityState.Added:
-                    entry.Entity.CreatedAt = now;
+                    // Honor an explicitly set CreatedAt (only the seeder does this, for realistic demo
+                    // history); the domain never touches the clock, so in normal flow this is always default.
+                    if (entry.Entity.CreatedAt == default)
+                        entry.Entity.CreatedAt = now;
                     break;
                 case EntityState.Modified:
                     entry.Entity.UpdatedAt = now;
