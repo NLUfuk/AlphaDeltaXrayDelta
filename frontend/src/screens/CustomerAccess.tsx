@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { toApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { errorMessage } from '../lib/messages'
+import { errorText } from '../lib/messages'
 import { useCustomerFormSubmit, useCustomerRegister, useFormConfig, useVerifyCode, type PublicField } from '../lib/public'
-import { Alert, Button, Field, Icon, Input } from '../ui/primitives'
+import { Alert, Button, Field, Icon, Input, Loading } from '../ui/primitives'
 
 // A company's own customer entrance (/c/{slug}) — the link staff generate and send over WhatsApp.
 // Sign up → 6-digit code from the email → session → first request. The request is what binds the
@@ -38,8 +37,7 @@ export default function CustomerAccess() {
     try {
       await fn()
     } catch (err) {
-      const { code: c, message } = toApiError(err)
-      setError(errorMessage(c, message))
+      setError(errorText(err))
     }
   }
 
@@ -76,7 +74,7 @@ export default function CustomerAccess() {
     })
   }
 
-  if (isLoading) return <p className="p-8 text-muted">Yükleniyor…</p>
+  if (isLoading) return <Loading className="p-8" />
   if (!cfg) return <p className="p-8 text-muted">Bu bağlantıya ait firma bulunamadı.</p>
 
   return (

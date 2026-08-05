@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CrmKanban.Application.Abstractions;
+using CrmKanban.Application.Common;
 using CrmKanban.Domain.Entities;
 using CrmKanban.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -51,8 +52,8 @@ public sealed class NotificationService(
             .Where(t => ticketIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, ct);
 
         var companyIds = events.Select(e => e.CompanyId).Distinct().ToList();
-        var memberships = await db.Memberships.IgnoreQueryFilters()
-            .Where(m => companyIds.Contains(m.CompanyId) && m.DeletedAt == null)
+        var memberships = await db.ActiveMemberships()
+            .Where(m => companyIds.Contains(m.CompanyId))
             .Select(m => new { m.CompanyId, m.UserId, m.Role }).ToListAsync(ct);
         var adminsByCompany = memberships.Where(m => m.Role == RoleType.Admin)
             .ToLookup(x => x.CompanyId, x => x.UserId);

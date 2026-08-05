@@ -12,3 +12,8 @@ internal sealed class CreateCompanyRequestValidator : AbstractValidator<CreateCo
             .Matches("^[a-z0-9-]+$").WithMessage("Slug yalnızca küçük harf, rakam ve tire içerebilir.");
     }
 }
+
+internal sealed class DeleteCompanyRequestValidator : AbstractValidator<DeleteCompanyRequest>
+{
+    public DeleteCompanyRequestValidator() => RuleFor(x => x.ConfirmName).NotEmpty().MaximumLength(200);
+}

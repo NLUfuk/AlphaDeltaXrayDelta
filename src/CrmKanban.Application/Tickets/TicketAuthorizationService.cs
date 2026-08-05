@@ -35,7 +35,7 @@ public sealed class TicketAuthorizationService(
         if (currentUser.IsSuperAdmin)
             return new TicketActor(userId, TicketActorKind.SuperAdmin, null, PermissionKeys.All.ToHashSet(StringComparer.Ordinal));
 
-        var membership = await db.Memberships.IgnoreQueryFilters()
+        var membership = await db.ActiveMemberships()
             .FirstOrDefaultAsync(m => m.UserId == userId && m.CompanyId == ticketCompanyId, ct);
         if (membership is not null)
         {

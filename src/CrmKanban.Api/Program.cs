@@ -108,8 +108,12 @@ try
     forwarded.KnownProxies.Clear();
     app.UseForwardedHeaders(forwarded);
 
-    app.UseMiddleware<ExceptionHandlingMiddleware>();
+    // Request logging OUTSIDE the exception handler: the handler turns a domain exception into its real
+    // status (401/403/404/400) before the log line is written. The other order let every domain exception
+    // reach Serilog unhandled, so the log said "responded 500" while the client correctly got a 403 —
+    // false 500 alarms in monitoring (tech debt #35).
     app.UseSerilogRequestLogging();
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
 
     if (app.Environment.IsDevelopment())
     {

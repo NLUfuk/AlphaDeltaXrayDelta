@@ -1,5 +1,6 @@
 using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Common;
+using CrmKanban.Domain.Authorization;
 using CrmKanban.Domain.Entities;
 using CrmKanban.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -16,19 +17,54 @@ public sealed class TicketQueryService(
     IAppDbContext db,
     ICurrentUserService currentUser,
     TicketAuthorizationService authz,
+    IPermissionService permissions,
     IOptions<TicketOptions> options)
 {
     private readonly TicketOptions _opt = options.Value;
 
     private bool IsStaff => currentUser.IsSuperAdmin || currentUser.CompanyIds.Count > 0;
 
+    /// <summary>
+    /// Companies whose tickets this staff caller may READ (`ticket.view`). Until Faz 30 the key was
+    /// offered in the admin UI and checked nowhere, so revoking it changed nothing — the switch lied.
+    /// Membership alone was treated as permission to read. Super admin short-circuits to "everything".
+    /// </summary>
+    private async Task<HashSet<Guid>> ViewableCompaniesAsync(CancellationToken ct)
+    {
+        var userId = RequireUserId();
+        var allowed = new HashSet<Guid>();
+        foreach (var companyId in currentUser.CompanyIds)
+            if (await permissions.HasPermissionAsync(userId, companyId, PermissionKeys.TicketView, ct))
+                allowed.Add(companyId);
+        return allowed;
+    }
+
+    private async Task EnsureCanViewAsync(Guid companyId, CancellationToken ct)
+    {
+        if (currentUser.IsSuperAdmin) return;
+        if (!await permissions.HasPermissionAsync(RequireUserId(), companyId, PermissionKeys.TicketView, ct))
+            throw new ForbiddenException("ticket.view_forbidden", "You cannot view this company's tickets.");
+    }
+
     public async Task<PagedResult<TicketListItem>> ListAsync(TicketListQuery query, CancellationToken ct = default)
     {
-        // Staff: the tenant filter already limits to their companies; only approved tickets are in the
-        // pool (pending intake is moderated separately). Customer: their own tickets, any state.
-        var baseQuery = IsStaff
-            ? db.Tickets.Where(t => t.ApprovalState == TicketApprovalState.Approved)
-            : db.Tickets.IgnoreQueryFilters().Where(t => t.OpenedById == RequireUserId() && t.DeletedAt == null);
+        // Staff: the tenant filter limits to their companies, and `ticket.view` narrows that to the ones
+        // they may actually read. Customer: their own tickets, any state (they are not members, so they
+        // hold no permissions at all — gating them on ticket.view would lock them out of their own requests).
+        IQueryable<Ticket> baseQuery;
+        if (IsStaff)
+        {
+            baseQuery = db.Tickets.Where(t => t.ApprovalState == TicketApprovalState.Approved);
+            if (!currentUser.IsSuperAdmin)
+            {
+                var allowed = await ViewableCompaniesAsync(ct);
+                baseQuery = baseQuery.Where(t => allowed.Contains(t.CompanyId));
+            }
+        }
+        else
+        {
+            baseQuery = db.Tickets.IgnoreQueryFilters().Where(t => t.OpenedById == RequireUserId() && t.DeletedAt == null);
+        }
 
         baseQuery = ApplyFilters(baseQuery, query);
         return await PaginateAsync(baseQuery, query, ct);
@@ -58,6 +94,10 @@ public sealed class TicketQueryService(
         var ticket = await db.Tickets.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == ticketId && t.DeletedAt == null, ct)
             ?? throw new NotFoundException("ticket.not_found", "Ticket not found.");
         var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        // Staff read the detail only with ticket.view; the opener reaches their own ticket regardless
+        // (a customer holds no permissions, and locking them out of their own request would be absurd).
+        if (actor.IsStaff && ticket.OpenedById != actor.UserId)
+            TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketView);
 
         var status = await db.TicketStatuses.IgnoreQueryFilters().FirstAsync(s => s.Id == ticket.StatusId, ct);
 
@@ -96,6 +136,7 @@ public sealed class TicketQueryService(
     {
         if (!IsStaff)
             throw new ForbiddenException("kanban.forbidden", "The kanban board is staff-only.");
+        await EnsureCanViewAsync(companyId, ct);
 
         var statuses = await StatusSet.EffectiveAsync(db, companyId, ct);
 
@@ -115,13 +156,15 @@ public sealed class TicketQueryService(
     {
         if (!IsStaff)
             throw new ForbiddenException("moderation.forbidden", "The moderation queue is staff-only.");
+        await EnsureCanViewAsync(companyId, ct);
 
-        var joined = from t in db.Tickets.Where(t => t.CompanyId == companyId && t.ApprovalState == TicketApprovalState.Pending)
-                     join s in db.TicketStatuses.IgnoreQueryFilters() on t.StatusId equals s.Id
-                     orderby t.CreatedAt
-                     select new TicketListItem(t.Id, t.Number, t.Title, t.StatusId, s.Name, s.Category,
-                         s.Color, t.Priority, t.AssignedToId, t.CategoryId, t.CreatedAt);
-        return await joined.ToListAsync(ct);
+        // companyId comes from the caller, so the tenant filter on db.Tickets — not this predicate — is
+        // what actually scopes the read. Statuses are resolved separately (see LoadStatusesAsync).
+        var tickets = await db.Tickets
+            .Where(t => t.CompanyId == companyId && t.ApprovalState == TicketApprovalState.Pending)
+            .OrderBy(t => t.CreatedAt).ToListAsync(ct);
+        var statusById = await LoadStatusesAsync(ct);
+        return tickets.Select(t => ToListItem(t, statusById)).ToList();
     }
 
     /// <summary>The status catalog for dropdowns and the customer cancel/complete actions. With a
@@ -154,6 +197,19 @@ public sealed class TicketQueryService(
         }
     }
 
+    /// <summary>
+    /// Status metadata (name/category/color) for the list projections, read as its OWN query.
+    /// It must not be joined into the ticket query: reaching a company's private status column needs
+    /// IgnoreQueryFilters (a customer has no company scope at all), and EF applies IgnoreQueryFilters to
+    /// the WHOLE query — joining it in silently switched the TENANT filter off for the tickets too and
+    /// leaked every tenant's list to every staff user. Two queries, one of them over a tiny table, keep
+    /// the tenant filter the single thing that decides which tickets are readable.
+    /// </summary>
+    private async Task<Dictionary<Guid, TicketStatus>> LoadStatusesAsync(CancellationToken ct) =>
+        await db.TicketStatuses.IgnoreQueryFilters()
+            .Where(s => s.DeletedAt == null)
+            .ToDictionaryAsync(s => s.Id, ct);
+
     private static IQueryable<Ticket> ApplyFilters(IQueryable<Ticket> q, TicketListQuery query)
     {
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -172,23 +228,22 @@ public sealed class TicketQueryService(
     {
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, _opt.MaxPageSize);
-        var statusFilterByCategory = query.Category;
 
-        // Join statuses for name/category/color and optional category filter.
-        var joined = from t in q
-                     join s in db.TicketStatuses.IgnoreQueryFilters() on t.StatusId equals s.Id
-                     where statusFilterByCategory == null || s.Category == statusFilterByCategory
-                     select new { t, s };
+        var statusById = await LoadStatusesAsync(ct);
+        if (query.Category is { } category)
+        {
+            var ids = statusById.Values.Where(s => s.Category == category).Select(s => s.Id).ToList();
+            q = q.Where(t => ids.Contains(t.StatusId));
+        }
 
-        var total = await joined.CountAsync(ct);
-        var items = await joined
-            .OrderByDescending(x => x.t.CreatedAt)
+        var total = await q.CountAsync(ct);
+        var tickets = await q
+            .OrderByDescending(t => t.CreatedAt)
             .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(x => new TicketListItem(x.t.Id, x.t.Number, x.t.Title, x.t.StatusId, x.s.Name, x.s.Category,
-                x.s.Color, x.t.Priority, x.t.AssignedToId, x.t.CategoryId, x.t.CreatedAt))
             .ToListAsync(ct);
 
-        return new PagedResult<TicketListItem>(items, total, page, pageSize);
+        return new PagedResult<TicketListItem>(
+            tickets.Select(t => ToListItem(t, statusById)).ToList(), total, page, pageSize);
     }
 
     private static TicketListItem ToListItem(Ticket t, Dictionary<Guid, TicketStatus> statusById)

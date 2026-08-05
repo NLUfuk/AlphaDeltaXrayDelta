@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { toApiError } from '../lib/api'
-import { errorMessage } from '../lib/messages'
+import { errorText } from '../lib/messages'
 import { useAuth } from '../lib/auth'
 import { useChangePassword, useDeleteAccount } from '../lib/account'
 import { Alert, Badge, Button, Card, Field, Icon, Input } from '../ui/primitives'
@@ -53,8 +52,7 @@ function ChangePasswordCard() {
       await change.mutateAsync({ currentPassword: f.currentPassword, newPassword: f.newPassword })
       setDone(true); setF({ currentPassword: '', newPassword: '', confirm: '' })
     } catch (err) {
-      const { code, message } = toApiError(err)
-      setError(errorMessage(code, message))
+      setError(errorText(err))
     }
   }
 
@@ -89,8 +87,7 @@ function DeleteAccountCard() {
       await logout() // tokens already revoked server-side; clear client + redirect
       navigate('/login', { replace: true })
     } catch (err) {
-      const { code, message } = toApiError(err)
-      setError(errorMessage(code, message))
+      setError(errorText(err))
     }
   }
 

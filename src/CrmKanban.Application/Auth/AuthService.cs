@@ -222,7 +222,7 @@ public sealed class AuthService(
     {
         var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("user.not_found", "User not found.");
-        var memberships = await db.Memberships.IgnoreQueryFilters()
+        var memberships = await db.ActiveMemberships()
             .Where(m => m.UserId == userId)
             .Select(m => new CompanyMembershipInfo(m.CompanyId, m.Role))
             .ToListAsync(ct);
@@ -273,7 +273,9 @@ public sealed class AuthService(
     private async Task<AuthResult> IssueAsync(User user, CancellationToken ct, RefreshToken? rotatedFrom = null)
     {
         var now = clock.UtcNow;
-        var memberships = await db.Memberships.IgnoreQueryFilters()
+        // The company_id claims the tenant filter trusts for the whole session — revoked memberships
+        // must never reach them (see MembershipQueries).
+        var memberships = await db.ActiveMemberships()
             .Where(m => m.UserId == user.Id)
             .Select(m => new CompanyMembershipInfo(m.CompanyId, m.Role))
             .ToListAsync(ct);

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { toApiError } from '../../lib/api'
-import { errorMessage } from '../../lib/messages'
+import { errorText } from '../../lib/messages'
 import { useAuth } from '../../lib/auth'
 import { useAnonymizeUser, useCreateAdmin, useUsers, type UserRow } from '../../lib/admin'
 import { Alert, Button, Card, Field, Icon, Input } from '../../ui/primitives'
@@ -71,8 +70,7 @@ export default function AdminUsers() {
     try {
       await fn()
     } catch (e) {
-      const { code, message } = toApiError(e)
-      setErr(errorMessage(code, message))
+      setErr(errorText(e))
     }
   }
 
@@ -255,28 +253,35 @@ function UserTableRow({
       <td className="px-4 py-2.5 text-right whitespace-nowrap">
         {/* Erasure is irreversible, so it takes a second click — inline, not a browser dialog. */}
         {confirming ? (
-          <span className="text-xs text-muted">
-            Kişisel bilgiler maskelenip hesap kapatılacak (talep geçmişi kalır).
-            <button onClick={() => { setConfirming(false); onErase(u) }} className="ml-2 font-medium text-red-600 hover:underline">
-              Sil
-            </button>
-            <button onClick={() => setConfirming(false)} className="ml-2 font-medium text-muted hover:text-ink">
+          <span className="inline-flex items-center gap-2">
+            <span className="text-xs text-muted">Kişisel bilgiler maskelenir, talep geçmişi kalır.</span>
+            <Button variant="danger" onClick={() => { setConfirming(false); onErase(u) }} className="gap-1 px-2.5 py-1 text-xs">
+              <Icon name="check" />Onayla
+            </Button>
+            <Button variant="secondary" onClick={() => setConfirming(false)} className="px-2.5 py-1 text-xs">
               Vazgeç
-            </button>
+            </Button>
           </span>
         ) : (
-          <>
+          <span className="inline-flex items-center gap-2">
             {actionable && u.isActive && (
-              <button onClick={() => onStepInto(u.id)} className="text-xs font-medium text-primary hover:underline">
-                Kimliğine gir
-              </button>
+              <Button
+                variant="secondary" onClick={() => onStepInto(u.id)} className="gap-1 px-2.5 py-1 text-xs"
+                title="Bu kullanıcının gördüğü ekrana geç"
+              >
+                <Icon name="account-switch-outline" />Kimliğine gir
+              </Button>
             )}
             {actionable && (
-              <button onClick={() => setConfirming(true)} className="ml-3 text-xs font-medium text-red-600 hover:underline">
-                Hesabı sil
-              </button>
+              <Button
+                variant="secondary" onClick={() => setConfirming(true)}
+                className="gap-1 border-danger/40 px-2.5 py-1 text-xs text-danger hover:bg-danger/5"
+                title="KVKK: kişisel bilgileri maskele ve hesabı kapat"
+              >
+                <Icon name="account-remove-outline" />Hesabı sil
+              </Button>
             )}
-          </>
+          </span>
         )}
       </td>
     </tr>

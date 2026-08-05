@@ -5,8 +5,7 @@ import { STATUS_CATEGORIES } from '../../lib/messages'
 import {
   useColumns, useCreateColumn, useDeleteColumn, useReorderColumns, useUpdateColumn, type StatusColumn,
 } from '../../lib/tickets'
-import { toApiError } from '../../lib/api'
-import { errorMessage } from '../../lib/messages'
+import { errorText } from '../../lib/messages'
 import { Alert, Button, Card, Field, Icon, Input } from '../../ui/primitives'
 
 // Kanban column manager (spec §12/§18.9): an admin adds a column anywhere in the chain, renames /
@@ -28,8 +27,7 @@ export default function Columns() {
   const [draft, setDraft] = useState({ name: '', category: 1, color: '#6366f1', position: count })
 
   function fail(err: unknown) {
-    const { code, message } = toApiError(err)
-    setError(errorMessage(code, message))
+    setError(errorText(err))
   }
 
   function move(cols: StatusColumn[], from: number, to: number) {

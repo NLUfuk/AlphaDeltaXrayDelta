@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { toApiError } from '../lib/api'
-import { errorMessage } from '../lib/messages'
+import { errorText } from '../lib/messages'
 import { useRegister } from '../lib/public'
 import { Alert, Button, Field, Icon, Input } from '../ui/primitives'
 
@@ -25,8 +24,7 @@ export default function Register() {
       await register.mutateAsync(form)
       setDone(true)
     } catch (err) {
-      const { code, message } = toApiError(err)
-      setError(errorMessage(code, message))
+      setError(errorText(err))
     }
   }
 

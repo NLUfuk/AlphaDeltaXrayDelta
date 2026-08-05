@@ -84,7 +84,7 @@ public class CustomerWriteAccessTests
     {
         var db = new CrmDbContext(options, user);
         var authz = new TicketAuthorizationService(user, new FakePermissionService(), db);
-        return new TicketQueryService(db, user, authz, Options.Create(new TicketOptions()));
+        return new TicketQueryService(db, user, authz, new FakePermissionService(), Options.Create(new TicketOptions()));
     }
 
     [Fact]

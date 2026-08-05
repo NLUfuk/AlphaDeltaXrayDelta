@@ -41,6 +41,11 @@ export function Card({ className = '', children }: { className?: string; childre
   return <div className={`rounded-xl border border-line bg-surface shadow-card ${className}`}>{children}</div>
 }
 
+/** The one "loading" block. Screens pass layout (padding/size) in, never re-type the label. */
+export function Loading({ className = '' }: { className?: string }) {
+  return <p className={`text-muted ${className}`}>Yükleniyor…</p>
+}
+
 export function Alert({ children }: { children: ReactNode }) {
   return <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{children}</div>
 }
@@ -48,6 +53,39 @@ export function Alert({ children }: { children: ReactNode }) {
 // Material Design Icons (reused from the StarAdmin template's mdi webfont). Usage: <Icon name="cog" />.
 export function Icon({ name, className = '' }: { name: string; className?: string }) {
   return <i className={`mdi mdi-${name} ${className}`} aria-hidden="true" />
+}
+
+/**
+ * On/off switch — the StarAdmin (Bootstrap `.form-switch`) shape in our tokens: a pill track with a
+ * knob that slides right and fills with `primary` when on. A real `<input type="checkbox">` underneath,
+ * so keyboard, focus ring and screen readers work without re-implementing any of it.
+ */
+export function Switch({
+  checked, onChange, disabled = false, label, describedBy,
+}: {
+  checked: boolean
+  onChange: (next: boolean) => void
+  disabled?: boolean
+  label: string
+  describedBy?: string
+}) {
+  return (
+    <label className={`relative inline-flex shrink-0 items-center ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+      <input
+        type="checkbox" role="switch" className="peer sr-only"
+        checked={checked} disabled={disabled} aria-label={label} aria-describedby={describedBy}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span
+        className="h-6 w-11 rounded-full bg-line transition-colors peer-checked:bg-primary
+                   peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40 peer-focus-visible:ring-offset-2"
+      />
+      <span
+        className="pointer-events-none absolute left-0.5 h-5 w-5 rounded-full bg-white shadow-sm
+                   transition-transform peer-checked:translate-x-5"
+      />
+    </label>
+  )
 }
 
 export function Badge({ label, color }: { label: string; color: string }) {

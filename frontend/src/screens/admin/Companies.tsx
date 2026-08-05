@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { toApiError } from '../../lib/api'
-import { errorMessage } from '../../lib/messages'
-import { useCompanies, useCreateCompany, useInvite, useMembers, useRemoveMember, type Company } from '../../lib/admin'
-import { Alert, Button, Field, Input } from '../../ui/primitives'
+import { errorText } from '../../lib/messages'
+import { useCompanies, useCreateCompany, useDeleteCompany, useInvite, useMembers, useRemoveMember, type Company } from '../../lib/admin'
+import { useAuth } from '../../lib/auth'
+import { Alert, Button, Field, Icon, Input } from '../../ui/primitives'
 import { CustomerLink } from '../../ui/CustomerLink'
 
-// Companies (spec §8/§9): an admin opens their own; the list + members drive assignment/permission UIs.
+// Companies (spec §8/§9): an admin opens as many as they need; the list + members drive assignment/
+// permission UIs. Deleting one is double-confirmed (see DeleteCompany) and soft — nothing cascades.
 export default function Companies() {
   const { data: companies, error } = useCompanies()
   const create = useCreateCompany()
+  const { refreshSession } = useAuth()
   const [form, setForm] = useState({ name: '', slug: '' })
   const [err, setErr] = useState<string | null>(null)
 
@@ -17,10 +19,10 @@ export default function Companies() {
     setErr(null)
     try {
       await create.mutateAsync(form)
+      await refreshSession() // the new company's membership only reaches the app through a fresh token
       setForm({ name: '', slug: '' })
     } catch (e2) {
-      const { code, message } = toApiError(e2)
-      setErr(errorMessage(code, message))
+      setErr(errorText(e2))
     }
   }
 
@@ -48,7 +50,10 @@ export default function Companies() {
 }
 
 function CompanyCard({ company }: { company: Company }) {
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
+  // Same rule as the server: only the owner admin or a super admin may delete the tenant.
+  const canDelete = !!user && (user.isSuperAdmin || user.id === company.ownerAdminId)
   const { data: members } = useMembers(open ? company.id : undefined)
   const invite = useInvite()
   const removeMember = useRemoveMember()
@@ -70,7 +75,10 @@ function CompanyCard({ company }: { company: Company }) {
           <span className="ml-2 text-xs text-muted">/{company.slug} · {company.ticketNumberPrefix}</span>
           {company.isArchived && <span className="ml-2 text-xs text-red-500">arşivli</span>}
         </div>
-        <Button variant="secondary" onClick={() => setOpen(!open)}>{open ? 'Gizle' : 'Üyeler'}</Button>
+        <div className="relative flex items-center gap-2">
+          <Button variant="secondary" onClick={() => setOpen(!open)}>{open ? 'Gizle' : 'Üyeler'}</Button>
+          {canDelete && <DeleteCompany company={company} />}
+        </div>
       </div>
 
       {!company.isArchived && (
@@ -113,6 +121,55 @@ function CompanyCard({ company }: { company: Company }) {
           {token && <div className="rounded-md bg-green-50 p-2 text-xs text-green-800">Davet token: <code className="break-all">{token}</code></div>}
         </div>
       )}
+    </div>
+  )
+}
+
+/** Two confirmations for a destructive action: "Sil" opens the panel, then the company name must be
+ * typed exactly (the server re-checks it) before the delete fires. */
+function DeleteCompany({ company }: { company: Company }) {
+  const del = useDeleteCompany()
+  const { refreshSession } = useAuth()
+  const [confirming, setConfirming] = useState(false)
+  const [typed, setTyped] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+
+  async function remove() {
+    setErr(null)
+    try {
+      await del.mutateAsync({ companyId: company.id, confirmName: typed })
+      await refreshSession() // drop the deleted company from the session's tenant scope
+    } catch (e) {
+      setErr(errorText(e))
+    }
+  }
+
+  if (!confirming)
+    return (
+      <Button variant="secondary" onClick={() => setConfirming(true)}>
+        <Icon name="delete-outline" className="mr-1" />Sil
+      </Button>
+    )
+
+  return (
+    <div className="absolute right-0 top-full z-10 mt-2 w-80 space-y-2 rounded-lg border border-danger bg-surface p-3 shadow-lg">
+      <p className="text-sm text-ink">
+        <b>{company.name}</b> silinecek. Talepler ve geçmiş veritabanında kalır, ancak şirket listelerden
+        kalkar, müşteri linki kapanır ve tüm üyelikleri sona erer.
+      </p>
+      <p className="text-xs text-muted">Onaylamak için şirket adını yazın:</p>
+      <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={company.name} autoFocus />
+      {err && <Alert>{err}</Alert>}
+      <div className="flex gap-2">
+        <Button
+          variant="danger"
+          onClick={remove}
+          disabled={del.isPending || typed.trim().toLowerCase() !== company.name.toLowerCase()}
+        >
+          Kalıcı olarak sil
+        </Button>
+        <Button variant="secondary" onClick={() => { setConfirming(false); setTyped(''); setErr(null) }}>Vazgeç</Button>
+      </div>
     </div>
   )
 }

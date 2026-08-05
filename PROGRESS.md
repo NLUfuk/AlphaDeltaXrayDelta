@@ -2,8 +2,8 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 2026-08-04 |
-| Aktif faz | **Faz 0-26 tamam. 164 test yeşil** (16 domain + 141 application + 7 API/HTTP). **Faz 26 (2026-08-04):** müşteri görsel yükleme (png/jpg/webp, magic-byte doğrulamalı) + ticket detayda küçük resim; **dosyalar artık AWS S3'te** (`crm-kanban-fiskirmacoop`, eu-north-1, tek-bucket'lık IAM kullanıcısı). **Faz 25:** bildirim dili alıcıya göre + Brevo. **Faz 25 (2026-08-04):** talep bildirimleri artık hem müşteriye hem atanana gidiyor, şablon alıcıya göre seçiliyor (müşteri dili / personel dili `ticket_staff_update`); Brevo için `Email__FromName` + `.env.example`. **Faz 24 (2026-08-04):** `/admin/users` (sunucu-taraflı arama + tür/durum filtresi + müşteri-firma ilişkisi + KVKK hesap silme + davet bağlantısı) ve `/admin/templates` (gruplu liste + canlı önizleme + şablona özel yer tutucular). **Faz 23 (2026-08-04):** şirkete özel müşteri giriş sayfası `/c/{slug}` (kayıt → e-postaya 6 haneli kod → doğrula → ilk talep doğrudan fırsat havuzuna), "müşteri linki oluştur" (kopyala/WhatsApp/e-posta), personel için "Yeni" + sütun içi hızlı ekleme, Odoo (`o_kanban_group`/`o_opportunity_kanban`) görünümü. Öncesi: **Faz 0-19** **Faz 19 (2026-08-03):** süper admin görünmezliği (member list + effective-view + assign-target sızıntıları kapatıldı) + ham yetki anahtarları Türkçeleştirildi + **yetki Ver/Reddet toggle 500 bug'ı düzeltildi** (remove+add → yerinde güncelle). **Faz 16-18 (2026-08-03):** (16) süper admin impersonation UI; (17) müşteri portalı ilişki-scope'u (yalnız iş yaptığı firmalar) + müşteri süreç göstergesi; **deploy config:** SMTP→Resend (canlı doğrulandı), depolama→host diski `local` (+azure/s3 provider); (18) hesap sayfası (`/account`: bilgi + parola değiştir + KVKK hesap silme) + mail şablonları anlamsallaştırıldı (buton/footer + ticket deep-link). Kalan: operasyonel (TLS→MonsterASP, CAPTCHA provider, prod secret) — ONERILER P0 |
+| Son güncelleme | 2026-08-05 |
+| Aktif faz | **Faz 0-32 tamam. 193 test yeşil** (16 domain + 169 application + 8 API/HTTP). **Faz 32 (2026-08-05):** gereksinim notlarının (OneDrive/Belgeler txt'leri) koda karşı denetimi — SOLID/clean-arch maddeleri karşılanıyor; txt'nin açıkça şikâyet ettiği **UI tekrarı kapatıldı** (15 ekrandaki hata-mesajı kopyası → tek `errorText`, 10 ekrandaki "Yükleniyor…" → tek `Loading` primitive'i); **deploy sertleştirme:** teknik borç #35 (yanlış 500 log alarmı) ve #40 (yetki anahtarı ↔ uygulama yeri denetim testi, negatif doğrulamalı) kapandı, UTC serileştirici kültür bağımsız (`src/` 0 uyarı), `publish.ps1` paketi uçtan uca üretildi. **Faz 31 (2026-08-05):** yetkilerde üçüncü durum — Ver / Reddet / **rol varsayılanına dön** (`DELETE /permissions/assign`); bu sırada "silinmiş yetki satırları hâlâ uygulanıyor" bug'ı bulundu ve kapatıldı (Faz 28 ile aynı sınıf: `IgnoreQueryFilters` + eksik `DeletedAt` koşulu). **Faz 30 (2026-08-05):** yetki ekranı on/off switch'e geçti (StarAdmin `.form-switch` biçimi) + her yetkinin ne iş yaptığı yazıldı; kullanıcı satırındaki "kimliğine gir / hesabı sil" buton oldu; **dört yetki bug'ı** bulundu ve kapatıldı — `ticket.view` hiçbir yerde uygulanmıyordu, `permission.assign` yazma yolunda kontrol edilmiyordu, iki global yetki şirket bazında atanabilir görünüyordu, katalog her kullanıcıya açıktı. **Faz 29 (2026-08-05):** doküman denetimi — 6 md dosyasında 21 sapma bulundu ve düzeltildi; spec 16 faz sonra ilk kez koda göre güncellendi (presigned→API-proxy, .NET 10, şirket-özel statüler, eksik tablolar, §18.21/22 boşluğu). **Faz 28 (2026-08-05):** manuel test turunda **iki kiracı-izolasyonu açığı** bulundu ve kapatıldı — (1) `GET /api/tickets` + moderasyon kuyruğu her personele tüm firmaların taleplerini veriyordu (`IgnoreQueryFilters()` join'i sorgu genelinde filtreyi kapatıyor), (2) soft-delete edilmiş üyelik token/`/me` kapsamında kalıyordu, yani şirketten çıkarılan personel yeni girişte tam yetkiyle dönüyordu. +10 test, canlı doğrulandı; `CRM_Kanban_Gereksinim_Listesi.md` kanıtlarıyla işaretlendi. **Faz 27 (2026-08-04):** şirket silme — çift onay (UI paneli + sunucuda şirket adı doğrulaması), yalnız sahibi admin/süper admin, soft delete + arşiv + slug serbest bırakma; bir admin birden fazla şirket açabiliyor (navbar'da aktif şirket seçici + şirket açma/silme sonrası token tazeleme). **Faz 26 (2026-08-04):** müşteri görsel yükleme (png/jpg/webp, magic-byte doğrulamalı) + ticket detayda küçük resim; **dosyalar artık AWS S3'te** (`crm-kanban-fiskirmacoop`, eu-north-1, tek-bucket'lık IAM kullanıcısı). **Faz 25:** bildirim dili alıcıya göre + Brevo. **Faz 25 (2026-08-04):** talep bildirimleri artık hem müşteriye hem atanana gidiyor, şablon alıcıya göre seçiliyor (müşteri dili / personel dili `ticket_staff_update`); Brevo için `Email__FromName` + `.env.example`. **Faz 24 (2026-08-04):** `/admin/users` (sunucu-taraflı arama + tür/durum filtresi + müşteri-firma ilişkisi + KVKK hesap silme + davet bağlantısı) ve `/admin/templates` (gruplu liste + canlı önizleme + şablona özel yer tutucular). **Faz 23 (2026-08-04):** şirkete özel müşteri giriş sayfası `/c/{slug}` (kayıt → e-postaya 6 haneli kod → doğrula → ilk talep doğrudan fırsat havuzuna), "müşteri linki oluştur" (kopyala/WhatsApp/e-posta), personel için "Yeni" + sütun içi hızlı ekleme, Odoo (`o_kanban_group`/`o_opportunity_kanban`) görünümü. Öncesi: **Faz 0-19** **Faz 19 (2026-08-03):** süper admin görünmezliği (member list + effective-view + assign-target sızıntıları kapatıldı) + ham yetki anahtarları Türkçeleştirildi + **yetki Ver/Reddet toggle 500 bug'ı düzeltildi** (remove+add → yerinde güncelle). **Faz 16-18 (2026-08-03):** (16) süper admin impersonation UI; (17) müşteri portalı ilişki-scope'u (yalnız iş yaptığı firmalar) + müşteri süreç göstergesi; **deploy config:** SMTP→Resend (canlı doğrulandı), depolama→host diski `local` (+azure/s3 provider); (18) hesap sayfası (`/account`: bilgi + parola değiştir + KVKK hesap silme) + mail şablonları anlamsallaştırıldı (buton/footer + ticket deep-link). Kalan: operasyonel (TLS→MonsterASP, CAPTCHA provider, prod secret) — ONERILER P0 |
 | Genel durum | Faz 0-8 + onboarding/RBAC + Faz 9 tamam. **Faz 9 (2026-07-31):** (1) müşteri self-registration e-posta doğrulama akışı uçtan uca bağlandı — public form yeni müşteride `account_invite` mailini kuyruğa atıyor, `/invite` ekranı token'la şifre belirleyip hesabı aktive ediyor (personel daveti de `staff_invite` maili gönderiyor); (2) müşteri yüzeyi: `Home` dispatcher (personel→kanban, müşteri→Taleplerim), `CustomerTickets` listesi, müşteri-sade nav; (3) **bug fix:** müşteri yazma yolu (`CommentService`/`TicketCommandService` ticket load) tenant filtresiyle yüklüyordu → müşterinin şirket scope'u yok → kendi ticket'ına yorum/iptal 404; `IgnoreQueryFilters + authz` deseniyle düzeltildi; (4) kanban drag-drop: `dataTransfer` set (Firefox), `onDragEnd` temizliği, kendi kolonuna no-op drop engeli, sürükleme görsel geri bildirimi; (5) CRM-tadında demo seed (teklif/talep + müşteri-personel yorum thread'leri) + `Seed:Demo` bayrağıyla Production'da da çalıştırılabilir. **96 test yeşil** (+3 müşteri yazma-yolu). Docker stack `up.ps1` ile ayağa kaldırıldı, e2e doğrulandı (login/public-form→mail→invite→müşteri yorum) |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
@@ -180,7 +180,7 @@
 
 ### Faz 10 — Müşteri portalı (self-service kayıt + şirket seçip mesaj) ✅ (2026-07-31)
 - [x] **Self-service kayıt:** `POST /api/auth/register` (anonim, rate-limitli, nötr 204 — enumeration yok) → `AuthService.RegisterAsync` inactive hesap + `Invitation` token + `account_verify` maili. Şifre kayıt adımında DEĞİL, mevcut `/invite` linkinde belirlenir (en az kod, akışı yeniden kullanır). Frontend `Register.tsx` (`/register`) + Login'e "Kayıt ol" linki.
-- [x] **Public şirket listesi:** `GET /api/public/companies` (anonim) → aktif/arşivsiz şirketler `(id,name,slug)` — kayıt/mesaj için seçici besler. `PublicFormService.ListOpenCompaniesAsync`.
+- [x] ~~**Public şirket listesi:** `GET /api/public/companies` (anonim) → aktif/arşivsiz şirketler `(id,name,slug)` — kayıt/mesaj için seçici besler.~~ → **Faz 17'de kaldırıldı** (uç nokta bugün 404). Müşteri portalı ilişki-scope'una geçince global firma listesi hem gereksiz hem yanlış oldu: müşteri yalnız **iş yaptığı** firmalara yazabiliyor, seçiciyi `GET /api/tickets/my-companies` besliyor.
 - [x] **Müşteri şirket seçip mesaj:** `POST /api/tickets/customer` (yetkili) → `TicketCommandService.CreateAsCustomerAsync`: üyelik gerekmez, seçilen aktif şirkette ticket açar (OpenedById=müşteri, doğrulanmış hesap → `Approved`). Frontend `CustomerTickets` içinde "Yeni mesaj" bestecisi (firma dropdown + konu + mesaj).
 - [x] **Gerçek SMTP plumbing:** `docker-compose`/`​.env.example`'a `EMAIL_HOST/PORT/USE_SSL/USERNAME/PASSWORD/FROM`. Gmail App Password ile gerçek gönderim (`SmtpEmailSender` hazır). Kullanıcı `.env`'de doldurup `EMAIL_PROVIDER=smtp` yapınca gerçek mail gider.
 - [x] **Temizlik:** `TokenHasher` ortak helper'ı (refresh dışı 3 kopya token-hash birleşti) — Faz 9'daki ponytail borcu kapandı; `PublicFormService`/`InvitationService` bunu kullanıyor.
@@ -416,7 +416,209 @@ Kullanıcı bildirimi: bir talepte değişiklik olduğunda hem (varsa) müşteri
 - *Compose'daki MinIO servisi duruyor:* lokal/offline geliştirme için hâlâ kullanışlı (env'i geri çevirmek yeterli). Kaldırmak istenirse tek blok siliniyor.
 - *`docker compose config` ile `S3__ServiceUrl: ""` doğrulandı:* `${VAR-default}` (iki nokta yok) sayesinde bilerek boş bırakılan değer default'a düşmüyor — AWS'e geçişin çalışma şartı buydu.
 
-## Bir sonraki oturum — açık uçlar (spec §18.21-24)
+### Faz 27 — Şirket silme (çift onay) + çoklu şirket ✅ (2026-08-04)
+İstenen: "şirket silme özelliği olması lazım ve bunu bir iki onay ile alması lazım; bir admin birden fazla şirket açabilir."
+- [x] **Silme (`DELETE /api/companies/{id}`, gövdede `confirmName`):** iki kapı — (1) UI'da "Sil" → onay paneli, (2) şirket adının **birebir yazılması**, sunucuda yeniden doğrulanıyor (`company.delete_name_mismatch`, 400). Yetki: **yalnız sahibi olan admin** veya süper admin (`company.delete_forbidden`); ikinci bir şirket admini üye yönetebilir ama tenant'ı silemez.
+- [x] **Silme yumuşak (spec §18.20 korundu):** satır `DeletedAt` ile işaretleniyor, talepler/audit veritabanında duruyor, cascade yok. Aynı anda `Company.Retire()` şirketi **arşivliyor** (public form + müşteri girişi `IsArchived/IsActive`'e bakıyor → tek hamlede kapanıyor) ve **slug'ı serbest bırakıyor** (`acme` → `acme-deleted-1a2b3c4d`), çünkü slug'ın unique index'i global; aksi halde aynı slug bir daha hiç kullanılamazdı.
+- [x] **Üyelikler de siliniyor** (soft): tenant herkesin oturum kapsamından düşüyor.
+- [x] **Çoklu şirket:** backend'de zaten sınır yoktu (her şirket kendi Admin üyeliğini alıyor) — eksik olan **istemci tarafıydı**: ekranlar `user.companies[0]`'a sabitliydi. `lib/company.ts` (`useActiveCompany`/`setActiveCompany`, localStorage) + navbar'da **şirket seçici** (yalnız 1'den fazla şirketi olana görünür); Kanban / Onay kutusu / Pano artık aktif şirketi okuyor.
+- [x] **Oturum tazeleme:** tenant kapsamı JWT'nin `company_id` claim'lerinden geliyor → yeni açılan (veya silinen) şirket token yenilenene kadar (~15 dk) görünmüyordu. `refreshSession()` şirket oluşturma/silme sonrası token'ı yeniden mintliyor.
+- [x] **Testler (+5, toplam 169):** ad eşleşmezse silinmiyor; sahibi olmayan admin 403; silinen şirket listeden düşüyor + satır duruyor + arşivleniyor + slug tekrar kullanılabiliyor; bir admin iki şirket açıp ikisinin de Admin'i oluyor; HTTP seviyesinde gövdeli DELETE + yanlış ad → 400 zarfı → doğru ad → 204.
+- [x] **Canlı doğrulama (docker stack, localhost:8080):** API — yanlış ad 400, boş ad `validation.failed`, doğru ad 204, silinen şirket listeden düştü, `/public/form/{slug}` 404'e döndü, aynı slug ile yeniden şirket açıldı; sahibi olmayan admin **ve şirketin ikinci admini** 403. UI (Chrome) — Ali adlı gerçek admin 3 şirket açtı, navbar şirket seçicisi anında güncellendi (token tazeleme çalışıyor) ve seçim sayfalar arası korundu; onay panelinde yanlış ad yazılıyken "Kalıcı olarak sil" pasif kaldı ve **sunucuya hiç istek gitmedi**, doğru adla 204 + kart ve seçici girdisi kalktı. DB: silinen satırlar `DeletedAt` + `ArchivedAt` dolu, slug `ali-dort-deleted-fb32d202` biçiminde. Test verileri temizlendi (Ali/Veli hesapları duruyor).
+
+**Karar/Varsayım (Faz 27):**
+- *Silme = soft + arşiv, hard delete değil.* Spec §18.20 "şirketler silinmez, arşivlenir" diyor; kullanıcı silme istedi. Uzlaşma: **kullanıcı için silme** (her listeden kalkar, link kapanır, üyelikler biter), **veri için arşiv** (talepler/audit/KVKK zinciri kırılmaz). Hard delete cascade ile ticket geçmişini ve audit'i yok ederdi — geri dönüşü olmayan tek yol bu olurdu.
+- *Slug'ın yeniden adlandırılması* (`-deleted-<id8>`): `HasIndex(Slug).IsUnique()` filtresiz global bir index; soft-delete edilmiş satır slug'ı tutmaya devam ederdi ve aynı ad bir daha açılamazdı. Alternatif (filtreli unique index) migration gerektirirdi — tek satırlık domain metodu daha ucuz.
+- *Silme yetkisi "şirket admini" değil "sahibi olan admin":* üye çıkarma rutin yönetim işi, tenant silmek değil. Süper admin her zaman yapabilir.
+- *İkinci onay sunucuda da doğrulanıyor:* yalnız UI'da olsaydı düz bir `DELETE` isteği tek kapıyı geçerdi. Onay metni = şirket adı (trim + büyük/küçük harf duyarsız).
+- *Aktif şirket localStorage'da:* görünüm tercihi, yetki değil — her istek yine token'ın claim'leriyle sunucuda kapsamlanıyor. Üyeliği kalmayan bir id saklıysa ilk üyeliğe düşülüyor (silinen şirket seçili kalmasın).
+- *Columns/FormFields ekranlarının kendi şirket seçicisi duruyor:* zaten çalışıyorlar, kapsam dışı; ileride ortak seçiciye bağlanabilir (teknik borç).
+- *Silinen şirketi geri getirme (undelete) yok:* istenmedi. DB'de `DeletedAt`/slug geri alınarak elle mümkün.
+
+### Faz 28 — Manuel test turu: iki kiracı-izolasyonu açığı bulundu ve kapatıldı ✅ (2026-08-05)
+İstenen: "projeyi ayağa kaldır, gerekli manuel testleri yapalım" + ardından `CRM_Kanban_Gereksinim_Listesi.md` kontrolü.
+Stack `up.ps1` ile ayağa kalktı (8080). Manuel tur **çalışan sistemde iki güvenlik bug'ı ortaya çıkardı**; ikisi de 169 testin hiçbirini kırmıyordu.
+
+- [x] **Bug 1 — çapraz-kiracı sızıntısı (kritik).** `GET /api/tickets` her personele **tüm firmaların** taleplerini döndürüyordu (mermer personeli 22 talebin hepsini gördü: MERMER + TEKSTIL + MAHMUT-INSAAT); `GET /tickets/moderation/{companyId}` de yabancı firmanın kuyruğunu veriyordu (mermer personeli TEKSTIL-10/11/15/17'yi okudu). **Kök neden:** `PaginateAsync`/`ModerationQueueAsync` statü meta verisi için `db.TicketStatuses.IgnoreQueryFilters()` ile join yapıyordu; EF'te `IgnoreQueryFilters()` **sorgu geneline** uygulanır → ticket'ların kiracı filtresi de kapanıyordu. Kanban ve ticket detayı etkilenmiyordu (birinde böyle bir join yok, diğerinde `authz` geçidi var — canlıda 0 kayıt ve 403 ile doğrulandı). **Düzeltme:** join kaldırıldı, statüler kendi sorgusuyla okunuyor (`LoadStatusesAsync`), kategori filtresi bellekte statü id kümesine çevriliyor. Kiracıyı neyin sınırladığı yine tek yerde: query filter.
+- [x] **Bug 2 — iptal edilen üyelik yetki vermeye devam ediyordu.** `AuthService.GetMeAsync` + token üretimi `Memberships.IgnoreQueryFilters()` sorgusunu `DeletedAt == null` olmadan çalıştırıyordu. Üyelikler yalnızca **soft** silindiği için (üye çıkarma ve şirket silme, ikisi de) şirketten çıkarılan personel **yeni girişte tam personel kapsamıyla** dönüyordu (canlı: `uretim@tekstil.local` çıkarıldıktan sonra `/me` firmayı listeliyor, kanban 200); silinen şirketler de süper adminin oturumunda duruyordu (4 üyeliğin 3'ü silinmiş şirketlere aitti) — bu da Faz 27'nin `refreshSession()` mantığını boşa çıkarıyordu. **Düzeltme:** tek ortak sorgu `MembershipQueries.ActiveMemberships()`; üyeliği yetki olarak okuyan **8 çağrı noktası** buna geçirildi (token, `/me`, `PermissionService`, `TicketAuthorizationService`, ticket oluşturma + atama, şirket üye listesi/`IsAdminOf`, form alanları, bildirim fan-out).
+- [x] **Yan etki düzeltmesi (zorunluydu):** `(UserId, CompanyId)` tekil indeksli ve soft-delete edilmiş satır o indeksi tutmaya devam ediyor → çıkarılan personel **yeniden davet edilemiyordu** (`invite.already_member`, ve `DeletedAt` filtresi eklenince ikinci satır unique-index ihlali verirdi). `InvitationService` artık eski satırı diriltiyor (`Restore()` + rol güncelleme), yeni satır eklemiyor. Bu, "üyelik iptali gerçekten iptal" düzeltmesinin çalışabilmesi için şart — SCOPE DISCIPLINE'ın "istenen değişiklik bitişik düzeltme olmadan yanlış" istisnası.
+- [x] **Testler (+10, toplam 179):** `TicketTenantScopeTests` (5) — personel yabancı kiracıyı listeleyemez, yabancı `companyId` ile moderasyona ulaşamaz, kendi özel statü sütunu yine görünür, müşteri firmalar arası kendi taleplerini statü adlarıyla görür, kategori filtresi kiracı içinde kalır. `MembershipRevocationTests` (3) — iptal edilen üyelik token kapsamına/`/me`'ye girmez, o şirketin ticket'ında personel sayılmaz. `InvitationServiceTests` (+2) — yeniden davet satırı diriltir, aktif üyeyi yine reddeder.
+- [x] **Canlı doğrulama (yeniden build + 8080):** mermer personeli `/tickets` → yalnız 9 MERMER; yabancı moderasyon → boş, kendi moderasyonu → MERMER-10; kategori filtresi → yalnız MERMER; süper admin 25 talebin hepsini görüyor. Üyelik döngüsü uçtan uca: çıkar → yeni giriş `/me` 0 firma + kanban **403** + liste 0 → yeniden davet → `/me` 1 firma + kanban 200 + 15 TEKSTIL talebi. Demo verisi eski hâline döndürüldü.
+- [x] **Aynı turda doğrulanan (regresyon yok):** login (4 rol), public form → Pending → moderasyon → onay → kanban, `/c/{slug}` kod akışı (Brevo gerçekten mail gönderdi, kuyrukta `Sent`), müşteri kendi liste kapsamı, ticket oluştur/yorum/detay, **başlık-gövde düzenleme + yorum düzenleme/silme**, AWS S3 ek yükleme→indirme bayt round-trip, şirket + global rapor + CSV, global rapor firma adminine 403, Faz 27 silme akışının tamamı (yanlış ad 400 → doğru ad 204 → listeden düşme → form 404 → slug yeniden kullanılabilir).
+- [x] **`CRM_Kanban_Gereksinim_Listesi.md` kontrol edildi ve kanıtlarıyla işaretlendi.** 25 maddenin 25'i karşılanıyor; 4'ü ⚠️ notlu (konfigürasyon dosya/DB ayrımı, bildirim matrisinde öncelik/kategori/silme kasıtlı hariç, render optimizasyonu ölçülmedi, MediatR kullanılmadı — gereksinimde "kullanılabilir"). Bulunan iki bug listedeki §4-3 ("admin yalnız kendi şirketinin ticket'larını görebilmeli") ve §2-5 ("yetki yönetimi arayüzden") maddelerini doğrudan çürütüyordu; artık ikisi de gerçekten sağlanıyor.
+
+**Karar/Varsayım (Faz 28):**
+- *Join yerine ikinci sorgu:* Alternatif, ticket sorgusuna kiracı koşulunu **elle** yazmaktı (`isSuper || scope.Contains(t.CompanyId)`). Reddedildi: izolasyonu uygulama koduna kopyalamak CLAUDE.md'nin "least-privilege DATA katmanında" kuralını tersine çevirir ve aynı hatayı her yeni sorguda tekrar davet ederdi. Statü tablosu küçük; iki sorgunun bedeli, filtrenin tek otorite kalmasının yanında önemsiz.
+- *Neden `IgnoreQueryFilters` statüde gerekliydi:* müşterinin hiç şirket kapsamı yok, firmaya özel statü satırı ona filtrelenirdi ve join'de eşleşme bulunmayınca **kendi talepleri listeden düşerdi**. Yani orijinal niyet doğruydu, aracı yanlıştı — bu yüzden testlerden biri özellikle "firmanın kendi sütunu yine görünüyor" diyor, düzeltmenin bu ihtiyacı geri kırmadığını kilitlemek için.
+- *Tek `ActiveMemberships()` seam'i (soyutlama eşiği):* CLAUDE.md soyutlama için "ikinci gerçek durum ya da spec'te adı geçen değişim ekseni" istiyor. Burada **sekiz** gerçek çağrı noktası var ve her biri aynı güvenlik koşulunu elle tekrarlamak zorundaydı; ikisi unuttuğu için açık doğdu. Tek yordam bu unutmayı imkânsız kılıyor.
+- *`InvitationService` bilinçli olarak soft-delete'i GÖRÜYOR:* orası yetki okuması değil, **tekillik** kontrolü; silinmiş satırı görmezse unique index'e çarpar. Bu ayrım kodda yorumla işaretlendi — yoksa bir sonraki okuyan "tutarlılık" adına onu da `ActiveMemberships()`'e çevirir ve insert patlar.
+- *Testler servis seviyesinde, DbContext seviyesinde değil:* mevcut `TenantIsolationTests` filtre predicate'ini doğruluyordu ve **yeşildi** — bug filtrenin kendisinde değil, servisin onu kapatmasındaydı. Bu yüzden yeni testler servisin gerçekten filtre altında koştuğunu kanıtlıyor.
+- *Süper adminin kendi şirketi kalmadı:* `/me` artık 0 firma dönüyor çünkü üyeliklerinin hepsi silinmiş şirketlere aitti (biri, "mahmut insaat", bu oturumda 06:53'te `admin@example.com` ile silinmiş — benim çağrılarımdan biri değil, tarayıcıdan yapılmış olmalı). Süper admin zaten kapsamdan bağımsız her şeyi görüyor; veri kaybı yok.
+
+### Faz 29 — Doküman denetimi: md dosyalarının kodla senkronu ✅ (2026-08-05)
+İstenen: "bütün md dosyalarını kontrol et ve gerekli eksikleri belirle, faz oluştur ve çöz."
+Denetlenen 6 dosya (vendor `staradminuifiles/**/LICENCE.md` hariç): `crm-kanban-mimari.md` (spec),
+`PROGRESS.md`, `ONERILER.md`, `README.md`, `DEPLOY-monsterasp.md`, `CRM_Kanban_Gereksinim_Listesi.md`.
+Bulunan 21 sapma aşağıda; hepsi **doküman** sapması, kod değişikliği gerektiren bir bulgu çıkmadı.
+
+**A. `crm-kanban-mimari.md` (spec) — kod spec'ten ayrışmış, spec güncellenmemiş**
+- [x] A1 §3: "**.NET 8** (LTS)" → gerçek .NET 10. Karar PROGRESS'te kayıtlıydı, spec'e hiç işlenmemiş.
+- [x] A2 §12 + §18.13: "yükleme **presigned PUT** ile doğrudan tarayıcıdan, okuma presigned GET" → Faz 12'de presigned tamamen kaldırıldı, her iki yön de API-proxy. Spec'in anlattığı topoloji bu deploy'da **çalışmıyor** (imza docker-içi host'a atılıyordu) — en yanıltıcı sapma.
+- [x] A3 §18.9: "şirket-özel statü override v1'de **kapalı** (seam var, özellik yok)" → Faz 7b'de açıldı, `/admin/columns` canlı.
+- [x] A4 §11 şema listesi eksik: `Tickets.ApprovalState` (Faz 7c), `FormFields` tablosu (Faz 15), `Invitations.Kind/Attempts` (Faz 23), `Companies.NextTicketNumber/TicketNumberPrefix` (Faz 3).
+- [x] A5 §14 matris: "Öncelik/kategori değişti → hiç kimse" → gerçekte **atanan personele** gidiyor (müşteriye hâlâ gitmiyor).
+- [x] A6 §18 numaralandırması 20'den 23'e atlıyor; **§18.21 ve §18.22 yok** ama 4 yerden referans veriliyor (spec §17, spec §20 risk tablosu, PROGRESS ×2).
+- [x] A7 Metin bozulmaları: §19'da mojibake ("S<?>zlü"), §4 başlığında ve §17 Faz 3 satırında boş parantez/boş bold (bir isim silinirken metin kırılmış).
+
+**B. `ONERILER.md` — bayat (2026-07-31'de donmuş)**
+- [x] B1 Başlık bağlamı "Faz 0-12 tamam, 101 test yeşil" → Faz 28, 179 test.
+- [x] B2 P0 #1 (Docker e2e), #5 (S3 bayt e2e), #6 (SMTP) kapandı ama hâlâ "bloklayıcı" başlığı altında.
+- [x] B3 #5 "depolama → **host diski (LocalFileStorage)** seçildi" → gerçekte **AWS S3** kullanılıyor (Faz 26, `crm-kanban-fiskirmacoop`).
+- [x] B4 #6 "SMTP → **Resend**" → gerçekte **Brevo** (`.env`, `.env.example`, docker-compose hepsi Brevo).
+- [x] B5 P1 #9 ve #13 zaten "kapandı" işaretli ama #8/#14 de kapanmış olduğu hâlde açık duruyor.
+- [x] B6 "Bu değişiklikler commit edilmedi… `feat/kanban-columns-moderation-deploy` branch'i" → 16 faz öncesinin durumu.
+
+**C. `README.md` — eksik (yanlış değil, ama projeyi ilk kez açan yanlış yola girer)**
+- [x] C1 `up.ps1` hiç geçmiyor — asıl tek-komut yol o (secret üretimi + build + hazır olma beklemesi); README elle `.env` kopyalama + `docker compose up` anlatıyor.
+- [x] C2 Config tablosu eksik: `App__PublicBaseUrl` (maildeki linkler bunsuz kırık), `Email__From/FromName/UseSsl/Username`, `S3__Region/ForcePathStyle`, `Seed__Demo`, `Files__Provider`.
+- [x] C3 `publish.ps1` + MonsterASP yolu (`DEPLOY-monsterasp.md`) README'den link almıyor.
+- [x] C4 Müşteri giriş sayfası `/c/{slug}` (Faz 23) ve moderasyon akışı README'nin "ilk adımlar"ında yok.
+
+**D. `DEPLOY-monsterasp.md` — kendi içinde çelişiyor**
+- [x] D1 §8 son madde "**dosya depolama S3'e bağlı; host disk kullanılmaz** (spec §12)" ↔ §6a "host diski, **seçilen varsayılan**, ücretsiz". İki madde birbirini çürütüyor; okuyan hangisine uyacağını bilemez.
+- [x] D2 `Files__Provider` "varsayılan `local`" deniyor ama kodda varsayılan **`s3`** (`DependencyInjection.cs:50`) — env verilmezse S3 aranır ve dosya yolu patlar.
+- [x] D3 §3/§7 Resend anlatıyor (host/user/API-key/troubleshooting) → Brevo'ya geçildi.
+
+**E. `PROGRESS.md` (kendi kaydı)**
+- [x] E1 Satır 183 `GET /api/public/companies`'i canlı gösteriyor; Faz 17'de kaldırılmış, bugün 404 döndüğü doğrulandı. (Faz 28'de borç #38'i yazarken "doküman düzeltildi" demiştim — satırın kendisi düzeltilmemişti, şimdi düzeltildi.)
+
+**F. `CRM_Kanban_Gereksinim_Listesi.md`** — Faz 28'de kanıtlarıyla işaretlendi, sapma yok.
+
+**Kapanış doğrulaması:** 21 maddenin 21'i düzeltildi. Kalan bayat ifadeler yalnız ONERILER.md'nin
+**tarihli** güncelleme bloklarında (Faz 13-15, Faz 16-17) — bunlar bilerek bırakıldı; en üstteki
+2026-08-05 bloğu "altındakiler tarihseldir" diyerek hangi satırların geçersiz olduğunu tek tek sayıyor.
+Tarihli bir kaydı geriye dönük düzeltmek, o gün ne bilindiğinin izini siler.
+
+**Karar/Varsayım (Faz 29):**
+- *Spec düzeltiliyor, "PROGRESS'te kayıtlı" sayılmıyor:* spec'in kendi başlığı "kod her zaman bu dokümanla senkron tutulur; ayrıştığı yerler PROGRESS.md'de kaydedilir" diyor. Kayıt tutulmuştu ama spec 16 faz boyunca hiç güncellenmedi; artık spec'i okuyan yanlış sistemi anlıyor (özellikle A2 presigned). Ayrışmayı kaydetmek, ayrışmayı **kalıcılaştırmak** değil.
+- *Eski kararlar silinmiyor, üstü çizilip gerekçesi yazılıyor:* CLAUDE.md "minimalizm koda uygulanır, bilgi kaydına değil". §18'deki "varsayıldı" satırları duruyor, yanına "→ Faz N'de şöyle değişti, çünkü…" ekleniyor. Neyin neden değiştiği, ne olduğu kadar değerli.
+- *§18.21/§18.22 uydurulmadı:* numaralar dört yerden referans alınıyor ama içerik hiç yazılmamış. Boşluğa metin uydurmak kayda yalan eklerdi; bunun yerine referanslar gerçekten var olan maddelere yönlendirildi ve boşluk açıkça not edildi.
+- *ONERILER.md arşive çevrilmedi, güncellendi:* kapanan maddeler siliniyor değil, "✅ kapandı (Faz N)" ile işaretleniyor — hangi önerinin ne zaman ve neyle kapandığı yol haritasının asıl değeri.
+
+### Faz 30 — Yetki ekranı: on/off switch + dört yetki bug'ı + kullanıcı aksiyon butonları ✅ (2026-08-05)
+İstenen: yetkiler switch olsun; kullanıcılar bölümündeki "kimliğine gir / hesabı sil" genel UI'a uygun buton olsun
+(StarAdmin'den alınabilir); yetkilerdeki bug'lar test edilip çözülsün; her yetkinin ne iş yaptığı yazılsın.
+
+**Bulunan 4 bug (hepsi canlı sistemde doğrulandı, 185 testin hiçbiri yakalamıyordu):**
+- [x] **B1 — `ticket.view` hiçbir yerde uygulanmıyordu (kritik).** Yetki seed'liydi, UI'da listeleniyordu, atanabiliyordu; **0 kullanım**. `PermissionKeys.TicketView` kod tabanının hiçbir okuma yolunda kontrol edilmiyordu — üyelik, okuma izni sayılıyordu. Canlı kanıt: `uretim@tekstil.local`'a `ticket.view` **Reddet** verildi, kullanıcı 16 talebi, kanban'ı ve talep detayını görmeye devam etti. Yönetici anahtarı kapatıyor, hiçbir şey olmuyordu. **Düzeltme:** `TicketQueryService`'e `IPermissionService` enjekte edildi; `ListAsync` staff kolunu `ticket.view` tutulan şirketlere daraltıyor, `KanbanAsync`/`ModerationQueueAsync` şirket bazında reddediyor (`ticket.view_forbidden`), `GetDetailAsync` personelden yetkiyi istiyor. Müşteri yolu **kasten** muaf: müşteriler üye değil, hiç yetkileri yok — onları `ticket.view`'a bağlamak kendi taleplerinden kilitlerdi.
+- [x] **B2 — `permission.assign` yazma yolunda hiç kontrol edilmiyordu (yetki yayılımı).** Okuma tarafı yetkiyi istiyordu (`GetEffectiveAsync` → 403), yazma tarafı istemiyordu. Guard yalnızca "dağıttığın anahtara sahip misin" ve "kendi şirketin mi" diye bakıyordu. Canlı kanıt: `permission.assign` **reddedilmiş** bir personel, şirket adminine `ticket.assign` yetkisini **204 ile verdi** — üstelik sonucu göremediği hâlde. **Okuma kapalı + yazma açık** en kötü ikili: açığı fark edecek kişiden gizliyor. **Düzeltme:** `PermissionAssignmentGuard`'a üçüncü kapı (`permission.assign.forbidden`).
+- [x] **B3 — `report.global` ve `settings.manage` şirket bazında atanabiliyordu ama hiçbir etkisi yoktu.** İkisinin de uygulama yeri doğrudan "süper admin mi?" diye soruyor (`report.global` ve `settings.manage` anahtarları kodda **0 kullanım**). Şirket bazlı bir anahtar bu kontrolü asla karşılayamaz → yönetici anahtarı açıyor, hiçbir şey değişmiyordu. **Düzeltme:** katalogda `globalOnly` bayrağı; UI bu satırları kilit rozetiyle ve pasif switch'le gösteriyor. Yetki silinmedi — süper adminin rol tabanında gerçek.
+- [x] **B4 — Yetki kataloğu (`GET /api/permissions`) her kimlikli kullanıcıya açıktı.** Müşteri hesabı 200 alıyordu; yetki modelinin haritası hiç işi olmayan kişilere veriliyordu. **Düzeltme:** süper admin **veya** en az bir şirketinde `permission.assign` tutan çağıran (`permission.catalog_forbidden`).
+
+**UI:**
+- [x] **`Switch` primitive'i** (`ui/primitives.tsx`): StarAdmin'in Bootstrap `.form-switch` biçimi projenin token'larıyla — pill track, sağa kayan knob, açıkken `primary`. Altında gerçek `<input type="checkbox" role="switch">`; klavye, odak halkası ve ekran okuyucu bedavaya geliyor, yeniden yazılmıyor.
+- [x] **Yetki ekranı switch'e geçti** (`admin/Permissions.tsx`): Ver/Reddet buton çifti kalktı. Her satır: etiket + anahtar + **ne iş yaptığının bir cümlelik açıklaması** + durum rozeti (`rol varsayılanı` / `özel olarak verildi` / `rolünden alındı` / `yalnız süper admin`) + switch. Hata olursa satır üstünde tek hata zarfı.
+- [x] **Yetki açıklamaları** `PermissionLabels.Descriptions`'a yazıldı — 12 anahtarın her biri için, **etiketten değil uygulama yerinden** türetilmiş cümle. B1/B3 tam olarak bu ayrımdan doğmuştu: anahtar kulağa bir şey yapıyormuş gibi geliyordu.
+- [x] **Kullanıcılar ekranı aksiyonları buton oldu** (`admin/AdminUsers.tsx`): "Kimliğine gir" ve "Hesabı sil" artık `Button` primitive'i + mdi ikon + tooltip; onay adımı da düz link yerine `danger` "Onayla" + `secondary` "Vazgeç" butonu.
+- [x] **Tarayıcıda görsel doğrulama:** switch'ler açık/kapalı doğru render oluyor, `report.global`/`settings.manage` kilitli ve pasif, kullanıcı satırındaki iki buton viewport'a sığıyor (sağ kenar 1342px < 1396px), sil onayı açılıp "Vazgeç" ile kapanıyor.
+
+- [x] **Testler (+6, toplam 185):** `TicketViewPermissionTests` (5) — yetkisiz personel liste/kanban/moderasyon/detay göremez, yetkiliyken görür; müşteri hiçbir yetkisi olmadan kendi talebine ulaşır; süper admin üyeliksiz her şeyi okur. `PermissionAssignmentGuardTests` (+1) — `permission.assign` olmadan, sahip olunan bir yetki bile dağıtılamaz (mevcut 3 test de yeni kapıya göre güncellendi).
+- [x] **Canlı doğrulama:** `ticket.view` Reddet → liste 0 / kanban 403 / moderasyon 403; Ver → 16 / 200 / 200. `permission.assign`'sız dağıtım → `permission.assign.forbidden`. Katalog: müşteri 403, admin 200 + 12 anahtar açıklamalarıyla. Test override'ları temizlendi, demo verisi bulunduğu hâle döndürüldü.
+
+**Karar/Varsayım (Faz 30):**
+- *Switch'te "kapalı" = açık **Deny**, satır silme değil.* Rol tabanı yetkiyi veriyorsa, override'ı silmek anahtarı anında geri açardı — yönetici kapattığı switch'in kendiliğinden kalktığını görürdü. Bunun bedeli: bir yetkiyi "rol varsayılanına geri döndürmek" (override'ı kaldırmak) UI'dan mümkün değil. Gerekirse üçüncü bir durum (Ver / Rol varsayılanı / Reddet) gerekir — üç durumlu bir kontrol switch değildir, o yüzden istenmeden eklenmedi.
+- *`roleBaseline` API'ye eklendi:* switch'in "açık" olması rolden mi geliyor yoksa özel mi verilmiş, ayırt edilemiyordu. Bu ayrım olmadan "kapattım geri açıldı" ile "kapattım ama zaten çalışmıyor" aynı görünüyor — B1'in 30 faz boyunca fark edilmemesinin sebeplerinden biri de bu.
+- *`report.global`/`settings.manage` katalogdan silinmedi, kilitlendi:* silmek "bu yetki yok" derdi; oysa var, yalnız süper adminde anlamlı. Kilitli satır + açıklama, boş bir liste kadar ucuz ama doğru.
+- *B1 düzeltmesi `ListAsync`'te şirket başına yetki sorgusu yapıyor:* personelin şirket sayısı tipik olarak 1-2, döngü ucuz. Çok şirketli bir kullanıcıda N sorgu olur; ölçülmeden tek sorguya çevrilmesin (teknik borç #39).
+- *Müşteri `ticket.view`'dan muaf:* müşteriler üye değil → hiç yetkileri yok. Onları da yetkiye bağlamak, "kendi talebini görmek" için yetki gerektirirdi; bu invaryant teste bağlandı.
+
+### Faz 31 — Yetkilerde üçüncü durum: "rol varsayılanına dön" ✅ (2026-08-05)
+İstenen: Faz 30'un sonunda önerilen üç durumlu kontrol onaylandı ("olur dediğin gibi yapalım, aslında gösterge eklemişsin").
+Faz 30'un rozetleri zaten override'ın varlığını gösteriyordu; eksik olan onu **kaldırma** yoluydu.
+
+- [x] **Üçüncü durum eklendi:** Ver (Grant) / Reddet (Deny) / **rol varsayılanı** (satır yok). `DELETE /api/permissions/assign?userId=&companyId=&permissionKey=` → `PermissionAssignmentService.ClearAsync`. Grant ve Deny yalnızca "hep açık" ve "hep kapalı" diyebiliyordu; geri dönüş yolu olmadan bir kez reddedilen yetki bir daha rol varsayılanına döndürülemiyordu — yalnız tersine sabitlenebiliyordu, ki bu farklı bir şey ve rol matrisi değiştikçe sürükleniyor.
+- [x] **Temizleme, atama ile aynı kapıdan geçiyor** (`EnsureCanAssign`). Paranoya değil: bir **Deny'ı kaldırmak**, yetkiyi rol tabanı üzerinden geri verir — kapısız bir temizleme, silme kılığında bir grant olurdu. Test bunu ayrıca kilitliyor.
+- [x] **UI:** switch korundu (istenen buydu), yanına yalnız **override varken** çıkan `rol varsayılanına dön` düğmesi eklendi. Rozet zaten ne zaman anlamlı olduğunu söylüyor; düğme onun eylem karşılığı. `globalOnly` satırlarda çıkmıyor (temizlenecek bir şey yok).
+- [x] **`Overridden` alanı API'ye eklendi:** UI önce override'ı `etkin != rol` karşılaştırmasıyla tahmin ediyordu; oysa override rolle **aynı fikirde** olabilir (rolün zaten verdiği bir anahtara Grant). O durumda karşılaştırma "rol varsayılanı" der ve temizleme düğmesini gizlerdi. Türetilen bilgi, çıkarsanan bilgiden güvenli.
+
+**Bu iş sırasında bulunan bug (Faz 28 ile aynı sınıf):**
+- [x] **Silinmiş yetki satırları hâlâ uygulanıyordu.** `PermissionService.GetPermissionsAsync` `UserPermissions`/`RolePermissions`/`Permissions` satırlarını `IgnoreQueryFilters()` ile okuyor ama **`DeletedAt == null` yazmıyordu**. Sonuç: "rol varsayılanına dön" 204 dönüyor, satır soft-delete ediliyor, **hiçbir şey değişmiyordu** — silinmiş bir Deny yetkiyi kapalı tutmaya devam ediyordu, üstelik UI'da artık görünmediği için sebebi de görünmüyordu. Canlı yakalandı (adım 3: `override=False` ama `etkin=False`). **Düzeltme:** üç sorguya da açık soft-delete koşulu. *Bu tam olarak Faz 28'in dersi: filtreyi baypas etmek, garantilerinin hiçbirini devralmamak demek.*
+- [x] **Testler (+6, toplam 191):** temizleme override'ı kaldırır (soft-delete, satır durur); **temizlenen override artık uygulanmaz** (yeni bug'ın regresyon testi); iki kez temizlemek hata değil; temizleme sonrası yeniden Ver satırı **diriltir** (tekil indeks ihlali yok); temizleme `permission.assign` ister; sahip olunmayan yetki temizlenemez.
+- [x] **Canlı doğrulama (her iki yön):** rolde **olan** `ticket.view` → Reddet (liste 0) → rol varsayılanına dön → etkin açık, liste 16. Rolde **olmayan** `ticket.delete` → Ver (etkin açık) → rol varsayılanına dön → etkin kapalı. UI'da: rozet `rolünden alındı` + switch kapalı + düğme → tıkla → rozet `rol varsayılanı` + switch açık + düğme kayboldu. Demo verisi oturum başındaki hâline döndü.
+
+**Karar/Varsayım (Faz 31):**
+- *Segment kontrolü değil, switch + ayrı düğme:* üç durumlu bir segment (Ver/Rol/Reddet) switch'i tamamen değiştirirdi; kullanıcı switch istemişti. Switch iki **etkin** durumu (açık/kapalı) taşımaya devam ediyor, düğme ise "bu kararı ben verdim"i geri alıyor. Bu ayrım aynı zamanda doğru zihinsel model: etkin durum ile onun **nereden geldiği** ayrı sorular.
+- *Temizleme yoksa 404 değil 204:* zaten rol varsayılanındaysa istenen sonuç zaten sağlanmış. Idempotent; UI'nin çift tıklamada hata göstermesine gerek yok.
+- *Soft-delete korundu (hard delete değil):* yetki değişiklikleri audit konusu; satırın kendisi `DeletedAt` ile duruyor, `AssignAsync` gerektiğinde diriltiyor. Tekil indeks `(UserId, PermissionId, CompanyId)` filtresiz olduğu için zaten başka seçenek de yoktu.
+- *Teknik borç #41 kapandı.* #40 (yetki anahtarı ↔ uygulama yeri denetimi) açık kalmaya devam ediyor ve bu turda önemi arttı: bu oturumda üçüncü kez yetki-çözümleme yolunda sessiz bir sapma bulundu.
+
+### Faz 32 — Gereksinim denetimi (SOLID/Clean Arch) + deploy paketi ✅ (2026-08-05)
+İstenen: `OneDrive/Belgeler` altındaki iki gereksinim notunun (`# SOFTSUPPORT ONINON CLEAN ARCHITEC.txt`,
+`UI tarafında da yeterince code lar.txt`) tamamının koda karşı denetlenmesi — **özellikle SOLID ve clean
+architecture maddeleri** — ve projenin deploy'a hazır hâle getirilmesi.
+
+**Gereksinim → kod eşleşmesi (ikinci txt, "Beklenen mimari özellikler"):**
+
+| Gereksinim | Durum | Kanıt |
+|---|---|---|
+| Tüm parametreler bir sistem dosyasında | ✅ (yorumlu) | Jenerik `Setting` KV tablosu + `/settings` ekranı (Faz 6). Karar: secret/infra dosya-env'de, iş parametresi DB'de (§13) — "tek dosya" yerine bilinçli ikiye ayrım. Teknik borç #21: tipli Options'ların bir kısmı hâlâ config'te |
+| Katmanlı mimari (txt'de "nvc", MVC kastediliyor) | ✅ | Domain (0 bağımlılık) → Application → Infrastructure → Api; bağımlılık okları hep içeri. Denetlendi: `.csproj` referansları temiz, Domain'de EF/ASP.NET izi yok |
+| RBAC + permission tablosu + rol dışı kullanıcı yetkisi | ✅ | `RolePermission` matrisi + `UserPermission` Grant/Deny (deny kazanır) + şirket-scope; UI'dan yönetiliyor (Faz 30-31) |
+| Her metod tek iş (SOLID) | ✅ | Denetim: `src/` altında 45 satırı geçen 6 metod var, hepsi bildirimsel blok (EF `OnModelCreating`, DI kaydı, seeder). İş mantığı metodları use-case granülerliğinde |
+| UI'da tekrar eden elemanlar component | ⚠️→✅ | **Bu fazda kapatıldı**, aşağıya bak |
+| Her şey REST API üzerinden | ✅ | Tek yüzey `/api/*`; SPA'nın başka veri yolu yok |
+
+**Yapılan (txt'nin açıkça şikâyet ettiği iki nokta):**
+- [x] **"Hata mesajları componentin içine yazılmış, ortaklaştırılması lazım":** `toApiError` + `errorMessage`
+  ikilisi **15 ekranda** birebir kopyalanmıştı. Tek `errorText(err)` yardımcısına indirildi
+  (`lib/messages.ts` — katalog zaten oradaydı, zarf çözme de artık orada). Ekranlar `catch (e) { setError(errorText(e)) }`.
+  Yeni bir hata kodu eklemek artık tek dosyaya dokunuyor.
+- [x] **"Tekrar eden elemanlar component olmalı":** 10 ekranda elle yazılmış `<p className="…">Yükleniyor…</p>`
+  → tek `Loading` primitive'i (`ui/primitives.tsx`), yerleşim `className` ile geçiliyor. Buton içindeki
+  "Yükleniyor…" etiketleri **kasten** dokunulmadı: onlar yükleme bloğu değil, düğme durumu.
+
+**Deploy hazırlığı:**
+- [x] **Teknik borç #35 kapandı (log gürültüsü):** `UseSerilogRequestLogging` artık exception middleware'in
+  **dışında**. Eski sırada her domain istisnası (401/403/404/400) log'a `responded 500` diye düşüyordu —
+  istemciye giden statü doğruydu ama izleme/alarm tarafı yanlış 500 görüyordu. Prod'a çıkmadan önce
+  düzeltilmesi gereken sınıf: ilk gerçek alarmda "500 var" diye kovalanacak sahte iz.
+- [x] **Teknik borç #40 kapandı (yetki anahtarı ↔ uygulama yeri):** `PermissionEnforcementAuditTests` —
+  `PermissionKeys.All`'daki her anahtar ya Application/Api kodunda **referans ediliyor** olmalı ya da
+  `PermissionLabels.IsGlobalOnly` ile global-yalnız ilan edilmiş olmalı; ayrıca her anahtarın Türkçe
+  etiketi + açıklaması olmalı. Etiket dosyasındaki string literal'ler sayılmıyor (aranan `PermissionKeys.X`
+  sabiti), yani "katalogda var ama kimse kontrol etmiyor" durumu artık testten geçemez.
+  **Negatif doğrulama yapıldı:** sahte bir anahtar eklenince test kırmızıya döndü, sonra geri alındı.
+  Bu, Faz 28/30/31'de üç kez tekrarlayan "sessiz sapma" sınıfının kalıcı nöbetçisi.
+- [x] **UTC serileştirici kültürden bağımsız:** `UtcDateTimeConverter` tarih formatını `CultureInfo.InvariantCulture`
+  ile yazıyor (CA1305). Paylaşımlı hosting'in kültürü bizim seçimimiz değil; Gregoryen olmayan takvim ya da
+  ASCII-dışı rakam kullanan bir kültürde sunucu, hiçbir istemcinin ayrıştıramayacağı bir zaman damgası
+  üretebilirdi. `src/` artık **0 uyarı** ile derleniyor.
+- [x] **Paket doğrulandı:** `./publish.ps1` uçtan uca çalıştı → `publish/` içinde `CrmKanban.Api.exe` +
+  `web.config` + `wwwroot/index.html` (self-contained win-x64, ~155 MB). MonsterASP.NET'e yüklemeye hazır.
+- [x] **Doğrulama:** 193 test yeşil (16 domain + 169 application + 8 API), `dotnet build -c Release` 0 uyarı/0 hata
+  (`src/`), frontend `npm run build` + `oxlint` temiz (bilinen tek fast-refresh uyarısı).
+
+**Karar/Varsayım (Faz 32):**
+- *`errorText` `messages.ts`'e kondu, `api.ts`'e değil:* çıktısı kullanıcıya gösterilecek **metin**, katalog
+  orada. `api.ts` taşıma katmanı kalsın (`toApiError` zarfı çözer, metni bilmez). Bağımlılık yönü tek: messages → api.
+- *`Loading` bir primitive, `Spinner`/`Skeleton` değil:* istenen "tekrarı kaldır"; animasyon/skeleton ayrı bir
+  UX kararı ve ONERILER P2'de zaten duruyor. Şimdi eklemek istenmeyen tasarım kararını koda gömerdi.
+- *Yetki denetimi kaynak dosya tarayan bir test:* alternatif bir Roslyn analyzer'dı — aynı garantiyi
+  ~50 satır test yerine bir analyzer projesi + paketleme ile verirdi. Anahtar sayısı 12, dosya sayısı sabit;
+  test yeterli. Testin kaynak ağacını bulamaması (repo dışı çalıştırma) **hata** sayılır, sessizce geçmez.
+- *Metod uzunluğu denetimi "her metod tek iş"in kanıtı değil, göstergesi:* uzun metodlar bildirimsel bloklara
+  çıktı (EF config, seed, DI). `InvitationService.InviteUserAsync` (66 satır) tek use-case'i doğrusal
+  yürütüyor — doğrula → yetkilendir → kullanıcı/üyelik çöz → token+mail → kaydet. Mikro-metodlara bölmek
+  okunurluğu artırmaz, çağrı zincirini uzatır; SRP use-case granülerliğinde korunuyor sayıldı.
+- *İlk txt (`SOFTSUPPORT`) ayrı bir projenin (todo/helpdesk) kurulum günlüğü:* katman/paket listesi ve
+  "namespace klasörle uyumlu / DI kaydı / migration Infrastructure'da" sağlık kontrolü bu projede zaten
+  sağlanıyor. Oradaki teknoloji seçimleri (AutoMapper, FluentValidation v10 sözdizimi, Identity tabanlı
+  `IdentityDbContext`) bu projeye **taşınmadı**: AutoMapper'a karşılık elle DTO projeksiyonu var (daha az
+  sihir, EF'e daha iyi çeviriliyor), FluentValidation zaten güncel pipeline ile bağlı, kimlik modeli
+  Identity yerine kendi `User`/`Membership`/`RoleType` modelimiz (çok-kiracılı yetki Identity rollerine
+  sığmıyordu). Yani o dosya bir gereksinim değil, bir geçmiş kayıt olarak okundu.
+
+## Bir sonraki oturum — açık uçlar (spec §18.23-24)
 
 - Teslim/demo tarihi (Faz 3 sonu demo öneriliyor).
 - ~~S3 sağlayıcı~~ → S3-uyumlu SDK, dev MinIO varsayımı seçildi (kod AWS/MinIO'da aynı; prod endpoint/credential env'den). Gerçek bucket sağlanınca e2e (teknik borç #11).
@@ -522,6 +724,14 @@ Spec §18'deki tüm kararlar "varsayıldı — onay bekliyor" statüsünde geçe
 | 32 | Lokal `dotnet run` mailleri konsola yazar (`Email:Provider=log`); gerçek Resend gönderimi yalnız docker/prod env'inde. Lokalde de gerçek mail istenirse user-secrets'a SMTP değerleri konmalı. | Düşük |
 | 33 | Brevo gönderici adresi `gmail.com` → Brevo From'u `...@<id>.brevosend.com` olarak yeniden yazıyor; Google/Yahoo gönderici uyumu için kendi domainini Brevo > Domains'te DKIM/DMARC ile doğrulayıp `EMAIL_FROM`'u o domaine çek. | Yüksek (üretim öncesi) |
 | 34 | AWS'e geçmeden önce MinIO'ya yüklenmiş eski ekler (demo seed + ilk testler) yeni bucket'ta yok → indirilmeye çalışılınca 500 (`NoSuchKey`). Yeni yüklemeler sorunsuz. Gerekirse eski nesneler MinIO'dan S3'e kopyalanır ya da demo veri yeniden seed'lenir. | Düşük |
+| 39 | Faz 30'da `TicketQueryService.ListAsync` personelin **her şirketi için ayrı** `ticket.view` sorgusu yapıyor (tipik 1-2 şirket, ucuz). Çok şirketli kullanıcıda N sorgu; gerekirse tek sorguda toplu çözüme çevrilir — **ölçmeden yapma**. | Düşük |
+| 40 | ~~**Yetki anahtarı ↔ uygulama yeri eşleşmesi denetlenmiyor.**~~ → **Faz 32'de kapandı:** `PermissionEnforcementAuditTests` her anahtarın Application/Api'de referans edildiğini ya da `IsGlobalOnly` ilan edildiğini + etiket/açıklamasının bulunduğunu doğruluyor; sahte anahtarla negatif doğrulama yapıldı. | ✅ kapandı |
+| 41 | ~~Yetki UI'ında "rol varsayılanına döndür" yok~~ → **Faz 31'de kapandı:** `DELETE /permissions/assign` + override varken çıkan "rol varsayılanına dön" düğmesi. | ✅ kapandı |
+| 42 | **Soft-delete + `IgnoreQueryFilters` tuzağı üçüncü kez vurdu** (Faz 28 üyelikler, Faz 31 yetki satırları). #36'daki analyzer/inceleme kuralı artık yalnız kiracı filtresini değil, **soft-delete koşulunu** da kapsamalı: filtreyi baypas eden her sorgu ya `DeletedAt == null` yazmalı ya da neden yazmadığını gerekçelendirmeli (ör. `InvitationService`'in tekillik kontrolü). | Orta |
+| 36 | **`IgnoreQueryFilters()` sorgu genelinde etkili** — bir join'in tek tarafına yazılsa bile TÜM sorgunun kiracı filtresini kapatır (Faz 28'deki sızıntının kök nedeni buydu). Kodda hâlâ 30+ meşru kullanım var (auth bootstrap, müşteri kendi kaydı). Kalıcı koruma: filtreli set ile filtresiz seti aynı sorguda **join etmeyi** yasaklayan bir analyzer/kod incelemesi kuralı, veya kiracı-scope'lu okumalar için ortak bir yardımcı. Şimdilik yeni servis testleri nöbette. | Orta |
+| 37 | Faz 28 düzeltmesi statü tablosunun **tamamını** okuyor (`LoadStatusesAsync`, global 6 + şirket başına fork). Yüzlerce şirkette gereksiz satır gelir; gerekirse sayfadaki statü id'leri + kategori kümesiyle daraltılır. Ölçülmeden yapılmasın. | Düşük |
+| 38 | `/api/public/companies` `PROGRESS.md`'de canlı görünüyordu ama Faz 17'de kaldırılmış (404). Doküman düzeltildi; benzer ölü uç kalmadığı taranmadı. | Düşük |
+| 35 | ~~**Log gürültüsü:** her domain istisnası log'a `responded 500` diye düşüyor~~ → **Faz 32'de kapandı:** `UseSerilogRequestLogging` exception middleware'in dışına alındı; log artık istemciye giden gerçek statüyü yazıyor. | ✅ kapandı |
 
 ## Ortam gereksinimleri
 

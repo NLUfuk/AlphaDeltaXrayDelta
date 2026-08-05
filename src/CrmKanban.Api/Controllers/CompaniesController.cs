@@ -25,6 +25,14 @@ public sealed class CompaniesController(CompanyService companies) : ControllerBa
         return NoContent();
     }
 
+    /// <summary>Delete a company. Body carries the typed company name as the second confirmation.</summary>
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, [FromBody] DeleteCompanyRequest request, CancellationToken ct)
+    {
+        await companies.DeleteAsync(id, request, ct);
+        return NoContent();
+    }
+
     [HttpGet("{id:guid}/members")]
     public async Task<ActionResult<IReadOnlyList<MemberDto>>> Members(Guid id, CancellationToken ct) =>
         Ok(await companies.ListMembersAsync(id, ct));

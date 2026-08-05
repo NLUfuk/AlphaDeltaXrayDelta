@@ -1,6 +1,8 @@
 // Single message catalog (spec §4.3): status/error text lives here, never inline in components.
 // Code reads the semantic category, never the display name (which super admin can rename, §4.3/§12).
 
+import { toApiError } from './api'
+
 // Timestamps arrive as UTC (ISO with Z). Always render them in Istanbul time, regardless of the
 // viewer's machine timezone — a Turkish CRM should read one clock for everyone.
 export function formatDateTime(iso: string): string {
@@ -17,6 +19,10 @@ const ERRORS: Record<string, string> = {
   'company.not_found': 'Bu bağlantıya ait firma bulunamadı.',
   'company.form_closed': 'Bu firma şu anda yeni talep almıyor.',
   'company.not_related': 'Bu firmaya yalnızca kendi bağlantısı üzerinden yazabilirsiniz.',
+  'company.slug_taken': 'Bu slug başka bir şirkette kullanılıyor.',
+  'company.create_forbidden': 'Şirket açma yetkiniz yok.',
+  'company.delete_forbidden': 'Yalnızca şirketin sahibi olan yönetici veya süper admin silebilir.',
+  'company.delete_name_mismatch': 'Şirket adını birebir yazmanız gerekiyor.',
   'invite.already_member': 'Bu kullanıcı zaten şirkete kayıtlı.',
   'validation.failed': 'Girdiğiniz bilgileri kontrol edin.',
   'network.error': 'Sunucuya ulaşılamadı.',
@@ -37,6 +43,16 @@ const ERRORS: Record<string, string> = {
 
 export function errorMessage(code: string, serverMessage?: string): string {
   return ERRORS[code] ?? serverMessage ?? 'Beklenmeyen bir hata oluştu.'
+}
+
+/**
+ * Anything thrown by an API call → the one display string. Screens do `catch (e) { setError(errorText(e)) }`
+ * instead of repeating the envelope-unwrap + catalog-lookup pair in every component (spec §4.3: error text
+ * is shared, not written into the component that happens to hit the error).
+ */
+export function errorText(err: unknown): string {
+  const { code, message } = toApiError(err)
+  return errorMessage(code, message)
 }
 
 // StatusCategory enum (backend Enums.cs) → label + color. Indexed by the numeric enum value.

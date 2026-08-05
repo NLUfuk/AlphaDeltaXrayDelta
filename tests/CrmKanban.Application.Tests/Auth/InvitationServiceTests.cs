@@ -18,6 +18,15 @@ public class InvitationServiceTests
         public IReadOnlyCollection<Guid> CompanyIds => [];
     }
 
+    // Inviting needs an identified caller (the invite path records who invited).
+    private sealed class Inviter : ICurrentUserService
+    {
+        public Guid? UserId { get; } = Guid.NewGuid();
+        public bool IsAuthenticated => true;
+        public bool IsSuperAdmin => true;
+        public IReadOnlyCollection<Guid> CompanyIds => [];
+    }
+
     private sealed class FakeHasher : IPasswordHasher
     {
         public string Hash(User user, string password) => "hash:" + password;
@@ -66,5 +75,55 @@ public class InvitationServiceTests
         reloaded.PasswordHash.Should().Be("hash:NewPassw0rd!", "the new password is set");
         (await db.RefreshTokens.IgnoreQueryFilters().CountAsync(t => t.RevokedAt == null))
             .Should().Be(0, "setting a password kills every existing session");
+    }
+
+    // Removing a member only soft-deletes the row, but (UserId, CompanyId) is uniquely indexed — so a
+    // re-invite has to revive that row instead of inserting a second one, or the admin can never take a
+    // person back. Only reachable now that revoked memberships genuinely stop granting access.
+    [Fact]
+    public async Task Re_inviting_a_removed_member_revives_their_membership()
+    {
+        var db = NewDb();
+        var now = new DateTime(2026, 8, 5, 12, 0, 0, DateTimeKind.Utc);
+        var companyId = Guid.NewGuid();
+
+        var user = new User("staff@x.io", "S", "X");
+        db.Users.Add(user);
+        var membership = new Membership(user.Id, companyId, Domain.Enums.RoleType.Personel);
+        db.Memberships.Add(membership);
+        await db.SaveChangesAsync();
+        membership.SoftDelete(now); // what RemoveMemberAsync leaves behind
+        await db.SaveChangesAsync();
+
+        var svc = new InvitationService(db, new FakeHasher(), new FakeClock(now), new Inviter(),
+            new FakePermissions(), Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
+
+        await svc.InviteUserAsync(new InviteUserRequest("staff@x.io", "S", "X", companyId, Domain.Enums.RoleType.Admin));
+
+        var rows = await db.Memberships.IgnoreQueryFilters()
+            .Where(m => m.UserId == user.Id && m.CompanyId == companyId).ToListAsync();
+        rows.Should().ContainSingle("the unique index allows exactly one row per (user, company)");
+        rows[0].DeletedAt.Should().BeNull("the invite brings the member back");
+        rows[0].Role.Should().Be(Domain.Enums.RoleType.Admin, "a re-invite may carry a different role");
+    }
+
+    [Fact]
+    public async Task Inviting_an_existing_active_member_is_still_a_conflict()
+    {
+        var db = NewDb();
+        var now = new DateTime(2026, 8, 5, 12, 0, 0, DateTimeKind.Utc);
+        var companyId = Guid.NewGuid();
+
+        var user = new User("staff@x.io", "S", "X");
+        db.Users.Add(user);
+        db.Memberships.Add(new Membership(user.Id, companyId, Domain.Enums.RoleType.Personel));
+        await db.SaveChangesAsync();
+
+        var svc = new InvitationService(db, new FakeHasher(), new FakeClock(now), new Inviter(),
+            new FakePermissions(), Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
+
+        Func<Task> act = () => svc.InviteUserAsync(new InviteUserRequest("staff@x.io", "S", "X", companyId, Domain.Enums.RoleType.Personel));
+
+        await act.Should().ThrowAsync<Common.ConflictException>().Where(e => e.Code == "invite.already_member");
     }
 }

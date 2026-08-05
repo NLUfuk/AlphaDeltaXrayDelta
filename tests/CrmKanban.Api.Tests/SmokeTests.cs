@@ -58,6 +58,41 @@ public class SmokeTests(ApiFactory factory) : IClassFixture<ApiFactory>
         me.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    /// <summary>DELETE with a body is easy to get wrong (binding, validation filter, 204 vs envelope),
+    /// so the double confirmation is checked over real HTTP too: the wrong name must not delete.</summary>
+    [Fact]
+    public async Task Deleting_a_company_needs_the_typed_name_over_http()
+    {
+        var login = await _client.PostAsJsonAsync("/api/auth/login",
+            new { email = ApiFactory.SuperAdminEmail, password = ApiFactory.SuperAdminPassword });
+        var auth = (await login.Content.ReadFromJsonAsync<LoginResponse>())!;
+
+        async Task<HttpResponseMessage> Send(HttpRequestMessage req)
+        {
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", auth.AccessToken);
+            return await _client.SendAsync(req);
+        }
+
+        var slug = $"smoke-{Guid.NewGuid():N}"[..20];
+        var created = await Send(new HttpRequestMessage(HttpMethod.Post, "/api/companies")
+        { Content = JsonContent.Create(new { name = "Smoke Co", slug }) });
+        created.StatusCode.Should().Be(HttpStatusCode.OK);
+        var company = (await created.Content.ReadFromJsonAsync<CompanyResponse>())!;
+
+        var wrong = await Send(new HttpRequestMessage(HttpMethod.Delete, $"/api/companies/{company.Id}")
+        { Content = JsonContent.Create(new { confirmName = "Smoke" }) });
+        wrong.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await wrong.Content.ReadFromJsonAsync<ErrorEnvelope>())!.Code.Should().Be("company.delete_name_mismatch");
+
+        var ok = await Send(new HttpRequestMessage(HttpMethod.Delete, $"/api/companies/{company.Id}")
+        { Content = JsonContent.Create(new { confirmName = "Smoke Co" }) });
+        ok.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var list = await Send(new HttpRequestMessage(HttpMethod.Get, "/api/companies"));
+        (await list.Content.ReadFromJsonAsync<CompanyResponse[]>())!.Should().NotContain(c => c.Id == company.Id);
+    }
+
     private sealed record ErrorEnvelope(string Code, string Message, string? Details);
     private sealed record LoginResponse(string AccessToken, string RefreshToken);
+    private sealed record CompanyResponse(Guid Id, string Name, string Slug);
 }

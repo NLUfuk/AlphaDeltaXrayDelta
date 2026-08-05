@@ -1,5 +1,6 @@
 using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Authorization;
+using CrmKanban.Application.Common;
 using CrmKanban.Domain.Authorization;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,19 +26,26 @@ public sealed class PermissionService(IAppDbContext db) : IPermissionService
         if (user.IsSuperAdmin)
             return PermissionKeys.All.ToHashSet(StringComparer.Ordinal);
 
-        var membership = await db.Memberships.IgnoreQueryFilters()
+        var membership = await db.ActiveMemberships()
             .FirstOrDefaultAsync(m => m.UserId == userId && m.CompanyId == companyId, ct);
         if (membership is null)
             return new HashSet<string>(); // not a member of this company → no permissions here
 
+        // IgnoreQueryFilters is deliberate (this IS the authorization bootstrap), but it also drops the
+        // soft-delete guard, so every row here needs DeletedAt == null spelled out. Without it a revoked
+        // override kept being applied forever: "back to role default" removed the row and changed nothing,
+        // and a stale Deny could hold a permission shut with no way to see why. Same shape of mistake as
+        // the membership reads in Faz 28 — bypassing the filter means inheriting none of its guarantees.
         var baseline = await db.RolePermissions.IgnoreQueryFilters()
-            .Where(rp => rp.Role == membership.Role)
-            .Join(db.Permissions.IgnoreQueryFilters(), rp => rp.PermissionId, p => p.Id, (_, p) => p.Key)
+            .Where(rp => rp.Role == membership.Role && rp.DeletedAt == null)
+            .Join(db.Permissions.IgnoreQueryFilters().Where(p => p.DeletedAt == null),
+                rp => rp.PermissionId, p => p.Id, (_, p) => p.Key)
             .ToListAsync(ct);
 
         var overrides = await db.UserPermissions.IgnoreQueryFilters()
-            .Where(up => up.UserId == userId)
-            .Join(db.Permissions.IgnoreQueryFilters(), up => up.PermissionId, p => p.Id,
+            .Where(up => up.UserId == userId && up.DeletedAt == null)
+            .Join(db.Permissions.IgnoreQueryFilters().Where(p => p.DeletedAt == null),
+                up => up.PermissionId, p => p.Id,
                 (up, p) => new PermissionOverride(p.Key, up.Type, up.CompanyId))
             .ToListAsync(ct);
 

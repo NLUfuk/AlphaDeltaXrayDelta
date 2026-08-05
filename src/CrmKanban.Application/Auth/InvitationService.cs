@@ -49,12 +49,23 @@ public sealed class InvitationService(
             db.Users.Add(user);
         }
 
-        var alreadyMember = await db.Memberships.IgnoreQueryFilters()
-            .AnyAsync(m => m.UserId == user.Id && m.CompanyId == request.CompanyId, ct);
-        if (alreadyMember)
+        // Deliberately looks past the soft-delete guard (unlike every authorization read): (user, company)
+        // is uniquely indexed and a removed member's row still occupies it, so re-inviting has to REVIVE
+        // that row — adding a second one would hit the unique index.
+        var existing = await db.Memberships.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(m => m.UserId == user.Id && m.CompanyId == request.CompanyId, ct);
+        if (existing is { IsDeleted: false })
             throw new ConflictException("invite.already_member", "This user is already a member of the company.");
 
-        db.Memberships.Add(new Membership(user.Id, request.CompanyId, request.Role));
+        if (existing is not null)
+        {
+            existing.Restore();
+            existing.ChangeRole(request.Role); // re-invites may come back with a different role
+        }
+        else
+        {
+            db.Memberships.Add(new Membership(user.Id, request.CompanyId, request.Role));
+        }
 
         // An already-active user (invited elsewhere before) needs no password setup.
         if (!user.IsInvitedPending)

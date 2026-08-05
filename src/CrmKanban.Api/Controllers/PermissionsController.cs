@@ -28,4 +28,14 @@ public sealed class PermissionsController(PermissionAssignmentService assignment
         await assignments.AssignAsync(request, ct);
         return NoContent();
     }
+
+    /// <summary>Drop the user-level override so the key falls back to the ROLE default — the third state
+    /// the Grant/Deny pair cannot express. Same escalation guard as assigning.</summary>
+    [HttpDelete("assign")]
+    public async Task<IActionResult> Clear([FromQuery] Guid userId, [FromQuery] Guid companyId,
+        [FromQuery] string permissionKey, CancellationToken ct)
+    {
+        await assignments.ClearAsync(userId, companyId, permissionKey, ct);
+        return NoContent();
+    }
 }

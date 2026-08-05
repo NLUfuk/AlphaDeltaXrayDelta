@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { toApiError } from '../lib/api'
-import { useAuth } from '../lib/auth'
 import { useCompanies, useMembers } from '../lib/admin'
-import { errorMessage, PRIORITIES, priority as priorityOf, statusCategory } from '../lib/messages'
+import { useActiveCompany } from '../lib/company'
+import { errorText, PRIORITIES, priority as priorityOf, statusCategory } from '../lib/messages'
 import { useChangeStatus, useCreateTicket, useKanban, useModeration, type KanbanColumn, type KanbanFilters } from '../lib/tickets'
-import { Alert, Button, Icon, Input } from '../ui/primitives'
+import { Alert, Button, Icon, Input, Loading } from '../ui/primitives'
 import { CustomerLink } from '../ui/CustomerLink'
 import { TicketCard } from '../ui/TicketCard'
 
@@ -15,8 +14,7 @@ import { TicketCard } from '../ui/TicketCard'
 // TicketListQuery the endpoint already binds. Layout follows Odoo's o_kanban_group: colored column
 // head with a count, a priority progress bar, and an inline quick-create per column.
 export default function Kanban() {
-  const { user } = useAuth()
-  const companyId = user?.companies[0]?.companyId
+  const companyId = useActiveCompany()
   const [filters, setFilters] = useState<KanbanFilters>({})
   const { data: columns, isLoading, error } = useKanban(companyId, filters)
   const { data: members } = useMembers(companyId)
@@ -58,8 +56,7 @@ export default function Kanban() {
       })
       setComposeIn(null)
     } catch (err) {
-      const { code, message } = toApiError(err)
-      setCreateError(errorMessage(code, message))
+      setCreateError(errorText(err))
     }
   }
 
@@ -115,7 +112,7 @@ export default function Kanban() {
         )}
       </div>
 
-      {isLoading && <p className="text-muted">Yükleniyor…</p>}
+      {isLoading && <Loading />}
       {createError && <Alert>{createError}</Alert>}
 
       <div className="flex gap-4 overflow-x-auto pb-2 max-md:flex-col">

@@ -26,12 +26,16 @@ public class CommentVisibilityTests
         public IReadOnlyCollection<Guid> CompanyIds { get; } = companyIds;
     }
 
+    // Grants ticket.view and nothing else: these tests are about INTERNAL NOTE visibility, so the staff
+    // member has to be able to read the ticket at all (ticket.view) while still lacking comment.internal.
     private sealed class FakePermissionService : IPermissionService
     {
+        private static readonly IReadOnlySet<string> Held =
+            new HashSet<string>([Domain.Authorization.PermissionKeys.TicketView], StringComparer.Ordinal);
         public Task<IReadOnlySet<string>> GetPermissionsAsync(Guid userId, Guid companyId, CancellationToken ct = default) =>
-            Task.FromResult<IReadOnlySet<string>>(new HashSet<string>(StringComparer.Ordinal));
+            Task.FromResult(Held);
         public Task<bool> HasPermissionAsync(Guid userId, Guid companyId, string permissionKey, CancellationToken ct = default) =>
-            Task.FromResult(false);
+            Task.FromResult(Held.Contains(permissionKey));
     }
 
     private sealed class FakeFileStorage : IFileStorage
@@ -76,7 +80,7 @@ public class CommentVisibilityTests
     {
         var db = new CrmDbContext(options, user);
         var authz = new TicketAuthorizationService(user, new FakePermissionService(), db);
-        return new TicketQueryService(db, user, authz, Options.Create(new TicketOptions()));
+        return new TicketQueryService(db, user, authz, new FakePermissionService(), Options.Create(new TicketOptions()));
     }
 
     [Fact]

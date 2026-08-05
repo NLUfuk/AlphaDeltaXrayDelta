@@ -65,7 +65,7 @@ public class TicketModerationTests
         var user = new SuperAdmin();
         var db = new CrmDbContext(options, user);
         var authz = new TicketAuthorizationService(user, new Perms(), db);
-        return new TicketQueryService(db, user, authz, Options.Create(new TicketOptions()));
+        return new TicketQueryService(db, user, authz, new Perms(), Options.Create(new TicketOptions()));
     }
 
     private static TicketCommandService Command(DbContextOptions<CrmDbContext> options)

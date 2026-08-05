@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { api, toApiError } from '../lib/api'
-import { errorMessage } from '../lib/messages'
-import { Alert, Button, Field, Icon, Input } from '../ui/primitives'
+import { api } from '../lib/api'
+import { errorText } from '../lib/messages'
+import { Alert, Button, Field, Icon, Input, Loading } from '../ui/primitives'
 
 type PublicField = { id: string; label: string; type: number; required: boolean; options: string[] }
 type FormConfig = { companyName: string; kvkkText: string; brandName: string; primaryColor: string; logoUrl: string | null; fields: PublicField[] }
@@ -49,8 +49,7 @@ export default function PublicForm() {
         setFiles((prev) => [...prev, data])
       }
     } catch (err) {
-      const { code, message } = toApiError(err)
-      setError(errorMessage(code, message))
+      setError(errorText(err))
     } finally {
       setUploading(false)
     }
@@ -64,14 +63,13 @@ export default function PublicForm() {
       const { data } = await api.post(`/public/form/${slug}`, { ...form, kvkkConsent: consent, attachments: files, customFields })
       setResult({ ticketNumber: data.ticketNumber, newAccount: !!data.newAccount })
     } catch (err) {
-      const { code, message } = toApiError(err)
-      setError(errorMessage(code, message))
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }
   }
 
-  if (isLoading) return <p className="p-8 text-muted">Yükleniyor…</p>
+  if (isLoading) return <Loading className="p-8" />
   const accent = cfg?.primaryColor ?? '#4f46e5'
 
   return (

@@ -2,11 +2,36 @@
 
 | | |
 |---|---|
-| Tarih | 2026-07-31 |
-| Bağlam | Faz 0-12 tamam (portal + dosya eki API-proxy dahil). 101 test yeşil. Stack Docker'da canlı doğrulandı (8080). Bu doküman "deploy öncesi son hâli"nden sonrasına dair önceliklendirilmiş öneri listesidir. |
-| İlgili kayıtlar | `PROGRESS.md` (tarihsel faz/karar günlüğü + teknik borç #1-29), `crm-kanban-mimari.md` (spec Rev 2) |
+| Tarih | 2026-07-31 (son denetim: **2026-08-05**, Faz 29) |
+| Bağlam | **Faz 0-29 tamam. 179 test yeşil.** Stack Docker'da canlı (8080), gerçek AWS S3 + Brevo SMTP bağlı. Bu doküman "deploy öncesi son hâli"nden sonrasına dair önceliklendirilmiş öneri listesidir. |
+| İlgili kayıtlar | `PROGRESS.md` (tarihsel faz/karar günlüğü + teknik borç #1-38), `crm-kanban-mimari.md` (spec Rev 2, Faz 29'da koda göre güncellendi) |
 
 > **Güncelleme (2026-08-01, Faz 13-15):** Aşağıdaki P1 maddeleri kapandı — moderasyon audit/bildirim (#8), controller/HTTP smoke testleri (#14). Ayrıca checklist'teki tüm kod eksikleri kapatıldı: forgot-password, kanban filtre, dosya+edit bildirimi, şirketten üye çıkarma, mail şablon UI, **konfigüre edilebilir form alanları**. 135 test yeşil. Ayrıntı: `PROGRESS.md` Faz 13-15.
+>
+> **Güncelleme (2026-08-05, Faz 32) — bu dosyanın en güncel satırı, altındakiler tarihseldir:**
+> Gereksinim notları (OneDrive/Belgeler txt'leri) koda karşı denetlendi. SOLID/clean-arch maddeleri
+> karşılanıyor; txt'nin tek somut şikâyeti olan **UI tekrarı** kapatıldı (hata mesajı 15 ekranda kopya
+> → tek `errorText`; "Yükleniyor…" 10 ekranda elle → tek `Loading`). **Kapanan teknik borç:** #35 (yanlış
+> 500 log alarmı), #40 (yetki anahtarı ↔ uygulama yeri denetim testi). `src/` 0 uyarı, 193 test yeşil,
+> `publish.ps1` paketi üretildi. **Deploy öncesi kullanıcıda kalanlar değişmedi:** Brevo domain DKIM/DMARC
+> (#33, yüksek), Docker yolunda TLS, CAPTCHA'nın kapalı bırakılması (bilinçli karar), ve prod'da
+> `Email__Provider=smtp` env'inin ayarlanması — `appsettings.Production.json` varsayılanı `log`, yani env
+> verilmezse mailler sessizce yalnız log'a yazılır (DEPLOY-monsterasp.md §3 tablosunda yazıyor).
+>
+> **Güncelleme (2026-08-05, Faz 26-29):**
+> **P0'ın tamamı kapandı.** #1 Docker imaj build + stack e2e (`up.ps1`, canlı 8080); #2 secret'lar `.env`'de,
+> repoya girmiyor; #3 TLS → MonsterASP.NET SSL sağlıyor (Docker'da hâlâ önüne proxy gerekir);
+> #4 CAPTCHA **bilinçli kapalı** (fail-closed seam duruyor — provider bağlanana kadar rate limiter tek savunma,
+> kabul edildi); **#5 depolama → gerçek AWS S3** (`crm-kanban-fiskirmacoop`, eu-north-1; bayt round-trip
+> tarayıcıda ve API'de doğrulandı — aşağıdaki "host diski seçildi" satırı ARTIK GEÇERSİZ, o Faz 17'nin
+> ara kararıydı); **#6 SMTP → Brevo** (aşağıdaki "Resend" satırı geçersiz; Resend denendi, Brevo'ya geçildi);
+> #7 tek-instance kaldığı için migration ayrımı gerekmiyor.
+> **P1'den kapananlar:** #8 moderasyon audit/bildirim, #9 presigned boyut (yol tamamen kaldırıldı),
+> #13 `TokenHasher`, #14 controller/HTTP testleri (8 API testi).
+> **Faz 28'de bulunan ve kapatılan iki güvenlik açığı** bu listede hiç öngörülmemişti (çapraz-kiracı ticket
+> sızıntısı + iptal edilen üyeliğin yetki vermeye devam etmesi) — ayrıntı `PROGRESS.md` Faz 28. Ders:
+> "P0 operasyonel sertleştirme" başlığı, **kodun kendi çekirdek invaryantlarının** test edilmiş olduğunu
+> varsayıyordu; manuel tur o varsayımı çürüttü.
 >
 > **Güncelleme (2026-08-03, Faz 16-17):** (16) süper admin impersonation UI. (17) müşteri portalı ilişki-scope'u + müşteri süreç göstergesi. **P0'dan bu oturumda kapananlar:** #1 Docker imaj build + stack e2e (`up.ps1`, canlı 8080, login→form→mail→portal doğrulandı); #6 SMTP → **Resend** (canlı gönderim 200, EmailQueue Sent); #5 depolama → **host diski (LocalFileStorage)** seçildi (ücretsiz, MinIO e2e + unit test; gerçek AWS S3 gerekmiyor, `azure`/`s3` provider da mevcut). **P0'dan hâlâ açık (operasyonel/kullanıcı):** #2 prod secret store, #3 TLS (MonsterASP SSL sağlıyor — büyük ölçüde otomatik), #4 CAPTCHA provider, #7 çok-instance migration ayrımı (tek-instance'ta gerekmez). 137 test yeşil. Ölü `/api/public/companies` endpoint'i (ilişki-scope sonrası kullanılmıyor) kaldırıldı.
 
@@ -14,36 +39,45 @@ Bu dosya kararların **gerekçesini kesmez**; kod minimal tutuldu ama neyin nede
 
 ---
 
-## P0 — İlk gerçek deploy'dan ÖNCE (bloklayıcı)
+## P0 — İlk gerçek deploy'dan ÖNCE (bloklayıcı) — ✅ **tamamı kapandı (2026-08-05)**
 
-Bunlar yapılmadan prod'a çıkılırsa ya güvenlik açığı ya da "çalışmıyor" durumu var.
+Bunlar yapılmadan prod'a çıkılırsa ya güvenlik açığı ya da "çalışmıyor" durumu vardı. Maddeler
+**silinmedi**: hangi riskin neyle kapandığı, kapandığı gerçeğinden daha uzun ömürlü bilgi.
+Altındaki "Durum/Yap" metinleri o günkü hâli anlatır; güncel sonuç her maddenin başındaki ✅ satırıdır.
 
-### 1. Docker imajlarını gerçekten build edip stack'i uçtan uca test et
+### 1. ~~Docker imajlarını gerçekten build edip stack'i uçtan uca test et~~ — ✅ kapandı (Faz 16)
+**Sonuç:** `up.ps1` ile imajlar build ediliyor ve stack ayağa kalkıyor; login → public form → moderasyon → kanban → dosya yükle/indir defalarca doğrulandı. Riskli sayılan üç nokta da sorun çıkarmadı (non-root yazma, mssql-tools18 yolu, healthcheck timing).
 - **Durum:** `docker compose config` + `dotnet publish -c Release` + `npm run build` ayrı ayrı doğrulandı; **gerçek `docker compose up --build` çalışmadı** (bu makinede Docker daemon kapalıydı — teknik borç #25).
 - **Yap:** `cp .env.example .env` → secret'ları doldur → `docker compose up --build`. Doğrula: login → public form (`/form/tekstil`) → moderasyon onayı → kanban → dosya yükle/indir. MinIO console `:9001`, bucket oluştu mu bak.
 - **Riskli noktalar:** (a) `USER $APP_UID` non-root ile `/app` yazma izni; (b) MSSQL healthcheck `mssql-tools18` yolu imaj sürümüne bağlı; (c) API startup'ta DB'ye bağlanamazsa retry yok → healthcheck timing'i önemli.
 
-### 2. JWT signing key + secret yönetimi
+### 2. ~~JWT signing key + secret yönetimi~~ — ✅ kapandı (operasyonel kısmı kullanıcıda)
+**Sonuç:** `up.ps1` ilk çalıştırmada `.env`'i rastgele güçlü secret'larla üretiyor (`JWT_SIGNING_KEY` 48 bayt), `.env` gitignore'da. Prod'da orchestrator secret store'a taşımak hâlâ kullanıcı adımı.
 - **Durum:** Dev'de user-secrets; prod env bekliyor (teknik borç #3). `.env.example`'da placeholder var.
 - **Yap:** `JWT_SIGNING_KEY` = `openssl rand -base64 48` (min 32 byte). **Repoya asla girmesin** (`.env` gitignore'da). Prod'da orchestrator secret store (K8s Secret / Docker secret / cloud KMS). Aynısı `MSSQL_SA_PASSWORD`, `S3_SECRET_KEY`, `SUPERADMIN_PASSWORD` için.
 
-### 3. TLS / HTTPS
+### 3. ~~TLS / HTTPS~~ — ✅ MonsterASP.NET yolunda kapandı, Docker yolunda **açık**
+**Sonuç:** MonsterASP.NET SSL sağlıyor, `UseForwardedHeaders` şemayı doğru okuyor. Docker Compose ile internete açılacaksa nginx'e hâlâ gerçek sertifika / önüne TLS-terminating proxy gerekir — o senaryoda bu madde canlıdır.
 - **Durum:** API konteyner içinde plain HTTP:8080; nginx `web` servisi 80'de, TLS yok. `Program.cs` `UseHttpsRedirection()` proxy arkasında no-op (https portu bilmiyor).
 - **Yap:** nginx'e gerçek sertifika (Let's Encrypt / kurumsal CA) veya önüne bir TLS-terminating proxy (Traefik/Caddy/ALB). HSTS ekle. Public form kişisel veri taşıdığından bu **P0**.
 
-### 4. CAPTCHA sağlayıcısını bağla (veya bilinçli kapalı bırak)
+### 4. ~~CAPTCHA sağlayıcısını bağla~~ — ✅ **bilinçli kapalı bırakıldı** (karar)
+**Sonuç:** `Captcha:Enabled=false`; seam (`CaptchaValidator`) ve fail-closed davranışı duruyor, provider bağlanınca tek branch + widget yeterli. Public form şu an yalnız rate limiter ile korunuyor (IP başına 5/dk — canlı doğrulandı, 429 dönüyor). **Bot/spam riski bilinçle kabul edildi**; gerçek trafiğe açılırken yeniden değerlendirilmeli.
 - **Durum:** `appsettings.Production.json`'da `Captcha:Enabled=false` (provider'sız `true` fail-closed olup public formu tamamen bloklar). Seam hazır: `CaptchaValidator` (teknik borç #12).
 - **Yap:** Turnstile veya reCAPTCHA seç → `CaptchaValidator`'a tek branch + client'a widget → `Enabled=true`. Bot koruması olmadan public form spam'e açık. Rate limiter var ama tek başına yetmez.
 
-### 5. Gerçek S3/MinIO bucket ile bayt uçtan uca doğrula — kısmen kapandı (Faz 12)
+### 5. ~~Gerçek S3 bucket ile bayt uçtan uca doğrula~~ — ✅ kapandı (Faz 26)
+**Sonuç:** Gerçek **AWS S3** (`crm-kanban-fiskirmacoop`, eu-north-1, tek-bucket'lık IAM kullanıcısı). Yükleme→indirme bayt round-trip'i hem tarayıcıda hem API'de doğrulandı; bucket private, indirme yalnız yetkili API proxy'sinden. İç-not dosyasının müşteriye kapalı olduğu testle kilitli. *Not: aşağıdaki eski metin MinIO/host-diski dönemini anlatır.*
 - **Durum:** Docker MinIO'ya karşı staff/müşteri upload→store→download bayt round-trip **tarayıcıda doğrulandı** (`roundTripMatch: true`, teknik borç #11 MinIO için kapandı). Yol artık API-proxy (presigned kaldırıldı).
 - **Kalan:** Prod'da **gerçek AWS S3** (MinIO değil) ile aynı round-trip + iç-not dosyası müşteriye kapalı doğrulaması. Bucket **private** kalmalı (public-read ASLA). Not: proxy yol tarayıcıya S3 host'u açmaz → private bucket yeterli, presigned gerektirmez.
 
-### 6. SMTP sağlayıcısı (bildirim gerçekten gitsin)
+### 6. ~~SMTP sağlayıcısı~~ — ✅ kapandı (**Brevo**, Faz 25)
+**Sonuç:** Brevo transactional relay (`smtp-relay.brevo.com:587`, STARTTLS). Kuyruktan gerçek gönderim doğrulandı (`EmailQueue.Status=Sent`, hata yok). Public form invite token'ı response'tan kaldırıldı — token yalnız e-postayla çıkıyor. **Açık kalan:** gönderici domaini Brevo'da DKIM/DMARC ile doğrulanmalı (teknik borç #33), yoksa Google/Yahoo gönderici uyumu sorun çıkarır.
 - **Durum:** Dev'de `DevLogEmailSender` (log). Prod `Email:Provider=smtp` seam hazır (teknik borç #16).
 - **Yap:** SMTP host/port/user/pass (env) + SPF/DKIM/DMARC. Aksi hâlde davet linkleri, ticket bildirimleri, "kayıt bağlantısı" hiç ulaşmaz — onboarding kırılır. Şu an public form invite token'ı response'ta dönüyor (dev kolaylığı); mail gelince kaldırılmalı.
 
-### 7. Migration'ı startup'tan ayır (çok-instance)
+### 7. ~~Migration'ı startup'tan ayır~~ — ✅ tek-instance kararıyla kapandı
+**Sonuç:** Tek instance çalışılıyor, startup migration uygun. Ölçeklenirse madde yeniden açılır (teknik borç #6).
 - **Durum:** `Program.cs` startup'ta `MigrateAsync` + seed çalıştırıyor — tek instance için iyi, çok instance'ta yarış (teknik borç #6).
 - **Yap:** Tek instance kalacaksa dokunma. Ölçeklenecekse migration'ı ayrı bir init-container/job'a al (`dotnet ef database update` veya idempotent migration bundle), app instance'ları sadece çalışsın.
 
@@ -55,7 +89,7 @@ Bunlar yapılmadan prod'a çıkılırsa ya güvenlik açığı ya da "çalışm�
 
 | Konu | Şu an | Öneri | Dosya |
 |---|---|---|---|
-| Moderasyon audit/bildirim | Approve/Reject sadece state çeviriyor, `TicketEvent` yok → audit ve bildirim üretmiyor; Rejected müşteriye bildirilmiyor; Created makbuzu pending ticket için de gidiyor (teknik borç #27) | `Approved`/`Rejected` event tipi + `NotificationMatrix` girdisi. Rejected'da müşteriye kibar "talebiniz işleme alınamadı" | `TicketCommandService.ApproveAsync/RejectAsync`, `Enums.cs`, `NotificationMatrix.cs` |
+| ~~Moderasyon audit/bildirim~~ | **✅ Faz 13'te kapandı:** `Approved`/`Rejected` event tipi + matris girdisi; ret müşteriye kibar ve **kritik** bildirim. Kalan minör: Created makbuzu pending ticket için de gidiyor (kabul edildi). | (kapandı) | `TicketCommandService`, `NotificationMatrix.cs` |
 | docx magic doğrulama | PK-zip imzası + `.docx` uzantısı yeterli sayılıyor; herhangi bir zip .docx geçer (teknik borç #26) | Gerekirse zip entry kontrolü (`[Content_Types].xml` + `word/document.xml`) | `PublicFileValidator.cs` |
 | Sütun fork geri alınamaz | Şirket global default'a dönemez; fork sonrası yeni global default sütun o şirkete yansımaz (teknik borç #28) | "Varsayılana sıfırla" gerekirse: company statülerini soft-delete + ticket'ları global'e migrate | `StatusManagementService.cs` |
 | ~~Staff dosya yükleme UI~~ | **Faz 12'de tamamlandı:** ticket detay "Ekler" bölümü (API-proxy yükleme+indirme). Presigned yerine backend-proxy (tarayıcıdan çalışan tek yol; bkz. PROGRESS Faz 12). Kalan yalnız **yorum-seviyesi** ek (şu an ticket-seviyesi). | (kapandı) | `TicketDetail.tsx`, `tickets.ts`, `AttachmentService.cs`, `TicketsController.cs` |
@@ -79,7 +113,8 @@ Bunlar yapılmadan prod'a çıkılırsa ya güvenlik açığı ya da "çalışm�
 - **Durum:** SHA256 token hash'leme 3. kez kopyalandı (refresh / invite / public-form — teknik borç #15).
 - **Yap:** Auth'a bir sonraki dokunuşta tek helper'a çıkar (küçük, düşük risk).
 
-### 14. Controller-seviyesi entegrasyon testleri
+### 14. ~~Controller-seviyesi entegrasyon testleri~~ — ✅ kapandı (Faz 13-15, 27)
+**Sonuç:** `WebApplicationFactory` tabanlı 8 HTTP testi (auth akışı, hata zarfı, gövdeli DELETE + çift onay). **Faz 28 dersi:** HTTP smoke'ları yeterli değildi — çapraz-kiracı sızıntısını yakalayan şey **servis seviyesindeki** kiracı testleri oldu; ikisi farklı işler görüyor.
 - **Durum:** 109 test var ama çoğu servis/domain seviyesinde; `Program.cs` `public partial` (WebApplicationFactory'ye açık) ama HTTP-seviyesi test yok.
 - **Yap:** Yeni endpoint'ler için birkaç `WebApplicationFactory` smoke: `POST /companies/{id}/statuses` (403 gate), `POST /tickets/{id}/approve`, `POST /public/form/{slug}/upload` (bad magic → 400). Auth + pipeline + serileştirmeyi bir arada doğrular.
 
@@ -120,14 +155,17 @@ Bu session token seti + Shell + primitives + Kanban + yeni ekranlar minimalist y
 
 - **Branch koruma:** `main` doğrudan push'a açık (teknik borç #4). PR akışı + CI gate (zaten `.github/workflows/ci.yml` var) + en az 1 review kuralı.
 - **Repo klasör adı:** `Yeni klasör` — ASCII-dışı + boşluk; bazı CI/araç yol sorunu çıkarabilir (teknik borç #2). Yeniden adlandırma düşük öncelik ama Docker/CI'ya taşımadan önce değerlendir.
-- **Bu değişiklikler commit edilmedi.** Session boyunca hiçbir şey push edilmedi. Bir feature branch'te toplayıp PR açmak mantıklı: `feat/kanban-columns-moderation-deploy`.
+- **Commit disiplini:** Faz 27-29'un çalışması (şirket silme, iki güvenlik düzeltmesi, doküman denetimi) **henüz commit edilmedi**. Güvenlik düzeltmeleri ayrı bir commit hak ediyor — `fix(security): tenant scope on ticket reads + membership revocation` — çünkü ileride "bu ne zaman kapandı" sorusunun cevabı bu commit olacak.
 
 ---
 
 ## Özet öncelik sırası
 
-1. **P0 (deploy bloklayıcı):** Docker e2e → secret/JWT → TLS → CAPTCHA → S3 bayt e2e → SMTP → migration ayrımı.
-2. **P1 (ilk hafta):** moderasyon audit/bildirim → docx derin doğrulama → staff upload UI → presigned boyut → dağıtık rate limit → worker çok-instance → KVKK kapsam → controller testleri.
-3. **P2 (iyileştirme):** UI cilası/erişilebilirlik → i18n → arama/rapor ölçek → config→DB → xlsx → repo hijyeni.
+**Güncel sıra (2026-08-05):**
 
-**Tek cümlelik durum:** İşlevsel olarak uçtan uca çalışıyor ve demo edilebilir; "gerçek internete açık prod" için eksik olan şey kod değil, **operasyonel sertleştirme** (TLS, secret, CAPTCHA, SMTP, gerçek S3/Docker e2e).
+1. ~~P0~~ **kapandı** — biri karar olarak (CAPTCHA bilinçli kapalı), biri kısmen (TLS yalnız MonsterASP yolunda).
+2. **P1'de açık kalanlar:** docx derin doğrulama (#8 tablosu) → dağıtık rate limit (#10) → worker çok-instance + retry backoff (#11) → KVKK kapsam/purge job (#12).
+3. **P2 (iyileştirme):** UI cilası/erişilebilirlik → i18n → arama/rapor ölçek → config→DB → xlsx → repo hijyeni.
+4. **Faz 28-29'dan eklenenler:** `IgnoreQueryFilters` tuzağına kalıcı koruma (teknik borç #36) → Brevo domain DKIM/DMARC doğrulaması (#33, üretim öncesi **yüksek**) → log gürültüsü/yanlış 500 alarmı (#35).
+
+**Tek cümlelik durum:** İşlevsel olarak uçtan uca çalışıyor ve demo edilebilir. "Gerçek internete açık prod" için kalanlar: **gönderici domain doğrulaması**, **Docker yolunda TLS**, ve CAPTCHA'nın kapalı bırakılmasının bilinçli kabulü. Faz 28'in dersi ayrıca duruyor: operasyonel liste yeşil olsa da çekirdek invaryantların **testi** ayrı bir güvencedir.

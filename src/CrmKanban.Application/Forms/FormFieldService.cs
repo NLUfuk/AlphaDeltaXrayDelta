@@ -80,8 +80,8 @@ public sealed class FormFieldService(IAppDbContext db, ICurrentUserService curre
         var userId = currentUser.UserId
             ?? throw new UnauthorizedException("auth.required", "Authentication required.");
         if (!currentUser.IsSuperAdmin &&
-            !await db.Memberships.IgnoreQueryFilters()
-                .AnyAsync(m => m.UserId == userId && m.CompanyId == companyId && m.Role == RoleType.Admin && m.DeletedAt == null, ct))
+            !await db.ActiveMemberships()
+                .AnyAsync(m => m.UserId == userId && m.CompanyId == companyId && m.Role == RoleType.Admin, ct))
             throw new ForbiddenException("formfield.forbidden", "Only the company admin or a super admin can manage form fields.");
         return userId;
     }

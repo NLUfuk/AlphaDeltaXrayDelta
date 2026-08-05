@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { toApiError } from '../lib/api'
-import { errorMessage, priority, statusCategory } from '../lib/messages'
+import { errorText, priority, statusCategory } from '../lib/messages'
 import { useCreateCustomerTicket } from '../lib/public'
 import { useMyCompanies, useMyTickets } from '../lib/tickets'
-import { Alert, Badge, Button, Field, Icon, Input } from '../ui/primitives'
+import { Alert, Badge, Button, Field, Icon, Input, Loading } from '../ui/primitives'
 
 // A customer's own ticket list (spec §17.4) + a "new message" composer that opens a request to a
 // company they pick from the public list. Customers aren't company members, so this is their portal.
@@ -12,7 +11,7 @@ export default function CustomerTickets() {
   const { data, isLoading, error } = useMyTickets()
   const [composing, setComposing] = useState(false)
 
-  if (isLoading) return <p className="text-muted">Yükleniyor…</p>
+  if (isLoading) return <Loading />
   if (error) return <p className="text-red-600">Talepler yüklenemedi.</p>
   const items = data?.items ?? []
 
@@ -67,8 +66,7 @@ function NewMessage({ onDone }: { onDone: () => void }) {
       await create.mutateAsync(form)
       onDone()
     } catch (err) {
-      const { code, message } = toApiError(err)
-      setError(errorMessage(code, message))
+      setError(errorText(err))
     }
   }
 

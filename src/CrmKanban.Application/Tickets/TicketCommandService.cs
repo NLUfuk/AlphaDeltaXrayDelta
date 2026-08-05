@@ -27,7 +27,7 @@ public sealed class TicketCommandService(
     {
         var userId = currentUser.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
         var isMember = currentUser.IsSuperAdmin ||
-            await db.Memberships.IgnoreQueryFilters().AnyAsync(m => m.UserId == userId && m.CompanyId == request.CompanyId, ct);
+            await db.ActiveMemberships().AnyAsync(m => m.UserId == userId && m.CompanyId == request.CompanyId, ct);
         if (!isMember)
             throw new ForbiddenException("ticket.create_forbidden", "You cannot create tickets in this company.");
 
@@ -97,7 +97,7 @@ public sealed class TicketCommandService(
         var old = ticket.AssignedToId;
         if (request.AssigneeUserId is { } assignee)
         {
-            var isMember = await db.Memberships.IgnoreQueryFilters()
+            var isMember = await db.ActiveMemberships()
                 .AnyAsync(m => m.UserId == assignee && m.CompanyId == ticket.CompanyId, ct);
             if (!isMember)
                 throw new ConflictException("ticket.assignee_not_member", "The assignee is not a member of this company.");

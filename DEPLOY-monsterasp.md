@@ -7,6 +7,7 @@ IIS tek-site'tir. Bu yüzden deploy şekli farklı:
   (`UseStaticFiles` + `MapFallbackToFile`). `/api/*` controller'lara, gerisi `index.html`'e gider.
 - **Self-contained publish:** .NET 10 runtime paketin içinde gelir → host'ta .NET kurulu olmasa da çalışır.
 - **DB:** MonsterASP.NET'in ücretsiz MSSQL'i (MinIO/SQL container yok).
+- **Bu dosya Docker yolunun alternatifidir**, ek adımı değil. Docker ile çalışıyorsan `README.md` + `up.ps1` yeterli.
 - **Dosya yükleme:** MinIO yok → varsayılan `Files__Provider=local` (host diski, ücretsiz); Azure Blob
   veya S3 de seçilebilir. Deposuz mesajlaşma çalışır. Bkz. §6.
 
@@ -36,11 +37,11 @@ formatında ayarla (repo'ya secret koyma):
 | `SuperAdmin__Email` / `SuperAdmin__Password` | ilk süper admin |
 | `App__PublicBaseUrl` | `https://<siten>.monsterasp.net` (maildeki linkler bunu kullanır) |
 | `Email__Provider` | `smtp` |
-| `Email__Host` / `Email__Port` / `Email__UseSsl` | `smtp.resend.com` / `587` / `true` (Resend; 465 KULLANMA — .NET STARTTLS ister) |
-| `Email__Username` / `Email__Password` | `resend` / Resend **API key** (`re_...`) |
-| `Email__From` | doğrulanmış domain'deki adres (ör. `no-reply@<domain>`) |
+| `Email__Host` / `Email__Port` / `Email__UseSsl` | `smtp-relay.brevo.com` / `587` / `true` (**Brevo** — projede kullanılan relay; 465 KULLANMA, .NET STARTTLS ister) |
+| `Email__Username` / `Email__Password` | Brevo SMTP kullanıcısı (`...@smtp-brevo.com`) / Brevo **SMTP key** (`xsmtpsib-...`) |
+| `Email__From` / `Email__FromName` | Brevo'da **doğrulanmış** domain'deki adres (ör. `no-reply@<domain>`) / görünen gönderici adı |
 | `Seed__Demo` | ilk demo için `true`, gerçek prod'da `false` |
-| `Files__Provider` | dosya deposu: `local` (ücretsiz, host diski — varsayılan) / `azure` / `s3` (bkz. §6) |
+| `Files__Provider` | dosya deposu: `local` (ücretsiz, host diski — **bu deploy için önerilen**) / `azure` / `s3`. Kodda varsayılan `s3`, o yüzden `local` istiyorsan **yaz** (bkz. §6) |
 
 > ASP.NET Core config sağlayıcısı env var'ları `Section:Key` olarak okur; `__` (çift alt çizgi) `:` demektir.
 
@@ -64,7 +65,8 @@ zaman backend-proxy (`PutAsync`/`GetAsync`), presigned yol kullanılmaz.
 
 ### 6a. Host diski — ÜCRETSİZ, seçilen varsayılan (MVP/test)
 Ek bulut hesabı/ücret yok; dosyalar hosting'in kendi diskinde, servis edilmeyen bir klasörde.
-- `Files__Provider=local`
+- `Files__Provider=local` — **bunu açıkça yazman gerekiyor.** Kodda varsayılan `s3`
+  (`DependencyInjection.cs`), yani env verilmezse S3 aranır ve dosya yolu ayağa kalkmaz.
 - (opsiyonel) `LocalStorage__RootPath=<mutlak yol>` — boşsa `App_Data/uploads` (content root altında).
 `App_Data` IIS tarafından public servis edilmez; indirme yalnız yetkili API proxy'sinden geçer.
 **Dikkat:** dosyalar host diskinde durur → deploy'da `App_Data` klasörünü silme/üzerine yazma;
@@ -88,10 +90,10 @@ Deposuz da çalışır: dosya yükleme buton/akışı hata verir, mesajlaşma ve
   `stdoutLogEnabled="true"` yapıp `logs/` altındaki çıktıyı oku, sonra kapat.
 - **.NET sürüm hatası:** self-contained publish bunu çözer (runtime içeride). Framework-dependent
   yayınlama yaptıysan host'ta .NET 10 olmayabilir → self-contained kullan.
-- **Mail gitmiyor:** Resend'de domain **doğrulanmış** olmalı; `From` o domain'den; user=`resend`, pass=API key; port **587** (465 değil — .NET `System.Net.Mail` implicit SSL/465 desteklemez, STARTTLS/587 ister).
+- **Mail gitmiyor:** Brevo'da domain **doğrulanmış** olmalı (Domains → DKIM/DMARC kayıtları); `From` o domain'den; user = Brevo SMTP kullanıcısı, pass = SMTP key; port **587** (465 değil — .NET `System.Net.Mail` implicit SSL/465 desteklemez, STARTTLS/587 ister). Domain doğrulanmadan Brevo gönderici adresini `...@<id>.brevosend.com` olarak yeniden yazar; Gmail/Yahoo bunu spam'e atabilir (PROGRESS teknik borç #33). Gönderim durumunu `EmailQueue.Status` / `LastError` sütunlarından oku.
 - **Şema oluşmadı:** ilk request'te migration çalışır; DB kullanıcısının tablo oluşturma yetkisi olmalı.
 
 ## 8. Bilinen sınırlar (bu deploy)
 - MonsterASP.NET ücretsiz katman inaktiviteden sonra uygulamayı uyutabilir (ilk istek yavaş).
 - Migration'lar açılışta koşar (tek-instance için uygun). Çok-instance'a geçilirse ayrı migration adımı gerekir (PROGRESS teknik borç #6).
-- Dosya depolama S3'e bağlı (yukarıda); host disk kullanılmaz (spec §12).
+- **Dosya depolama `Files__Provider` ile seçilir** (§6). Bu deploy'da varsayılan olarak `local` (host diski) öneriliyor çünkü ücretsiz; `s3`/`azure` de çalışır. *(Bu madde daha önce "host disk kullanılmaz, S3'e bağlı" diyordu — §6a ile çelişiyordu; Faz 29'da düzeltildi. Spec §12 de artık üç provider'ı listeliyor.)*

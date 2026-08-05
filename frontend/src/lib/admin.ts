@@ -16,8 +16,19 @@ export type UserRow = {
 }
 export type Company = { id: string; name: string; slug: string; ownerAdminId: string; isActive: boolean; isArchived: boolean; ticketNumberPrefix: string }
 export type Member = { userId: string; email: string; name: string; role: number }
-export type PermissionInfo = { key: string; group: string; label: string; groupLabel: string }
-export type Effective = { userId: string; companyId: string; permissions: string[] }
+export type PermissionInfo = {
+  key: string; group: string; label: string; groupLabel: string
+  description: string
+  /** True when only a super admin can satisfy the key — a per-company switch would do nothing. */
+  globalOnly: boolean
+}
+/** `roleBaseline` is what the member's ROLE alone grants and `overridden` lists the keys carrying an
+ * explicit user-level row — together they let the switch say whether "on" comes from the role or from
+ * a grant, and whether there is an override to clear. */
+export type Effective = {
+  userId: string; companyId: string
+  permissions: string[]; roleBaseline: string[]; overridden: string[]
+}
 export type InviteResult = { userId: string; rawToken: string; expiresAt: string }
 
 // ---- users / admins (super admin) ----
@@ -57,6 +68,16 @@ export function useCreateCompany() {
   return useMutation({
     mutationFn: async (v: { name: string; slug: string; ownerAdminId?: string }) =>
       (await api.post<Company>('/companies', v)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['companies'] }),
+  })
+}
+/** Deletes a company. `confirmName` must equal the company name — the server re-checks it, so the
+ * typed confirmation is a real gate, not just UI decoration. */
+export function useDeleteCompany() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { companyId: string; confirmName: string }) =>
+      api.delete(`/companies/${v.companyId}`, { data: { confirmName: v.confirmName } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['companies'] }),
   })
 }
@@ -101,6 +122,15 @@ export function useAssignPermission() {
     // type: 0 = Grant, 1 = Deny (backend UserPermissionType)
     mutationFn: (v: { userId: string; companyId: string; permissionKey: string; type: number }) =>
       api.post('/permissions/assign', v),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['effective', v.userId, v.companyId] }),
+  })
+}
+/** Drops the explicit override so the key follows the role again — the third state Grant/Deny can't express. */
+export function useClearPermission() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { userId: string; companyId: string; permissionKey: string }) =>
+      api.delete('/permissions/assign', { params: v }),
     onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['effective', v.userId, v.companyId] }),
   })
 }

@@ -4,6 +4,19 @@ Multi-tenant CRM with a Kanban ticket pipeline. .NET 10 (Clean Architecture) + R
 
 - Architecture and spec: `crm-kanban-mimari.md`
 - Progress, decisions, tech debt: `PROGRESS.md`
+- Roadmap and deferred suggestions: `ONERILER.md`
+- Requirement checklist (with evidence): `CRM_Kanban_Gereksinim_Listesi.md`
+- Deploying to IIS / MonsterASP.NET instead of Docker: `DEPLOY-monsterasp.md`
+
+## Quickest start (Windows, Docker)
+
+```powershell
+./up.ps1            # generates .env with random secrets, builds, starts, waits for readiness
+./up.ps1 -Down      # stop
+./up.ps1 -Reset     # stop and wipe volumes (DB + files)
+```
+
+First run prints the generated super-admin password. Everything below is the manual equivalent.
 
 ## Local development
 
@@ -59,7 +72,14 @@ serving the SPA and reverse-proxying `/api` (same origin, no CORS).
 
 4. Log in with `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (you are forced to change the password on
    first login). From there: create an admin, the admin opens a company, invites staff, assigns
-   permissions, and shares the public form link `/form/<company-slug>`.
+   permissions, and shares one of the two customer entry points:
+
+   | Link | Who it is for |
+   |---|---|
+   | `/form/<slug>` | Anonymous public form — no account needed. A submission from an unknown email lands in **moderation** (`/moderation`) and reaches the board only once approved. |
+   | `/c/<slug>` | The company's own sign-in page — the customer registers, gets a 6-digit code by email, and their requests go straight to the board. |
+
+   Staff work the board at `/` (kanban), customers see a plain list of their own requests.
 
 ### Configuration (all overridable via environment, `Section__Key`)
 
@@ -67,10 +87,27 @@ serving the SPA and reverse-proxying `/api` (same origin, no CORS).
 |---|---|
 | `ConnectionStrings__Default` | SQL Server connection |
 | `Jwt__SigningKey` | JWT signing secret (required, keep out of source) |
-| `S3__ServiceUrl` / `S3__BucketName` / `S3__AccessKey` / `S3__SecretKey` | S3-compatible storage |
 | `SuperAdmin__Email` / `SuperAdmin__Password` | first super admin (seeded once) |
-| `Email__Provider` | `log` (console) or `smtp` (needs `Email__Host/Port/User/Password`) |
+| **`App__PublicBaseUrl`** | absolute base for links in outgoing mail (invite, verification code). **Wrong value = every emailed link is broken** — set it to the URL users actually reach. |
+| `Files__Provider` | `s3` (default), `local` (host disk, `LocalStorage__RootPath`), or `azure` (`AzureBlob__ConnectionString`) |
+| `S3__BucketName` / `S3__AccessKey` / `S3__SecretKey` / `S3__Region` | S3 storage. `S3__ServiceUrl` empty for AWS, set for MinIO/R2/B2; `S3__ForcePathStyle` `true` for MinIO, `false` for AWS |
+| `Email__Provider` | `log` (console) or `smtp` |
+| `Email__Host` / `Email__Port` / `Email__UseSsl` | SMTP relay. Port **587** with STARTTLS — `System.Net.Mail` cannot do implicit SSL on 465 |
+| `Email__Username` / `Email__Password` / `Email__From` / `Email__FromName` | SMTP credentials and sender identity. `From` must be on a domain verified at the relay, or mail is rewritten/rejected |
+| `Seed__Demo` | `true` seeds two demo companies with tickets (handy for a first look, **`false` in real production**) |
 | `Captcha__Enabled` | leave `false` until a provider is wired — `true` without one fails closed |
+
+In Docker these are set from `.env` (see `.env.example`); `docker-compose.yml` maps each `UPPER_SNAKE`
+variable to its `Section__Key`. Outside Docker, set `Section__Key` directly in the environment.
+
+## Deploy — IIS / MonsterASP.NET (no Docker)
+
+```powershell
+./publish.ps1       # SPA build -> API wwwroot -> self-contained win-x64 publish into ./publish
+```
+
+Upload the contents of `./publish` to the site root and set the config keys above in the panel's
+environment variables. Full walkthrough, including the storage options: `DEPLOY-monsterasp.md`.
 
 ### Production notes
 

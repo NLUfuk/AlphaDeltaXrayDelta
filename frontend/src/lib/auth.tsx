@@ -17,6 +17,8 @@ type AuthContext = {
   login: (email: string, password: string) => Promise<void>
   /** Adopts a session minted elsewhere (customer code verification returns the same AuthResult). */
   adoptSession: (result: { accessToken: string; refreshToken: string; user: User }) => void
+  /** Re-mints the token after a membership change (company opened/deleted). */
+  refreshSession: () => Promise<void>
   logout: () => Promise<void>
   impersonate: (userId: string) => Promise<void>
   stopImpersonation: () => Promise<void>
@@ -50,6 +52,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(result.user)
   }
 
+  // Tenant scope lives in the access token's company_id claims, so a company opened (or deleted) after
+  // login stays invisible to every scoped endpoint until the token is re-minted. Refresh re-reads the
+  // memberships, so calling this right after the mutation makes the new company usable immediately
+  // instead of after the ~15 min token lifetime.
+  async function refreshSession() {
+    const rt = tokens.refresh()
+    if (!rt) return
+    const { data } = await api.post('/auth/refresh', { refreshToken: rt })
+    tokens.set(data.accessToken, data.refreshToken)
+    setUser(data.user)
+  }
+
   async function logout() {
     const rt = tokens.refresh()
     if (rt) await api.post('/auth/logout', { refreshToken: rt }).catch(() => {})
@@ -81,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Ctx.Provider value={{ user, loading, impersonating, login, adoptSession, logout, impersonate, stopImpersonation }}>
+    <Ctx.Provider value={{ user, loading, impersonating, login, adoptSession, refreshSession, logout, impersonate, stopImpersonation }}>
       {children}
     </Ctx.Provider>
   )

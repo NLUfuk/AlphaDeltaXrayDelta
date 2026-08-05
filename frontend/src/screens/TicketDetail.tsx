@@ -8,7 +8,7 @@ import {
   useAddComment, useAssignTicket, useChangeTicketStatus, useSetTicketPriority, useStatuses, useTicket, useUploadAttachment,
   type Attachment,
 } from '../lib/tickets'
-import { Badge, Button, Card, Icon, Input } from '../ui/primitives'
+import { Badge, Button, Card, Icon, Input, Loading } from '../ui/primitives'
 
 // Server-side allow-list mirrored for the picker; the backend re-checks bytes either way.
 const ACCEPT = '.png,.jpg,.jpeg,.webp,.pdf,.txt,.doc,.docx'
@@ -43,7 +43,7 @@ export default function TicketDetail() {
   const [body, setBody] = useState('')
   const [internal, setInternal] = useState(false)
 
-  if (isLoading) return <p className="text-muted">Yükleniyor…</p>
+  if (isLoading) return <Loading />
   if (error || !ticket) return <p className="text-red-600">Ticket yüklenemedi.</p>
 
   const cat = statusCategory(ticket.category)

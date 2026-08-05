@@ -4,6 +4,10 @@ namespace CrmKanban.Application.Companies;
 /// an admin's behalf; an admin caller always owns the company they create.</summary>
 public sealed record CreateCompanyRequest(string Name, string Slug, Guid? OwnerAdminId = null);
 
+/// <summary>Delete confirmation (spec §18.20 keeps the rows — this is a soft delete). The caller must echo
+/// the company name back; it is the second gate after the UI's own confirm step.</summary>
+public sealed record DeleteCompanyRequest(string ConfirmName);
+
 public sealed record CompanyDto(Guid Id, string Name, string Slug, Guid OwnerAdminId, bool IsActive, bool IsArchived, string TicketNumberPrefix);
 
 /// <summary>A company member (staff), for assignment and permission-target pickers.</summary>

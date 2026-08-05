@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { GROUP_LABELS, SETTING_LABELS, useSettings, useUpdateSetting } from '../lib/settings'
-import { Button, Card, Input } from '../ui/primitives'
+import { Button, Card, Input, Loading } from '../ui/primitives'
 
 // Super-admin settings (spec §13), Odoo-style: left group sidebar + a top save bar that persists all
 // dirty rows at once. Backend enforces the SuperAdmin gate (403 → error below). Text lives in the catalog.
@@ -15,7 +15,7 @@ export default function Settings() {
   const rows = data?.filter((s) => s.group === active) ?? []
   const dirty = rows.filter((s) => edits[s.key] !== undefined && edits[s.key] !== s.value)
 
-  if (isLoading) return <p className="text-muted">Yükleniyor…</p>
+  if (isLoading) return <Loading />
   if (error) return <p className="text-red-600">Ayarlar yüklenemedi (süper admin gerekli).</p>
 
   async function save() {

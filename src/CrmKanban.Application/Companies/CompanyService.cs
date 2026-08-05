@@ -7,8 +7,9 @@ using Microsoft.EntityFrameworkCore;
 namespace CrmKanban.Application.Companies;
 
 /// <summary>
-/// Company lifecycle (spec §8, §9, §18.8, §18.20). An admin opens their own company (owner + Admin
-/// membership); a super admin may open one on an admin's behalf. Companies are archived, never deleted.
+/// Company lifecycle (spec §8, §9, §18.8, §18.20). An admin opens their own companies (owner + Admin
+/// membership per company, no limit on how many); a super admin may open one on an admin's behalf.
+/// Archive closes the intake; delete additionally hides the tenant — both are soft, nothing cascades.
 /// Uniqueness of the slug is checked across ALL tenants (IgnoreQueryFilters) — the form link is global.
 /// </summary>
 public sealed class CompanyService(IAppDbContext db, ICurrentUserService currentUser, IClock clock)
@@ -57,8 +58,8 @@ public sealed class CompanyService(IAppDbContext db, ICurrentUserService current
         if (!currentUser.IsSuperAdmin)
         {
             var userId = RequireUserId();
-            var companyIds = await db.Memberships.IgnoreQueryFilters()
-                .Where(m => m.UserId == userId && m.DeletedAt == null).Select(m => m.CompanyId).ToListAsync(ct);
+            var companyIds = await db.ActiveMemberships()
+                .Where(m => m.UserId == userId).Select(m => m.CompanyId).ToListAsync(ct);
             q = q.Where(c => companyIds.Contains(c.Id));
         }
         return await q.OrderBy(c => c.Name).Select(c => ToDto(c)).ToListAsync(ct);
@@ -78,16 +79,44 @@ public sealed class CompanyService(IAppDbContext db, ICurrentUserService current
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Deletes a company. Destructive, so it takes two gates: only the OWNER admin (not any
+    /// company admin) or a super admin may call it, and the caller must echo the company name back —
+    /// the UI's confirm step is the first gate, this is the second, server-side one.
+    /// The row is soft-deleted (spec §18.20: no cascade, tickets/audit stay readable in the DB) and the
+    /// company is retired, which closes every write path that guards on IsArchived/IsActive and frees
+    /// the public slug. Memberships go with it so the tenant disappears from everyone's session.</summary>
+    public async Task DeleteAsync(Guid companyId, DeleteCompanyRequest request, CancellationToken ct = default)
+    {
+        var userId = RequireUserId();
+        var company = await db.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == companyId && c.DeletedAt == null, ct)
+            ?? throw new NotFoundException("company.not_found", "Company not found.");
+
+        if (!currentUser.IsSuperAdmin && company.OwnerAdminId != userId)
+            throw new ForbiddenException("company.delete_forbidden", "Only the owner admin or a super admin can delete a company.");
+
+        if (!string.Equals(request.ConfirmName.Trim(), company.Name, StringComparison.OrdinalIgnoreCase))
+            throw new BadRequestException("company.delete_name_mismatch", "The confirmation name does not match the company name.");
+
+        var memberships = await db.Memberships.IgnoreQueryFilters()
+            .Where(m => m.CompanyId == companyId && m.DeletedAt == null).ToListAsync(ct);
+
+        company.Retire(clock.UtcNow);
+        db.Memberships.RemoveRange(memberships); // interceptor soft-deletes
+        db.Companies.Remove(company);
+        db.AuditLogs.Add(new AuditLog(userId, "company.delete", $"{company.Name} ({companyId}) members {memberships.Count}"));
+        await db.SaveChangesAsync(ct);
+    }
+
     /// <summary>Members (staff) of a company, for assignment/permission pickers. Caller must be a member or super admin.</summary>
     public async Task<IReadOnlyList<MemberDto>> ListMembersAsync(Guid companyId, CancellationToken ct = default)
     {
         var userId = RequireUserId();
-        if (!currentUser.IsSuperAdmin && !await db.Memberships.IgnoreQueryFilters().AnyAsync(m => m.UserId == userId && m.CompanyId == companyId, ct))
+        if (!currentUser.IsSuperAdmin && !await db.ActiveMemberships().AnyAsync(m => m.UserId == userId && m.CompanyId == companyId, ct))
             throw new ForbiddenException("company.members_forbidden", "You are not a member of this company.");
 
         // A super admin is never listed as a staff member — it must stay invisible in assignment/
         // permission pickers to everyone (spec §9: super admin sits above tenants, is not "staff").
-        return await (from m in db.Memberships.IgnoreQueryFilters().Where(m => m.CompanyId == companyId && m.DeletedAt == null)
+        return await (from m in db.ActiveMemberships().Where(m => m.CompanyId == companyId)
                       join u in db.Users.IgnoreQueryFilters() on m.UserId equals u.Id
                       where !u.IsSuperAdmin
                       orderby u.FirstName
@@ -109,8 +138,8 @@ public sealed class CompanyService(IAppDbContext db, ICurrentUserService current
         if (company.OwnerAdminId == userId)
             throw new BadRequestException("company.owner_immutable", "The company owner cannot be removed.");
 
-        var membership = await db.Memberships.IgnoreQueryFilters()
-            .FirstOrDefaultAsync(m => m.CompanyId == companyId && m.UserId == userId && m.DeletedAt == null, ct)
+        var membership = await db.ActiveMemberships()
+            .FirstOrDefaultAsync(m => m.CompanyId == companyId && m.UserId == userId, ct)
             ?? throw new NotFoundException("membership.not_found", "This user is not a member of the company.");
 
         db.Memberships.Remove(membership); // interceptor soft-deletes
@@ -119,7 +148,7 @@ public sealed class CompanyService(IAppDbContext db, ICurrentUserService current
     }
 
     private async Task<bool> IsAdminOfAsync(Guid userId, Guid companyId, CancellationToken ct) =>
-        await db.Memberships.IgnoreQueryFilters()
+        await db.ActiveMemberships()
             .AnyAsync(m => m.UserId == userId && m.CompanyId == companyId && m.Role == RoleType.Admin, ct);
 
     private Guid RequireUserId() =>

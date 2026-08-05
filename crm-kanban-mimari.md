@@ -31,11 +31,11 @@ Belirsiz noktalarda kullanılan üç kural (§18'deki kararlar bunlarla verildi)
 
 | Konu | Karar | Not |
 |---|---|---|
-| Backend | **.NET 8 (LTS), Clean Architecture** | ÖNERİ (§18.6). v3'ün çalışan katman yapısı taşınır, craft hataları düzeltilerek (§4) |
+| Backend | **.NET 10 (LTS), Clean Architecture** | §18.6'da .NET 8 önerilmişti; makinede 8 SDK yoktu, 10 güncel LTS → **Faz 0'da .NET 10'a alındı** (kullanıcı onayı). v3'ün çalışan katman yapısı taşınır, craft hataları düzeltilerek (§4) |
 | ORM / DB | EF Core + **MSSQL** | v3 ile aynı |
 | Auth | **JWT (~15dk) + refresh (DB'de hash, rotasyonlu)** | `[Authorize]` + policy + permission-based authorization (§7) |
 | ID'ler | **GUID** (tüm PK) | Ticket'ın ayrıca insan-okur numarası var (§11) |
-| Dosya | **S3-uyumlu** (AWS S3 / MinIO) | Bucket public DEĞİL, presigned URL (§12) |
+| Dosya | **S3-uyumlu** (AWS S3 / MinIO), `IFileStorage` seam'i (`s3`/`local`/`azure`) | Bucket public DEĞİL. **Presigned yol Faz 12'de kaldırıldı** — yükleme/indirme API-proxy (§12) |
 | E-posta | **SMTP + kuyruk** (arka plan worker) | İstek döngüsünde mail YOK; şablonlar DB'de (§14) |
 | Frontend | **React 19 + Vite + TanStack Query v5 + Tailwind** | Component disiplini §4.2/§4.3 |
 | Loglama | Serilog | v3'ten korunur |
@@ -46,7 +46,7 @@ Belirsiz noktalarda kullanılan üç kural (§18'deki kararlar bunlarla verildi)
 > iletişir" + "component tabanlı UI" ile birlikte kastedilen: **katmanlı backend (Clean
 > Architecture) + React SPA, aralarında REST.** Klasik sunucu-render MVC değil.
 
-## 4. Eski Projeden Taşınacak Düzeltmeler ( geri bildirimi — ÖDÜL KOŞULU)
+## 4. Eski Projeden Taşınacak Düzeltmeler (müşteri geri bildirimi — ÖDÜL KOŞULU)
 
 Üç somut günah, üç somut kural. PROGRESS.md'de ayrı blokla, dosya referanslarıyla takip edilir —
 review'da tek tek gösterilebilir olmalı.
@@ -183,13 +183,19 @@ kayıt olamaz — aksi hâlde biri kendini admin yapar.
 Tümü GUID PK, `CreatedAt`/`UpdatedAt`, soft-delete `DeletedAt`.
 
 **Companies**: Id, Name, Slug (form linki), OwnerAdminId, IsActive, **ArchivedAt** (silme yerine
-arşiv — §18.20)
-**Users**: Id, Email (global unique), FirstName, LastName, PasswordHash, IsActive
-**Memberships**: Id, UserId, CompanyId, Role (Admin/Personel) — çoka-çok
+arşiv — §18.20), **NextTicketNumber + TicketNumberPrefix** (şirket başına artan no — §18.16)
+**Users**: Id, Email (global unique), FirstName, LastName, PasswordHash, IsActive,
+**MustChangePassword** (§9), **CanCreateCompany** (§18.8 — süper adminin açtığı admin hesabında true)
+**Memberships**: Id, UserId, CompanyId, Role (Admin/Personel) — çoka-çok.
+`(UserId, CompanyId)` **tekil indeksli**; üyelik iptali soft-delete olduğu için satır indeksi tutmaya
+devam eder → yeniden davet **eski satırı diriltir**, yeni satır eklemez (Faz 28).
 **Roles / Permissions / RolePermissions / UserPermissions** (§7)
 **Tickets**: Id, **Number** (şirket başına artan, önekli — `ACME-1042`, format ayardan), CompanyId,
 OpenedById, AssignedToId (nullable), StatusId, CategoryId (nullable), **Priority** (enum, vars.
-Normal), Title, Body, **FirstResponseAt**, **ResolvedAt**, ClosedAt
+Normal), Title, Body, **FirstResponseAt**, **ResolvedAt**, ClosedAt,
+**ApprovalState** (Approved/Pending/Rejected, vars. Approved — Faz 7c zero-trust intake: bilinmeyen
+e-postadan gelen ilk public form talebi `Pending` doğar, kanban/personel listesi onu dışlar, moderasyon
+kuyruğunda onaylanınca havuza girer), **CustomFieldsJson** (§4.6 form alanlarının denormalize değeri)
 **TicketStatuses**: Id, CompanyId (nullable = global default), Name, **Category** (enum:
 open/pending/answered/waiting/closed/cancelled), Color, Order, IsTerminal
 **StatusTransitions**: Id, FromStatusId, ToStatusId, AllowedByPermissionKey
@@ -207,6 +213,11 @@ NewValue, CreatedAt
 **UserNotificationPrefs**: Id, UserId, EventType, Enabled (kritik-olmayan mailleri kapatma)
 **RefreshTokens**: Id, UserId, TokenHash, ExpiresAt, RevokedAt
 **AuditLogs**: Id, ActorId, Action, Detail (yetki/ayar değişiklikleri)
+**Invitations**: Id, UserId, TokenHash, ExpiresAt, InvitedById, UsedAt, **Kind** + **Attempts**
+(Faz 23: aynı tek-kullanım mekanizması hem davet linkini hem müşteri giriş sayfasının **6 haneli
+kodunu** taşır; `Attempts` kod denemesini satır bazında sınırlar — ayrı bir token tablosu açılmadı)
+**FormFields**: Id, CompanyId, Label, Type, Required, SortOrder, Options (§4.6 — public formun
+şirkete özel ek alanları; değerler `Ticket.CustomFieldsJson`'a yazılır)
 
 ## 12. Ticket State Machine + Dosya
 
@@ -226,9 +237,19 @@ yönetecek. **Kod kategoriye bakar, isme asla** (§4.3).
   (§18.2).
 
 **Dosya/görsel (S3):**
-- Bucket **public değil**. Yükleme **presigned PUT** ile doğrudan tarayıcıdan; okuma **kısa ömürlü
-  presigned GET**. Sunucu tarafında tip + boyut doğrulaması.
+- Bucket **public değil**. ~~Yükleme presigned PUT ile doğrudan tarayıcıdan; okuma kısa ömürlü
+  presigned GET.~~ → **Faz 12'de değişti: her iki yön de API-proxy.** Yükleme
+  `POST /api/tickets/{id}/attachments` (IFormFile → `IFileStorage.PutAsync`), indirme
+  `GET /api/tickets/attachments/{id}/download` baytı stream eder (`GetAsync`).
+  *Neden:* presigned URL depo host'uyla imzalanır (`minio:9000` / bucket endpoint'i); tarayıcı o host'a
+  erişemediği için presigned yol bu topolojide **hiç çalışmadı**. Ayrıca presigned PUT'ta boyut sunucuda
+  zorlanamıyordu. Proxy topolojiden bağımsız (tarayıcı → same-origin `/api` → API → depo) ve boyutu
+  sunucuda ölçer. Bedeli: baytlar API üzerinden geçer (10 MB limitinde kabul).
+- Tip + boyut doğrulaması **sunucuda**: uzantı + content-type + **magic byte** eşleşmesi
+  (`PublicFileValidator`), boyut istemci beyanından değil akıştan ölçülür.
 - Varsayılan (ayardan): görsel + PDF + Office, **10 MB**, yorum başına **5 dosya** (§18.13).
+- Depo seçimi `Files:Provider` ile: `s3` (varsayılan, AWS/MinIO/R2/B2), `local` (host diski),
+  `azure` (Blob). Seam üçe de aynı arayüzle bakar.
 
 ## 13. Global Ayarlar & "Sistem Dosyası" Çelişkisinin Çözümü
 
@@ -267,7 +288,17 @@ alıcı matrisi Settings'te yaşar, süper admin arayüzden açar/kapatır. Vars
 | **İç not yazıldı** | **✖** | ✔ | ✔ |
 | Ticket atandı | ✖ | ✔ | ✖ |
 | Müşteri yorum yazdı | ✖ | ✔ | ✖ |
-| Öncelik/kategori değişti | ✖ | ✖ | ✖ |
+| Öncelik/kategori değişti | ✖ | **✔** | ✖ |
+| Dosya eklendi | ✔ | ✔ | ✖ |
+| Başlık/içerik düzenlendi | ✔ | ✔ | ✖ |
+| Moderasyonda onaylandı / reddedildi | ✔ | ✔ | ✖ |
+
+> **Faz 13-28'de matrise eklenenler** (yukarıda kalın/yeni satırlar): öncelik ve kategori değişimi
+> **atanan personele** gidiyor — müşteriye hâlâ gitmiyor, çünkü ikisi de iç triyaj bilgisi. Dosya
+> eklenmesi ve başlık/içerik düzenlemesi müşteriye de gidiyor (§18.1'in "her değişiklikte haber ver"
+> niyeti; içerik değişikliğini müşteriden saklamak için sebep yok). Moderasyon sonucu müşteriye gider,
+> **ret kritik** (opt-out edilemez) — talebinin işleme alınmadığını öğrenmek zorunda.
+> Bildirilmeyenler: silme, atama kaldırma.
 
 **Altın kural: kimseye kendi yaptığı işlemin mailini gönderme.** Bu tek kural spam şikayetlerinin
 yarısını keser.
@@ -304,7 +335,7 @@ yarısını keser.
    kapsam kontrolü, davet akışları. **Test-first.**
 4. **Faz 3 — Ticket Pipeline:** CRUD (kapsam guard'ı), statü/geçiş, atama, yorum + iç not,
    düzenleme geçmişi, TicketEvents, **arama/filtre/sayfalama (sunucu tarafı — opsiyonel değil)**.
-   → ** demo noktası** (§18.21).
+   → **ilk demo noktası** (§18.21).
 5. **Faz 4 — Public Form + S3:** slug'lı form, kimliksiz açma + davet, rate limit + CAPTCHA,
    presigned upload/download, formda dosya.
 6. **Faz 5 — Bildirim:** EmailQueue + worker, şablonlar, olay matrisi, debounce, tercihler.
@@ -339,11 +370,16 @@ doküman güncellenir.
    yetkileri.
 5. Self-servis kayıt yalnızca Customer. Admin'i süper admin açar; personeli/2. admini admin davet
    eder.
-6. Yığın: .NET 8 + MSSQL + React — **öneri**, onaylanabilir.
+6. Yığın: .NET 8 + MSSQL + React — **öneri**, onaylanabilir. → **Faz 0'da .NET 10'a alındı**
+   (makinede 8 SDK yoktu, 10 güncel LTS; kullanıcı onayladı). MSSQL + React değişmedi. Bkz. §3.
 7. "E-posta ile kayıt" = klasik kayıt + davet/şifre belirleme linki (magic link değil).
 8. Şirketi admin kendi oluşturur (brief), hesabı süper admin açar.
-9. Statüler: süper admin global varsayılan set. Şema şirket-özel override'a hazır ama v1'de kapalı
-   (seam var, özellik yok).
+9. Statüler: süper admin global varsayılan set. ~~Şema şirket-özel override'a hazır ama v1'de kapalı
+   (seam var, özellik yok).~~ → **Faz 7b'de açıldı:** `/admin/columns` ile şirket kendi sütunlarını
+   ekler/sıralar/yeniden adlandırır/siler. İlk özelleştirmede global set **fork**lanır ve şirketin
+   ticket'ları klona **migrate** edilir (ticket öksüz kalmaz); yeni sütun geçiş grafiğine otomatik
+   zincirlenir. *Neden açıldı:* kanban sütunu müşterinin kendi süreci; sabit 6 sütun brief'in
+   "statüler admin tarafından değiştirilebilmeli" maddesini karşılamıyordu.
 
 **Ticket davranışı**
 10. Müşteri İptal/Tamamlandı yapabilir, yalnız terminal olmayan statüde.
@@ -357,13 +393,30 @@ doküman güncellenir.
 18. Kategori: şirket bazında tanımlanabilir liste (rapor kırılımı).
 19. Email-to-ticket **v2**, ama `Comment.Source` alanı şimdi konur (sonra ucuz olsun).
 20. Şirket silinmez, **arşivlenir**: form linki kapanır, veri okunur kalır. Cascade delete YOK.
+    → **Faz 27'de kullanıcı isteğiyle "silme" eklendi, ama arşiv ilkesi korunarak:** silme
+    *kullanıcı için* silme (her listeden kalkar, public link kapanır, üyelikler biter, slug serbest
+    kalır), *veri için* arşiv (satır `DeletedAt` ile duruyor, talep/audit/KVKK zinciri kırılmıyor,
+    cascade yok). Çift onay: UI paneli + şirket adının sunucuda doğrulanması. Hard delete hâlâ YOK.
 
+**Teslim & süreç**
+
+21. **Faz 3 sonu demo noktası.** Ticket pipeline biten ilk uçtan uca gösterilebilir durum; teslim
+    fazlı yapılır, tek büyük teslim beklenmez. *(Bu madde 4 yerden referans alınıyordu ama Rev 2'de
+    numaralandırma 20'den 23'e atladığı için hiç yazılmamıştı — Faz 29 denetiminde eklendi.)*
+22. **Her faz sonunda build + testler yeşil, spec + PROGRESS.md güncellenir** (§17'nin son cümlesinin
+    karar hâli). *(Aynı boşluktan; Faz 29'da eklendi. Bu maddenin kendisi 16 faz boyunca spec tarafında
+    ihlal edildi — PROGRESS güncellendi, spec güncellenmedi; Faz 29 bunu kapattı.)*
 23. Hazır mockup/tasarım var mı? Yoksa 2-3 ana ekran önce onaya sunulur.
+    → **Karara bağlandı (Faz 25-26):** hazır tasarım yok; **StarAdmin** görsel kimliği tokenize
+    edilerek benimsendi (koyu tema + collapse sidebar dahil).
 24. Deploy ortamı, S3 sağlayıcısı (AWS/MinIO), SMTP sağlayıcısı — Faz 4-5'i doğrudan etkiler.
+    → **Karara bağlandı:** deploy = Docker Compose (lokal/VPS) **veya** MonsterASP.NET tek-site
+    self-contained (`DEPLOY-monsterasp.md`); depo = **AWS S3** (`eu-north-1`, tek-bucket IAM
+    kullanıcısı); SMTP = **Brevo** (transactional relay).
 
 ## 19. Scope DIŞI — Outbound Kampanya/Teklif
 
-S�zlü konuşulan "telekom/call-center tarzı, profile göre kampanya/teklif" katmanı bu brief'te
+Sözlü konuşulan "telekom/call-center tarzı, profile göre kampanya/teklif" katmanı bu brief'te
 YOK. Core ticketing'i şişirmemek için scope dışı (YAGNI). İleride ayrı modül olarak: müşteri
 havuzu + segment + teklif + kampanya + izin/İYS süzgeci + sonuç kodu. Şimdilik kod yazılmaz.
 

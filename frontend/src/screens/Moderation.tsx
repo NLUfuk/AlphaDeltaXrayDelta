@@ -1,13 +1,12 @@
 import { Link } from 'react-router-dom'
-import { useAuth } from '../lib/auth'
+import { useActiveCompany } from '../lib/company'
 import { useApproveTicket, useModeration, useRejectTicket } from '../lib/tickets'
-import { Button, Card, Icon } from '../ui/primitives'
+import { Button, Card, Icon, Loading } from '../ui/primitives'
 
 // Zero-trust intake queue (spec §10): first-time public submissions land here and stay out of the
 // board until a staff member approves them. Reject dismisses for good.
 export default function Moderation() {
-  const { user } = useAuth()
-  const companyId = user?.companies[0]?.companyId
+  const companyId = useActiveCompany()
   const { data: pending, isLoading } = useModeration(companyId)
   const approve = useApproveTicket(companyId)
   const reject = useRejectTicket(companyId)
@@ -21,7 +20,7 @@ export default function Moderation() {
         <p className="text-sm text-muted">İlk kez gelen müşterilerin talepleri, havuza girmeden önce burada onaylanır.</p>
       </header>
 
-      {isLoading && <p className="text-sm text-muted">Yükleniyor…</p>}
+      {isLoading && <Loading className="text-sm" />}
       {pending && pending.length === 0 && (
         <Card className="flex items-center gap-3 p-6 text-sm text-muted">
           <Icon name="check-circle-outline" className="text-lg text-emerald-500" />

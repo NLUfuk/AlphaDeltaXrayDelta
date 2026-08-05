@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { api, toApiError } from '../lib/api'
-import { errorMessage } from '../lib/messages'
+import { api } from '../lib/api'
+import { errorText } from '../lib/messages'
 import { Alert, Button, Field, Icon, Input } from '../ui/primitives'
 
 // Account activation (spec §9). Reached from the emailed link (?token=...) — for both a first-time
@@ -25,8 +25,7 @@ export default function AcceptInvite() {
       await api.post('/invitations/accept', { token, newPassword: password })
       setDone(true)
     } catch (err) {
-      const { code, message } = toApiError(err)
-      setError(errorMessage(code, message))
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }

@@ -4,6 +4,7 @@ using CrmKanban.Application.Companies;
 using CrmKanban.Domain.Entities;
 using CrmKanban.Domain.Enums;
 using CrmKanban.Infrastructure.Persistence;
+using CrmKanban.Infrastructure.Persistence.Interceptors;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,10 +27,13 @@ public class CompanyServiceTests
 
     private sealed class FixedClock : IClock { public DateTime UtcNow => new(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc); }
 
+    // The audit interceptor is wired in because the delete path depends on it: Remove must become a
+    // soft delete, and "nothing is physically lost" is exactly what these tests have to prove.
     private static DbContextOptions<CrmDbContext> Store() =>
         new DbContextOptionsBuilder<CrmDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString(),
-                new Microsoft.EntityFrameworkCore.Storage.InMemoryDatabaseRoot()).Options;
+                new Microsoft.EntityFrameworkCore.Storage.InMemoryDatabaseRoot())
+            .AddInterceptors(new AuditableEntityInterceptor(new FixedClock())).Options;
 
     private static async Task<Guid> SeedAdminAsync(DbContextOptions<CrmDbContext> options, bool canCreate)
     {
@@ -153,6 +157,91 @@ public class CompanyServiceTests
             var act = () => Service(db, admin).RemoveMemberAsync(companyId, adminId);
             await act.Should().ThrowAsync<BadRequestException>();
         }
+    }
+
+    [Fact]
+    public async Task An_admin_can_own_several_companies()
+    {
+        var options = Store();
+        var adminId = await SeedAdminAsync(options, canCreate: true);
+        var admin = new FakeUser(false, adminId);
+
+        await using var db = new CrmDbContext(options, admin);
+        var svc = Service(db, admin);
+        await svc.CreateAsync(new CreateCompanyRequest("Acme", "acme"));
+        await svc.CreateAsync(new CreateCompanyRequest("Globex", "globex"));
+
+        var mine = await svc.ListAsync();
+        mine.Should().HaveCount(2).And.OnlyContain(c => c.OwnerAdminId == adminId);
+        (await db.Memberships.IgnoreQueryFilters().CountAsync(m => m.UserId == adminId && m.Role == RoleType.Admin))
+            .Should().Be(2, "each company gets its own Admin membership");
+    }
+
+    [Fact]
+    public async Task Delete_needs_the_matching_company_name()
+    {
+        var options = Store();
+        var adminId = await SeedAdminAsync(options, canCreate: true);
+        var admin = new FakeUser(false, adminId);
+
+        await using var db = new CrmDbContext(options, admin);
+        var svc = Service(db, admin);
+        var company = await svc.CreateAsync(new CreateCompanyRequest("Acme", "acme"));
+
+        var act = () => svc.DeleteAsync(company.Id, new DeleteCompanyRequest("Acme Ltd"));
+        await act.Should().ThrowAsync<BadRequestException>();
+        (await svc.ListAsync()).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Only_the_owner_or_a_super_admin_deletes_a_company()
+    {
+        var options = Store();
+        var ownerId = await SeedAdminAsync(options, canCreate: true);
+        var owner = new FakeUser(false, ownerId);
+
+        Guid companyId;
+        var otherAdminId = Guid.NewGuid();
+        await using (var db = new CrmDbContext(options, owner))
+        {
+            companyId = (await Service(db, owner).CreateAsync(new CreateCompanyRequest("Acme", "acme"))).Id;
+            // A second Admin of the same company: may manage members, must NOT be able to delete the tenant.
+            db.Memberships.Add(new Membership(otherAdminId, companyId, RoleType.Admin));
+            await db.SaveChangesAsync();
+        }
+
+        var otherAdmin = new FakeUser(false, otherAdminId);
+        await using (var db = new CrmDbContext(options, otherAdmin))
+        {
+            var act = () => Service(db, otherAdmin).DeleteAsync(companyId, new DeleteCompanyRequest("Acme"));
+            await act.Should().ThrowAsync<ForbiddenException>();
+        }
+    }
+
+    [Fact]
+    public async Task Deleting_hides_the_company_closes_it_and_frees_the_slug()
+    {
+        var options = Store();
+        var adminId = await SeedAdminAsync(options, canCreate: true);
+        var admin = new FakeUser(false, adminId);
+
+        await using var db = new CrmDbContext(options, admin);
+        var svc = Service(db, admin);
+        var company = await svc.CreateAsync(new CreateCompanyRequest("Acme", "acme"));
+
+        await svc.DeleteAsync(company.Id, new DeleteCompanyRequest(" acme ")); // trimmed + case-insensitive
+
+        (await svc.ListAsync()).Should().BeEmpty();
+        var row = await db.Companies.IgnoreQueryFilters().SingleAsync(c => c.Id == company.Id);
+        row.DeletedAt.Should().NotBeNull("the row stays for history");
+        row.IsArchived.Should().BeTrue("public intake must close with the delete");
+        row.Slug.Should().NotBe("acme");
+        (await db.Memberships.IgnoreQueryFilters().CountAsync(m => m.CompanyId == company.Id && m.DeletedAt == null))
+            .Should().Be(0, "the tenant disappears from every member's session");
+
+        // The freed slug can be used again.
+        var reborn = await svc.CreateAsync(new CreateCompanyRequest("Acme", "acme"));
+        reborn.Id.Should().NotBe(company.Id);
     }
 
     [Fact]

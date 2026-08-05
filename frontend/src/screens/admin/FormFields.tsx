@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { useCompanies } from '../../lib/admin'
 import { useAuth } from '../../lib/auth'
-import { toApiError } from '../../lib/api'
-import { errorMessage } from '../../lib/messages'
+import { errorText } from '../../lib/messages'
 import {
   FIELD_TYPES, useCreateField, useDeleteField, useFormFields, useUpdateField, type FormField,
 } from '../../lib/formfields'
-import { Alert, Button, Card, Field, Icon, Input } from '../../ui/primitives'
+import { Alert, Button, Card, Field, Icon, Input, Loading } from '../../ui/primitives'
 
 // Configurable public-form fields (spec §4.6): a company admin adds extra fields (text / number / select)
 // that appear on the public request form and are captured on the ticket. Backend gates on company admin.
@@ -23,8 +22,7 @@ export default function FormFields() {
   const [draft, setDraft] = useState({ label: '', type: 0, required: false, options: '' })
 
   function fail(err: unknown) {
-    const { code, message } = toApiError(err)
-    setError(errorMessage(code, message))
+    setError(errorText(err))
   }
 
   function add(e: React.FormEvent) {
@@ -54,7 +52,7 @@ export default function FormFields() {
 
       {error && <Alert>{error}</Alert>}
       {isLoading ? (
-        <p className="text-muted">Yükleniyor…</p>
+        <Loading />
       ) : (
         <Card className="divide-y divide-line">
           {fields?.length === 0 && <p className="p-4 text-sm text-muted">Henüz özel alan yok.</p>}

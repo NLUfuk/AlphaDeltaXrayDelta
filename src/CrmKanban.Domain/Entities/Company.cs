@@ -51,4 +51,16 @@ public sealed class Company : Entity
         ArchivedAt = now;
         IsActive = false;
     }
+
+    /// <summary>
+    /// Retires the company on the delete path: closes it exactly like <see cref="Archive"/> (so every
+    /// write guard that checks IsArchived/IsActive shuts at once) and releases the public slug, whose
+    /// unique index is global — without this the same slug could never be used again.
+    /// </summary>
+    public void Retire(DateTime now)
+    {
+        Archive(now);
+        var stem = Slug.Length > 100 ? Slug[..100] : Slug;
+        Slug = $"{stem}-deleted-{Id.ToString("N")[..8]}"; // ≤ 117 chars, fits the 120 column
+    }
 }

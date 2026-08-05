@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { toApiError } from '../lib/api'
-import { errorMessage } from '../lib/messages'
+import { errorText } from '../lib/messages'
 import { Alert, Button, Field, Input } from '../ui/primitives'
 
 export default function Login() {
@@ -21,8 +20,7 @@ export default function Login() {
       await login(email, password)
       navigate('/', { replace: true })
     } catch (err) {
-      const { code, message } = toApiError(err)
-      setError(errorMessage(code, message))
+      setError(errorText(err))
     } finally {
       setBusy(false)
     }

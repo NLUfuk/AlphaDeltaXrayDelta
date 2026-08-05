@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet } from 'react-router-dom'
+import { useCompanies } from '../lib/admin'
 import { useAuth } from '../lib/auth'
+import { setActiveCompany, useActiveCompany } from '../lib/company'
 import { isDark, toggleTheme } from '../lib/theme'
-import { Button, Icon } from '../ui/primitives'
+import { Button, Icon, Loading } from '../ui/primitives'
 
 type NavItem = { to: string; label: string; icon: string; end?: boolean }
 const NAV: NavItem[] = [
@@ -52,6 +54,24 @@ function NavLinks({ items, onNavigate, collapsed }: { items: NavItem[]; onNaviga
   )
 }
 
+/** Company picker for admins who own more than one company — the staff screens all read the active one.
+ * Rendered only in that case, so single-company users (and customers) never fire the companies query. */
+function CompanySwitcher() {
+  const { data: companies } = useCompanies()
+  const active = useActiveCompany()
+  return (
+    <select
+      value={active ?? ''}
+      onChange={(e) => setActiveCompany(e.target.value)}
+      aria-label="Aktif şirket"
+      title="Aktif şirket"
+      className="max-w-[12rem] rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-ink"
+    >
+      {companies?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+    </select>
+  )
+}
+
 /** Protected layout (spec §17.8): StarAdmin-style fixed sidebar + top navbar. The sidebar collapses to
  * an icon rail (desktop) and the whole app has a dark theme — both toggled from the navbar, both persisted. */
 export default function Shell() {
@@ -59,7 +79,7 @@ export default function Shell() {
   const [open, setOpen] = useState(false) // mobile off-canvas sidebar
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('crm.sidebar') === 'collapsed')
   const [dark, setDark] = useState(isDark())
-  if (loading) return <div className="p-8 text-muted">Yükleniyor…</div>
+  if (loading) return <Loading className="p-8" />
   if (!user) return <Navigate to="/login" replace />
 
   const isStaff = user.isSuperAdmin || user.companies.length > 0
@@ -138,6 +158,7 @@ export default function Shell() {
               </button>
             </div>
             <div className="flex items-center justify-end gap-3 text-sm text-muted">
+              {user.companies.length > 1 && <CompanySwitcher />}
               <button
                 className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas"
                 onClick={() => setDark(toggleTheme())}
