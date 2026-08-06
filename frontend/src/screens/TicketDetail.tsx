@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useMembers } from '../lib/admin'
 import { PRIORITIES, formatDateTime, priority, statusCategory } from '../lib/messages'
 import {
   downloadAttachment, isImage, useAttachmentBlobUrl,
-  useAddComment, useAssignTicket, useChangeTicketStatus, useSetTicketPriority, useStatuses, useTicket, useUploadAttachment,
+  useAddComment, useAssignTicket, useChangeTicketStatus, useDeleteTicket, useSetTicketPriority, useStatuses, useTicket, useUploadAttachment,
   type Attachment,
 } from '../lib/tickets'
 import { Badge, Button, Card, Icon, Input, Loading } from '../ui/primitives'
@@ -29,6 +29,7 @@ function ImageThumb({ attachment }: { attachment: Attachment }) {
 
 export default function TicketDetail() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const { user } = useAuth()
   const isStaff = !!user && (user.isSuperAdmin || user.companies.length > 0)
   const { data: ticket, isLoading, error } = useTicket(id)
@@ -40,8 +41,17 @@ export default function TicketDetail() {
   const setPriority = useSetTicketPriority(id, ticket?.companyId)
   const addComment = useAddComment(id)
   const upload = useUploadAttachment(id)
+  const remove = useDeleteTicket(id, ticket?.companyId)
   const [body, setBody] = useState('')
   const [internal, setInternal] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // ticket.delete is seeded to Admin/SuperAdmin, so mirror that to decide whether to offer the button.
+  // ponytail: role check, not effective-permission check — an admin who explicitly denied ticket.delete
+  // for someone still shows them the button and the server answers 403. Swap in /permissions/effective
+  // if per-user overrides on this key ever become common.
+  const canDelete = !!user && (user.isSuperAdmin ||
+    user.companies.some((c) => c.companyId === ticket?.companyId && c.role === 1))
 
   if (isLoading) return <Loading />
   if (error || !ticket) return <p className="text-red-600">Ticket yüklenemedi.</p>
@@ -109,6 +119,33 @@ export default function TicketDetail() {
               {PRIORITIES.map((pr, i) => <option key={i} value={i}>{pr.label}</option>)}
             </Select>
           </Control>
+          {canDelete && (
+            <div className="ml-auto">
+              {confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted">Talep silinsin mi?</span>
+                  <Button variant="secondary" onClick={() => setConfirmDelete(false)} disabled={remove.isPending}>
+                    Vazgeç
+                  </Button>
+                  <button
+                    onClick={() => remove.mutate(undefined, { onSuccess: () => navigate('/') })}
+                    disabled={remove.isPending}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                  >
+                    <Icon name="delete-outline" />{remove.isPending ? 'Siliniyor…' : 'Evet, sil'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  title="Talebi sil"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-sm text-muted hover:border-red-300 hover:text-red-600"
+                >
+                  <Icon name="delete-outline" />Sil
+                </button>
+              )}
+            </div>
+          )}
         </Card>
       ) : (
         !isTerminal && (

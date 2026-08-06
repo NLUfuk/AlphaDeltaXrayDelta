@@ -26,6 +26,9 @@ export default function Kanban() {
   const [overId, setOverId] = useState<string | null>(null)
   const [composeIn, setComposeIn] = useState<string | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
+  // One box open at a time: the open one spans the full row, so two open at once would push the rest
+  // of the board off the first screen — the problem this layout exists to solve.
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   const company = companies?.find((c) => c.id === companyId)
   const memberName = (id: string | null) => members?.find((m) => m.userId === id)?.name
@@ -115,29 +118,50 @@ export default function Kanban() {
       {isLoading && <Loading />}
       {createError && <Alert>{createError}</Alert>}
 
-      <div className="flex gap-4 overflow-x-auto pb-2 max-md:flex-col">
+      {/* Box grid, not side-by-side columns. The old layout was a fixed-width horizontal strip
+          (w-72 × N inside overflow-x-auto): with 6 statuses only the first four fit, and because
+          HTML5 drag does not auto-scroll its container, the off-screen ones were unreachable — you
+          physically could not drop a card there. A wrapping grid puts every status on screen, so
+          every status is a reachable drop target. Cards stay draggable and a collapsed box is still
+          a drop target, so moving a ticket never needs the box to be open. */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3">
         {columns?.map((col) => {
           const cat = statusCategory(col.category)
           const color = col.color || cat.color
           const active = overId === col.statusId
+          const open = expanded === col.statusId
+          const preview = col.tickets.slice(0, 3)
+          const hidden = col.tickets.length - preview.length
           return (
-            <div
+            <section
               key={col.statusId}
               onDragOver={(e) => { e.preventDefault(); setOverId(col.statusId) }}
               onDragLeave={() => setOverId((cur) => (cur === col.statusId ? null : cur))}
               onDrop={() => drop(col.statusId)}
-              className={`flex w-72 shrink-0 flex-col overflow-hidden rounded-xl border bg-canvas transition-colors max-md:w-full ${
-                active ? 'border-primary ring-2 ring-primary/20' : 'border-line'
-              }`}
+              className={`flex flex-col overflow-hidden rounded-xl border bg-canvas transition-colors ${
+                open ? 'col-span-full' : ''
+              } ${active ? 'border-primary ring-2 ring-primary/20' : 'border-line'}`}
             >
               <div className="h-1" style={{ backgroundColor: color }} />
               <div className="border-b border-line bg-surface px-3 py-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-ink">{col.statusName}</span>
-                  <span className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => setExpanded(open ? null : col.statusId)}
+                    className="flex min-w-0 items-center gap-1.5 text-left"
+                    title={open ? 'Daralt' : 'Genişlet'}
+                    aria-expanded={open}
+                  >
+                    <Icon name={open ? 'chevron-down' : 'chevron-right'} className="shrink-0 text-muted" />
+                    <span className="truncate text-sm font-semibold text-ink">{col.statusName}</span>
+                  </button>
+                  <span className="flex shrink-0 items-center gap-2">
                     <span className="rounded-full bg-canvas px-2 text-xs text-muted">{col.tickets.length}</span>
                     <button
-                      onClick={() => { setCreateError(null); setComposeIn(composeIn === col.statusId ? null : col.statusId) }}
+                      onClick={() => {
+                        setCreateError(null)
+                        setExpanded(col.statusId) // composing in a closed box would be invisible
+                        setComposeIn(composeIn === col.statusId ? null : col.statusId)
+                      }}
                       title="Bu sütuna yeni talep"
                       className="text-muted hover:text-primary"
                     >
@@ -148,29 +172,59 @@ export default function Kanban() {
                 <PriorityBar tickets={col.tickets} />
               </div>
 
-              <div className="space-y-2 p-2">
-                {composeIn === col.statusId && (
-                  <QuickCreate
-                    busy={create.isPending}
-                    onCancel={() => setComposeIn(null)}
-                    onCreate={(values) => quickCreate(col, values)}
-                  />
-                )}
-                {col.tickets.map((t) => (
-                  <TicketCard
-                    key={t.id}
-                    ticket={t}
-                    assigneeName={memberName(t.assignedToId)}
-                    dragging={drag?.id === t.id}
-                    onDragStart={() => setDrag({ id: t.id, fromStatusId: col.statusId })}
-                    onDragEnd={clearDrag}
-                  />
-                ))}
-                {col.tickets.length === 0 && composeIn !== col.statusId && (
-                  <p className="px-2 py-6 text-center text-xs text-muted">Boş</p>
-                )}
-              </div>
-            </div>
+              {open ? (
+                <div className="space-y-2 p-2">
+                  {composeIn === col.statusId && (
+                    <QuickCreate
+                      busy={create.isPending}
+                      onCancel={() => setComposeIn(null)}
+                      onCreate={(values) => quickCreate(col, values)}
+                    />
+                  )}
+                  {/* Expanded box spans the full row, so lay the cards out across it instead of
+                      leaving one narrow column of cards under a very wide header. */}
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-2">
+                    {col.tickets.map((t) => (
+                      <TicketCard
+                        key={t.id}
+                        ticket={t}
+                        assigneeName={memberName(t.assignedToId)}
+                        dragging={drag?.id === t.id}
+                        onDragStart={() => setDrag({ id: t.id, fromStatusId: col.statusId })}
+                        onDragEnd={clearDrag}
+                      />
+                    ))}
+                  </div>
+                  {col.tickets.length === 0 && composeIn !== col.statusId && (
+                    <p className="px-2 py-6 text-center text-xs text-muted">Boş</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 p-2">
+                  {preview.map((t) => (
+                    <TicketCard
+                      key={t.id}
+                      ticket={t}
+                      assigneeName={memberName(t.assignedToId)}
+                      dragging={drag?.id === t.id}
+                      onDragStart={() => setDrag({ id: t.id, fromStatusId: col.statusId })}
+                      onDragEnd={clearDrag}
+                    />
+                  ))}
+                  {hidden > 0 && (
+                    <button
+                      onClick={() => setExpanded(col.statusId)}
+                      className="w-full rounded-md py-1.5 text-xs text-muted hover:bg-surface hover:text-primary"
+                    >
+                      +{hidden} daha…
+                    </button>
+                  )}
+                  {col.tickets.length === 0 && (
+                    <p className="px-2 py-6 text-center text-xs text-muted">Boş</p>
+                  )}
+                </div>
+              )}
+            </section>
           )
         })}
       </div>

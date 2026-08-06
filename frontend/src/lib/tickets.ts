@@ -227,6 +227,24 @@ export function useSetTicketPriority(ticketId: string, companyId: string | undef
     api.post(`/tickets/${ticketId}/priority`, { priority }))
 }
 
+/**
+ * Deletes a ticket. Soft delete server-side (the audit interceptor sets DeletedAt), so the record,
+ * its events and its comments survive for the audit trail — it only leaves every list and board.
+ * Requires ticket.delete, which the seeded matrix grants to Admin/SuperAdmin.
+ */
+export function useDeleteTicket(ticketId: string, companyId: string | undefined) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.delete(`/tickets/${ticketId}`),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ['ticket', ticketId] })
+      if (companyId) qc.invalidateQueries({ queryKey: ['kanban', companyId] })
+      qc.invalidateQueries({ queryKey: ['tickets'] })
+      qc.invalidateQueries({ queryKey: ['moderation', companyId] })
+    },
+  })
+}
+
 // Uploads a file through the API (bytes proxy through the backend to private storage). FormData lets
 // axios set the multipart boundary itself — don't force a Content-Type here.
 export function useUploadAttachment(ticketId: string) {
