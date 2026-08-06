@@ -129,6 +129,11 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
             e.HasIndex(x => new { x.CompanyId, x.Number }).IsUnique();
             e.Property(x => x.Number).HasMaxLength(50).IsRequired();
             e.Property(x => x.Title).HasMaxLength(300).IsRequired();
+            // Money precision stated explicitly (Faz 39). EF's default for decimal happens to be the
+            // same (18,2) — which is why no migration follows — but leaving it implicit means the day
+            // someone changes a convention, amounts get silently truncated. EF warns about exactly this.
+            e.Property(x => x.EstimatedValue).HasPrecision(18, 2);
+            e.Property(x => x.ActualValue).HasPrecision(18, 2);
             e.HasQueryFilter(x => x.DeletedAt == null && (IsSuperAdmin || CompanyScope.Contains(x.CompanyId)));
         });
         b.Entity<TicketStatus>(e =>

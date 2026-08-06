@@ -3,6 +3,7 @@ import { NavLink, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { setActiveCompany, useActiveCompany, useSelectableCompanies } from '../lib/company'
 import { isDark, toggleTheme } from '../lib/theme'
+import { Logo, LogoMark } from '../ui/Logo'
 import { Button, Icon, Loading } from '../ui/primitives'
 
 type NavItem = { to: string; label: string; icon: string; end?: boolean }
@@ -112,9 +113,10 @@ export default function Shell() {
             open ? 'translate-x-0' : '-translate-x-full'
           } ${collapsed ? 'lg:w-16' : 'lg:w-60'}`}
         >
-          <div className={`flex h-16 shrink-0 items-center gap-2.5 ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary text-sm font-bold text-white">K</span>
-            {!collapsed && <span className="text-lg font-extrabold tracking-tight text-ink">CRM Kanban</span>}
+          {/* Collapsed rail shows the mark alone — the wordmark would not fit and a truncated one
+              reads as a glitch, not as branding. */}
+          <div className={`flex h-16 shrink-0 items-center ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
+            {collapsed ? <LogoMark className="h-8 w-8 text-ink" /> : <Logo />}
           </div>
           <nav className="flex-1 overflow-y-auto pb-6">
             {isStaff ? (

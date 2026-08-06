@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { errorText } from '../lib/messages'
+import { Logo } from '../ui/Logo'
 import { Alert, Button, Field, Input } from '../ui/primitives'
 
 export default function Login() {
@@ -29,7 +30,8 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas">
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-lg bg-surface p-8 shadow-card">
-        <h1 className="text-xl font-semibold text-ink">Giriş</h1>
+        <Logo className="justify-center" />
+        <h1 className="text-center text-xl font-semibold text-ink">Giriş</h1>
         {error && <Alert>{error}</Alert>}
         <Field label="E-posta">
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />

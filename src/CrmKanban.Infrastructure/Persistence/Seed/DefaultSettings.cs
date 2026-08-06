@@ -31,10 +31,11 @@ public static class DefaultSettings
         Make("form.kvkk_text",
             "Bu form aracılığıyla ilettiğiniz kişisel verileriniz, talebinizin değerlendirilmesi amacıyla 6698 sayılı KVKK kapsamında işlenmektedir.",
             "html", "form"),
-        // Brand
-        Make("brand.system_name", "CRM Kanban", "string", "brand"),
+        // Brand. Seeding only fills MISSING keys (DatabaseSeeder), so changing a default here never
+        // overwrites what an operator edited — an existing database keeps its own name and logo.
+        Make("brand.system_name", "Kanby", "string", "brand"),
         Make("brand.primary_color", "#2563eb", "color", "brand"),
-        Make("brand.logo_url", "", "string", "brand"),
+        Make("brand.logo_url", "/kanby-logo.svg", "string", "brand"),
         // Finance (Faz 39). Single currency on purpose: multi-currency needs a historical rate table,
         // and converting at today's rate would silently rewrite last year's revenue.
         Make("finance.currency", "TRY", "string", "finance"),

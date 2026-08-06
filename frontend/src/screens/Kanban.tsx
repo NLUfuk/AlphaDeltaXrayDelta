@@ -41,6 +41,15 @@ export default function Kanban() {
     setOverId(null)
   }
 
+  // The compose form only exists inside an expanded box, so opening it has to expand that box too.
+  // Both entry points (header "Yeni" and the per-column "+") go through here — the header one used to
+  // set composeIn alone and therefore did nothing at all once Faz 36 made boxes collapsible.
+  function openCompose(statusId: string) {
+    setCreateError(null)
+    setExpanded(statusId)
+    setComposeIn((cur) => (cur === statusId ? null : statusId))
+  }
+
   function drop(statusId: string) {
     // Only a real column change hits the server; dropping a card back in its own column is a no-op.
     if (drag && drag.fromStatusId !== statusId)
@@ -68,7 +77,11 @@ export default function Kanban() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-semibold text-ink">Fırsat havuzu</h1>
-          <Button onClick={() => setComposeIn(columns?.[0]?.statusId ?? null)} className="gap-1.5">
+          <Button
+            onClick={() => { const first = columns?.[0]?.statusId; if (first) openCompose(first) }}
+            disabled={!columns?.length}
+            className="gap-1.5"
+          >
             <Icon name="plus" />Yeni
           </Button>
         </div>
@@ -157,11 +170,7 @@ export default function Kanban() {
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="rounded-full bg-canvas px-2 text-xs text-muted">{col.tickets.length}</span>
                     <button
-                      onClick={() => {
-                        setCreateError(null)
-                        setExpanded(col.statusId) // composing in a closed box would be invisible
-                        setComposeIn(composeIn === col.statusId ? null : col.statusId)
-                      }}
+                      onClick={() => openCompose(col.statusId)}
                       title="Bu sütuna yeni talep"
                       className="text-muted hover:text-primary"
                     >

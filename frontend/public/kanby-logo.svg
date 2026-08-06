@@ -1,0 +1,17 @@
+<svg viewBox="0 0 900 280" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="280" fill="#F8FAFC"/>
+  <!-- Icon: connected nodes graph -->
+  <g transform="translate(70,75)" stroke="#0F2540" stroke-width="7" fill="#0F2540">
+    <line x1="15"  y1="20"  x2="95"  y2="55"  stroke-linecap="round"/>
+    <line x1="95"  y1="55"  x2="25"  y2="105" stroke-linecap="round"/>
+    <line x1="25"  y1="105" x2="115" y2="115" stroke-linecap="round"/>
+    <line x1="95"  y1="55"  x2="115" y2="115" stroke-linecap="round"/>
+    <circle cx="15"  cy="20"  r="13"/>
+    <circle cx="95"  cy="55"  r="16" fill="#F59E0B" stroke="#F59E0B"/>
+    <circle cx="25"  cy="105" r="13"/>
+    <circle cx="115" cy="115" r="13"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="240" y="170" font-family="Inter, Helvetica, Arial, sans-serif" font-size="120" font-weight="700" fill="#0F2540" letter-spacing="-4">Kanby</text>
+  <text x="244" y="215" font-family="Inter, Helvetica, Arial, sans-serif" font-size="24" font-weight="500" fill="#64748B" letter-spacing="7">CONNECT · CONVERT</text>
+</svg>
