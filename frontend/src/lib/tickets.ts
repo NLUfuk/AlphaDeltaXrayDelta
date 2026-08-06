@@ -14,6 +14,8 @@ export type TicketListItem = {
   assignedToId: string | null
   categoryId: string | null
   createdAt: string
+  /** Reportable amount. Null when the caller lacks ticket.value (withheld server-side, not hidden here). */
+  value: number | null
 }
 
 export type KanbanColumn = {
@@ -53,6 +55,11 @@ export type TicketDetail = {
   comments: Comment[]
   attachments: Attachment[]
   customFields: CustomFieldValue[]
+  estimatedValue: number | null
+  actualValue: number | null
+  /** Distinguishes "not allowed to know" from "nobody priced it yet" — the field is hidden entirely
+   *  when false, rather than rendered as a misleading empty box. */
+  canSeeValue: boolean
 }
 
 export type CustomFieldValue = { label: string; value: string }
@@ -232,6 +239,12 @@ export function useSetTicketPriority(ticketId: string, companyId: string | undef
  * its events and its comments survive for the audit trail — it only leaves every list and board.
  * Requires ticket.delete, which the seeded matrix grants to Admin/SuperAdmin.
  */
+/** Sets the opportunity's money figures. Requires ticket.value; the server rejects otherwise. */
+export function useSetTicketValue(ticketId: string, companyId: string | undefined) {
+  return useTicketMutation<{ estimatedValue: number | null; actualValue: number | null }>(
+    ticketId, companyId, (v) => api.post(`/tickets/${ticketId}/value`, v))
+}
+
 export function useDeleteTicket(ticketId: string, companyId: string | undefined) {
   const qc = useQueryClient()
   return useMutation({

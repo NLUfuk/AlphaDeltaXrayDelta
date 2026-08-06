@@ -24,6 +24,7 @@ import Companies from './screens/admin/Companies'
 import Permissions from './screens/admin/Permissions'
 import Columns from './screens/admin/Columns'
 import Moderation from './screens/Moderation'
+import Revenue from './screens/Revenue'
 import Templates from './screens/admin/Templates'
 import FormFields from './screens/admin/FormFields'
 import Account from './screens/Account'
@@ -48,6 +49,7 @@ const router = createBrowserRouter([
       { path: 'account', element: <Account /> },
       { path: 'tickets/:id', element: <TicketDetail /> },
       { path: 'moderation', element: <Moderation /> },
+      { path: 'revenue', element: <Revenue /> },
       { path: 'admin/columns', element: <Columns /> },
       { path: 'admin/form-fields', element: <FormFields /> },
       { path: 'reports', element: <Dashboard /> },

@@ -54,6 +54,38 @@ public sealed class Ticket : Entity
 
     public void SetCustomFields(string? json) => CustomFieldsJson = json;
 
+    /// <summary>
+    /// What this opportunity is expected to be worth, in the company's configured currency
+    /// (Faz 39). Null = nobody has priced it yet, which is different from zero — an unpriced
+    /// opportunity is excluded from forecasts rather than counted as worthless.
+    /// </summary>
+    public decimal? EstimatedValue { get; private set; }
+
+    /// <summary>
+    /// What it actually came to. Kept apart from <see cref="EstimatedValue"/> on purpose: with a
+    /// single field the estimate is overwritten on close and "how accurate are my forecasts?" becomes
+    /// unanswerable. Null on a won ticket means the estimate stood — reporting falls back to it, so
+    /// nobody has to type the same number twice.
+    /// </summary>
+    public decimal? ActualValue { get; private set; }
+
+    /// <summary>The figure reporting should count for this ticket: the realised amount once known,
+    /// otherwise the estimate.</summary>
+    public decimal? ReportableValue => ActualValue ?? EstimatedValue;
+
+    /// <summary>
+    /// Prices the opportunity. Negative amounts are rejected: a lost deal is worth its value with a
+    /// LOST outcome, never a negative amount — allowing both would let the same loss be subtracted
+    /// twice (once by sign, once by classification) and silently corrupt every total.
+    /// </summary>
+    public void SetValue(decimal? estimated, decimal? actual)
+    {
+        if (estimated is < 0) throw new DomainException("ticket.value.negative", "Estimated value cannot be negative.");
+        if (actual is < 0) throw new DomainException("ticket.value.negative", "Actual value cannot be negative.");
+        EstimatedValue = estimated;
+        ActualValue = actual;
+    }
+
     /// <summary>Moderation state (spec §10 zero-trust intake). Defaults to Approved so existing rows,
     /// staff-created tickets, and known-customer submissions need no gate.</summary>
     public TicketApprovalState ApprovalState { get; private set; } = TicketApprovalState.Approved;

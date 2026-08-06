@@ -64,7 +64,7 @@ public class ReportServiceTests
     }
 
     private static ReportService Service(CrmDbContext db, ICurrentUserService user, IPermissionService? perms = null) =>
-        new(db, user, perms ?? new FakePermissions(CompanyA));
+        new(db, user, perms ?? new FakePermissions(CompanyA), new Application.Settings.SettingsService(db, user));
 
     // ---- scope ----
 

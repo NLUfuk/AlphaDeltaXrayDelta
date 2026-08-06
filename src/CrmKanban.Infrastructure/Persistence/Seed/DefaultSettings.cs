@@ -35,6 +35,9 @@ public static class DefaultSettings
         Make("brand.system_name", "CRM Kanban", "string", "brand"),
         Make("brand.primary_color", "#2563eb", "color", "brand"),
         Make("brand.logo_url", "", "string", "brand"),
+        // Finance (Faz 39). Single currency on purpose: multi-currency needs a historical rate table,
+        // and converting at today's rate would silently rewrite last year's revenue.
+        Make("finance.currency", "TRY", "string", "finance"),
         // System
         Make("system.timezone", "Europe/Istanbul", "string", "system"),
         Make("system.language", "tr", "string", "system"),

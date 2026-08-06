@@ -22,6 +22,7 @@ public static class PermissionLabels
         ["ticket.status.change"] = "Talep durumunu değiştir",
         ["comment.internal"] = "İç not ekle/gör",
         ["report.company"] = "Şirket raporları",
+        ["ticket.value"] = "Tutar ve kazanç raporu",
         ["report.global"] = "Genel raporlar (tüm şirketler)",
         ["settings.manage"] = "Ayarları yönet",
         ["status.manage"] = "Durum/kolon yönetimi",
@@ -48,6 +49,10 @@ public static class PermissionLabels
         ["comment.internal"] =
             "Müşteriye görünmeyen iç not yazar ve okur. Kapatılırsa yalnız normal yorum yazabilir. " +
             "İç notlar müşteriye hiçbir koşulda gösterilmez; bu yetki personel arasında geçerlidir.",
+        ["ticket.value"] =
+            "Taleplerin tahmini/gerçekleşen tutarını görür ve girer, Kazanç sekmesini açar. " +
+            "Kapatılırsa tutar alanı ekranda görünmez VE sunucu cevabında da boş gelir — gizlenmiş " +
+            "değil, verilmemiş olur. Ticari hacim, talebin kendisinden ayrı bir sırdır.",
         ["report.company"] =
             "Bu şirketin raporlarını görüntüler ve CSV olarak dışa aktarır.",
         ["report.global"] =

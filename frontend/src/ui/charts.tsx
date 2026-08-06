@@ -57,3 +57,54 @@ export function TrendChart({ data }: { data: { date: string; opened: number; clo
     </div>
   )
 }
+
+const MONEY = { won: '#1baf7a', lost: '#d64550' } // semantic: green won, red lost — plus direct labels
+
+/** Won vs lost amounts per month. Grouped bars rather than lines: these are discrete outcomes per
+ *  period, not a continuous quantity, and a line between two months would imply values in between. */
+export function RevenueChart({ data, format }: {
+  data: { month: string; won: number; lost: number }[]
+  format: (n: number) => string
+}) {
+  if (data.length === 0) return <p className="text-sm text-muted">Henüz kazanılan ya da kaybedilen talep yok.</p>
+  const w = 360, h = 160, pad = { l: 8, r: 8, t: 8, b: 22 }
+  const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b
+  const max = Math.max(1, ...data.flatMap((d) => [d.won, d.lost]))
+  const slot = iw / data.length
+  const barW = Math.max(3, Math.min(14, slot / 2.6))
+
+  const label = (m: string) => {
+    const d = new Date(m)
+    return Number.isNaN(d.getTime()) ? m : d.toLocaleDateString('tr-TR', { month: 'short', year: '2-digit' })
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex gap-4 text-xs text-muted">
+        <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full" style={{ backgroundColor: MONEY.won }} /> Kazanılan</span>
+        <span className="flex items-center gap-1"><i className="h-2 w-2 rounded-full" style={{ backgroundColor: MONEY.lost }} /> Kaybedilen</span>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-auto w-full">
+        <line x1={pad.l} y1={pad.t + ih} x2={w - pad.r} y2={pad.t + ih} stroke="#e5e7eb" strokeWidth={1} />
+        {data.map((d, i) => {
+          const cx = pad.l + slot * i + slot / 2
+          const bar = (v: number, color: string, dx: number, name: string) => (
+            <rect
+              x={cx + dx} y={pad.t + ih - (v / max) * ih}
+              width={barW} height={(v / max) * ih} rx={2} fill={color}
+            >
+              <title>{label(d.month)} · {name}: {format(v)}</title>
+            </rect>
+          )
+          return (
+            <g key={d.month}>
+              {bar(d.won, MONEY.won, -barW - 1, 'kazanılan')}
+              {bar(d.lost, MONEY.lost, 1, 'kaybedilen')}
+              <text x={cx} y={h - 6} textAnchor="middle" className="fill-current text-[8px] text-muted">{label(d.month)}</text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}

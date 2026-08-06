@@ -36,6 +36,14 @@ public sealed class TicketsController(
     public async Task<ActionResult<IReadOnlyList<CustomerCompanyDto>>> MyCompanies(CancellationToken ct) =>
         Ok(await queries.ListMyCompaniesAsync(ct));
 
+    /// <summary>Sets the opportunity's estimated/actual amount (Faz 39). Requires ticket.value.</summary>
+    [HttpPost("{id:guid}/value")]
+    public async Task<IActionResult> SetValue(Guid id, SetTicketValueRequest request, CancellationToken ct)
+    {
+        await commands.SetValueAsync(id, request, ct);
+        return NoContent();
+    }
+
     // ---- moderation (zero-trust public intake, spec §10) ----
 
     [HttpGet("moderation/{companyId:guid}")]

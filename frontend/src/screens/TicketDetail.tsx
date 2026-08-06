@@ -5,7 +5,7 @@ import { useMembers } from '../lib/admin'
 import { PRIORITIES, formatDateTime, priority, statusCategory } from '../lib/messages'
 import {
   downloadAttachment, isImage, useAttachmentBlobUrl,
-  useAddComment, useAssignTicket, useChangeTicketStatus, useDeleteTicket, useSetTicketPriority, useStatuses, useTicket, useUploadAttachment,
+  useAddComment, useAssignTicket, useChangeTicketStatus, useDeleteTicket, useSetTicketPriority, useSetTicketValue, useStatuses, useTicket, useUploadAttachment,
   type Attachment,
 } from '../lib/tickets'
 import { Badge, Button, Card, Icon, Input, Loading } from '../ui/primitives'
@@ -42,6 +42,7 @@ export default function TicketDetail() {
   const addComment = useAddComment(id)
   const upload = useUploadAttachment(id)
   const remove = useDeleteTicket(id, ticket?.companyId)
+  const setValue = useSetTicketValue(id, ticket?.companyId)
   const [body, setBody] = useState('')
   const [internal, setInternal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -158,6 +159,17 @@ export default function TicketDetail() {
             </Button>
           </Card>
         )
+      )}
+
+      {/* Money sits behind ticket.value; the server already withheld the numbers, so canSeeValue
+          only decides whether to render the box at all. */}
+      {isStaff && ticket.canSeeValue && (
+        <ValueCard
+          estimated={ticket.estimatedValue}
+          actual={ticket.actualValue}
+          busy={setValue.isPending}
+          onSave={(v) => setValue.mutate(v)}
+        />
       )}
 
       <Card className="p-4">
@@ -283,5 +295,46 @@ function Select({ value, onChange, children }: { value: string; onChange: (v: st
     <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary">
       {children}
     </select>
+  )
+}
+
+/// Estimated vs realised amount. Two fields, not one: overwriting the estimate on close makes
+/// "how accurate are my forecasts?" unanswerable, which is half of what the revenue tab is for.
+/// Empty input means "not priced" (null) — deliberately different from a typed 0.
+function ValueCard({ estimated, actual, busy, onSave }: {
+  estimated: number | null
+  actual: number | null
+  busy: boolean
+  onSave: (v: { estimatedValue: number | null; actualValue: number | null }) => void
+}) {
+  const [est, setEst] = useState(estimated?.toString() ?? '')
+  const [act, setAct] = useState(actual?.toString() ?? '')
+
+  const parse = (s: string) => {
+    const t = s.trim().replace(',', '.')
+    if (!t) return null
+    const n = Number(t)
+    return Number.isFinite(n) && n >= 0 ? n : null
+  }
+  const dirty = (estimated?.toString() ?? '') !== est.trim() || (actual?.toString() ?? '') !== act.trim()
+
+  return (
+    <Card className="flex flex-wrap items-end gap-4 p-4">
+      <Control label="Tahmini tutar">
+        <Input inputMode="decimal" value={est} onChange={(e) => setEst(e.target.value)} placeholder="—" />
+      </Control>
+      <Control label="Gerçekleşen tutar">
+        <Input inputMode="decimal" value={act} onChange={(e) => setAct(e.target.value)} placeholder="—" />
+      </Control>
+      <Button
+        onClick={() => onSave({ estimatedValue: parse(est), actualValue: parse(act) })}
+        disabled={busy || !dirty}
+      >
+        <Icon name="content-save-outline" className="mr-1" />{busy ? 'Kaydediliyor…' : 'Tutarı kaydet'}
+      </Button>
+      <p className="w-full text-xs text-muted">
+        Boş bırakılan alan “tutar girilmedi” sayılır ve hiçbir toplama katılmaz — sıfır ile aynı şey değildir.
+      </p>
+    </Card>
   )
 }

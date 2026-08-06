@@ -7,6 +7,15 @@ import { Icon } from './primitives'
 // Odoo's opportunity card shapes it: title first, number underneath, priority as stars and the
 // assignee as an avatar in the footer. Drag = status change. The card stays a real <Link> (keyboard
 // focus, open-in-new-tab), but we set dataTransfer on dragstart — without it Firefox never fires drop.
+/// Compact money for a card: 145.000 TL rather than ₺145.000,00 — the board needs a glanceable
+/// magnitude, and the exact figure lives on the detail screen. Currency symbol is deliberately
+/// omitted here; the system runs on one currency (Settings finance.currency).
+function formatMoney(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}M`
+  if (n >= 1_000) return `${(n / 1_000).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}B`
+  return n.toLocaleString('tr-TR', { maximumFractionDigits: 0 })
+}
+
 export function TicketCard({
   ticket,
   assigneeName,
@@ -39,7 +48,16 @@ export function TicketCard({
       } ${dragging ? 'opacity-40 ring-2 ring-primary/40' : ''}`}
     >
       <p className="text-sm font-semibold leading-snug text-ink">{ticket.title}</p>
-      <p className="mt-0.5 text-xs text-muted">{ticket.number}</p>
+      <div className="mt-0.5 flex items-baseline justify-between gap-2">
+        <p className="text-xs text-muted">{ticket.number}</p>
+        {/* Null means either "no permission" or "not priced" — both render as nothing, because a
+            placeholder would invite reading an absent amount as zero. */}
+        {ticket.value !== null && (
+          <span className="shrink-0 text-xs font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+            {formatMoney(ticket.value)}
+          </span>
+        )}
+      </div>
       <div className="mt-2 flex items-center justify-between">
         <Stars value={ticket.priority} title={p.label} />
         {assigneeName ? <Avatar name={assigneeName} /> : <span className="text-xs text-muted">atanmadı</span>}

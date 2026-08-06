@@ -98,6 +98,9 @@ public enum TicketEventType
     Approved = 11,
     Rejected = 12,
     AttachmentAdded = 13,
+    /// <summary>The opportunity's amount was set or cleared (Faz 39). Audited like every other
+    /// mutation — money is the one field where "who changed it to what" gets asked later.</summary>
+    ValueChanged = 14,
 }
 
 /// <summary>How an account token is delivered and redeemed (spec §9). A link token is high-entropy and

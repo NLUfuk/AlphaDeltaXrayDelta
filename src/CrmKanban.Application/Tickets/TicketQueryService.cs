@@ -39,6 +39,23 @@ public sealed class TicketQueryService(
         return allowed;
     }
 
+    /// <summary>
+    /// Companies where this caller may see money (`ticket.value`, Faz 39). Mirrors
+    /// <see cref="ViewableCompaniesAsync"/> because the list paths span companies: a customer's own
+    /// tickets, or a staff list across memberships. Per company, never global — an admin at one
+    /// company must not read another's order book through a shared list.
+    /// </summary>
+    private async Task<HashSet<Guid>> ValueVisibleCompaniesAsync(CancellationToken ct)
+    {
+        var userId = currentUser.UserId;
+        var allowed = new HashSet<Guid>();
+        if (userId is null) return allowed;
+        foreach (var companyId in currentUser.CompanyIds)
+            if (await permissions.HasPermissionAsync(userId.Value, companyId, PermissionKeys.TicketValue, ct))
+                allowed.Add(companyId);
+        return allowed;
+    }
+
     private async Task EnsureCanViewAsync(Guid companyId, CancellationToken ct)
     {
         if (currentUser.IsSuperAdmin) return;
@@ -125,11 +142,15 @@ public sealed class TicketQueryService(
 
         var customFields = ParseCustomFields(ticket.CustomFieldsJson);
 
+        var canSeeValue = await CanSeeValueAsync(ticket.CompanyId, ct);
         return new TicketDetail(ticket.Id, ticket.Number, ticket.CompanyId, ticket.Title, ticket.Body,
             ticket.StatusId, status.Name, status.Category, ticket.Priority,
             ticket.OpenedById, ticket.AssignedToId, ticket.CategoryId,
             ticket.FirstResponseAt, ticket.ResolvedAt, ticket.ClosedAt, ticket.CreatedAt, comments, attachmentDtos,
-            customFields);
+            customFields,
+            canSeeValue ? ticket.EstimatedValue : null,
+            canSeeValue ? ticket.ActualValue : null,
+            canSeeValue);
     }
 
     public async Task<IReadOnlyList<KanbanColumn>> KanbanAsync(Guid companyId, TicketListQuery query, CancellationToken ct = default)
@@ -146,8 +167,9 @@ public sealed class TicketQueryService(
 
         var byStatus = tickets.ToLookup(t => t.StatusId);
         var statusById = statuses.ToDictionary(s => s.Id);
+        var withValue = await CanSeeValueAsync(companyId, ct);
         return statuses.Select(s => new KanbanColumn(s.Id, s.Name, s.Category, s.Color, s.Order,
-            byStatus[s.Id].Select(t => ToListItem(t, statusById)).ToList())).ToList();
+            byStatus[s.Id].Select(t => ToListItem(t, statusById, withValue)).ToList())).ToList();
     }
 
     /// <summary>Tickets awaiting moderation (spec §10 zero-trust intake): first-time public submissions
@@ -164,7 +186,8 @@ public sealed class TicketQueryService(
             .Where(t => t.CompanyId == companyId && t.ApprovalState == TicketApprovalState.Pending)
             .OrderBy(t => t.CreatedAt).ToListAsync(ct);
         var statusById = await LoadStatusesAsync(ct);
-        return tickets.Select(t => ToListItem(t, statusById)).ToList();
+        var withValue = await CanSeeValueAsync(companyId, ct);
+        return tickets.Select(t => ToListItem(t, statusById, withValue)).ToList();
     }
 
     /// <summary>The status catalog for dropdowns and the customer cancel/complete actions. With a
@@ -242,15 +265,34 @@ public sealed class TicketQueryService(
             .Skip((page - 1) * pageSize).Take(pageSize)
             .ToListAsync(ct);
 
+        // This path can span companies (a customer's tickets, a staff list across memberships), so the
+        // decision is per ticket, not once for the page.
+        var valueCompanies = await ValueVisibleCompaniesAsync(ct);
+        var superAdmin = currentUser.IsSuperAdmin;
         return new PagedResult<TicketListItem>(
-            tickets.Select(t => ToListItem(t, statusById)).ToList(), total, page, pageSize);
+            tickets.Select(t => ToListItem(t, statusById, superAdmin || valueCompanies.Contains(t.CompanyId)))
+                .ToList(), total, page, pageSize);
     }
 
-    private static TicketListItem ToListItem(Ticket t, Dictionary<Guid, TicketStatus> statusById)
+    private static TicketListItem ToListItem(Ticket t, Dictionary<Guid, TicketStatus> statusById, bool withValue)
     {
         var s = statusById[t.StatusId];
         return new TicketListItem(t.Id, t.Number, t.Title, t.StatusId, s.Name, s.Category, s.Color,
-            t.Priority, t.AssignedToId, t.CategoryId, t.CreatedAt);
+            t.Priority, t.AssignedToId, t.CategoryId, t.CreatedAt,
+            withValue ? t.ActualValue ?? t.EstimatedValue : null);
+    }
+
+    /// <summary>
+    /// Whether this caller may see money for this company (Faz 39). Amounts are stripped from the DTO
+    /// when false, so a personel without ticket.value never receives them — hiding a field in the UI
+    /// while shipping it in the JSON is not access control.
+    /// </summary>
+    private async Task<bool> CanSeeValueAsync(Guid companyId, CancellationToken ct)
+    {
+        if (currentUser.IsSuperAdmin) return true;
+        var userId = currentUser.UserId;
+        return userId is not null
+            && await permissions.HasPermissionAsync(userId.Value, companyId, PermissionKeys.TicketValue, ct);
     }
 
     private Guid RequireUserId() =>

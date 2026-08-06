@@ -11,6 +11,7 @@ const NAV: NavItem[] = [
   { to: '/moderation', label: 'Onay kutusu', icon: 'inbox-arrow-down-outline' },
   { to: '/admin/columns', label: 'Sütunlar', icon: 'view-column-outline' },
   { to: '/admin/form-fields', label: 'Form alanları', icon: 'form-select' },
+  { to: '/revenue', label: 'Kazanç', icon: 'cash-multiple' },
   { to: '/reports', label: 'Raporlar', icon: 'chart-line' },
   { to: '/admin/companies', label: 'Şirketler', icon: 'domain' },
   { to: '/admin/permissions', label: 'Yetkiler', icon: 'shield-key-outline' },

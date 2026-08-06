@@ -17,7 +17,8 @@ public static class RolePermissionMatrix
         [RoleType.Admin] =
         [
             PermissionKeys.TicketView, PermissionKeys.TicketEdit, PermissionKeys.TicketDelete,
-            PermissionKeys.TicketAssign, PermissionKeys.TicketStatusChange, PermissionKeys.CommentInternal,
+            PermissionKeys.TicketAssign, PermissionKeys.TicketStatusChange, PermissionKeys.TicketValue,
+            PermissionKeys.CommentInternal,
             PermissionKeys.ReportCompany, PermissionKeys.SettingsManage, PermissionKeys.StatusManage,
             PermissionKeys.UserInvite, PermissionKeys.PermissionAssign,
         ],

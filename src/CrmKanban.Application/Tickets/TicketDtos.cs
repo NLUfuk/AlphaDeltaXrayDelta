@@ -39,7 +39,10 @@ public sealed record TicketListQuery(
 
 public sealed record TicketListItem(
     Guid Id, string Number, string Title, Guid StatusId, string StatusName, StatusCategory Category,
-    string StatusColor, Priority Priority, Guid? AssignedToId, Guid? CategoryId, DateTime CreatedAt);
+    string StatusColor, Priority Priority, Guid? AssignedToId, Guid? CategoryId, DateTime CreatedAt,
+    /// <summary>Reportable amount (actual, else estimate). Null when the caller lacks ticket.value —
+    /// withheld, not merely hidden by the UI (Faz 39).</summary>
+    decimal? Value = null);
 
 public sealed record CommentDto(
     Guid Id, Guid AuthorId, string AuthorName, string Body, bool IsInternal, bool IsEdited, DateTime CreatedAt, DateTime? EditedAt);
@@ -50,7 +53,14 @@ public sealed record TicketDetail(
     Guid OpenedById, Guid? AssignedToId, Guid? CategoryId,
     DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt,
     DateTime CreatedAt, IReadOnlyList<CommentDto> Comments, IReadOnlyList<AttachmentDto> Attachments,
-    IReadOnlyList<CustomFieldValue> CustomFields);
+    IReadOnlyList<CustomFieldValue> CustomFields,
+    /// <summary>Money figures, both null when the caller lacks ticket.value. <see cref="CanSeeValue"/>
+    /// distinguishes "not allowed to know" from "nobody priced it yet" so the UI can hide the field
+    /// entirely rather than render a misleading empty box (Faz 39).</summary>
+    decimal? EstimatedValue = null, decimal? ActualValue = null, bool CanSeeValue = false);
+
+/// <summary>Sets an opportunity's money figures. Either may be null to clear it.</summary>
+public sealed record SetTicketValueRequest(decimal? EstimatedValue, decimal? ActualValue);
 
 /// <summary>A value captured from a configurable public-form field (spec §4.6), denormalized as label+value.</summary>
 public sealed record CustomFieldValue(string Label, string Value);

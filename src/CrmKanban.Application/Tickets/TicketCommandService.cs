@@ -6,6 +6,7 @@ using CrmKanban.Domain.Enums;
 using CrmKanban.Domain.Tickets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 
 namespace CrmKanban.Application.Tickets;
 
@@ -161,6 +162,31 @@ public sealed class TicketCommandService(
         db.TicketEvents.Add(Event(ticket, actor.UserId, TicketEventType.PriorityChanged, old.ToString(), request.Priority.ToString()));
         await db.SaveChangesAsync(ct);
     }
+
+    /// <summary>
+    /// Prices an opportunity (Faz 39). Requires ticket.value on the ticket's company — deliberately NOT
+    /// ticket.edit: someone who fixes typos in requests is not automatically someone who sets what a
+    /// deal is worth. Customers can never reach it (the actor gate below), since the amount is the
+    /// company's commercial position, not the requester's.
+    /// </summary>
+    public async Task SetValueAsync(Guid ticketId, SetTicketValueRequest request, CancellationToken ct = default)
+    {
+        var ticket = await LoadAsync(ticketId, ct);
+        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        if (actor.Kind == TicketActorKind.Customer)
+            throw new ForbiddenException("ticket.value_forbidden", "The customer cannot set the value.");
+        TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketValue);
+
+        // Old→new as "tahmini/gerçekleşen", so the trail answers which of the two moved.
+        var old = Money(ticket.EstimatedValue, ticket.ActualValue);
+        ticket.SetValue(request.EstimatedValue, request.ActualValue);
+        db.TicketEvents.Add(Event(ticket, actor.UserId, TicketEventType.ValueChanged,
+            old, Money(ticket.EstimatedValue, ticket.ActualValue)));
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static string Money(decimal? estimated, decimal? actual) =>
+        $"{estimated?.ToString(CultureInfo.InvariantCulture) ?? "-"}/{actual?.ToString(CultureInfo.InvariantCulture) ?? "-"}";
 
     /// <summary>Approve a pending public submission into the pool (spec §10). Staff-only; requires
     /// ticket.edit (Admin/SuperAdmin by default), so triage stays with people who can act on it.

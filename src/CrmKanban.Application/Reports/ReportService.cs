@@ -17,26 +17,40 @@ namespace CrmKanban.Application.Reports;
 public sealed class ReportService(
     IAppDbContext db,
     ICurrentUserService currentUser,
-    IPermissionService permissions)
+    IPermissionService permissions,
+    Settings.SettingsService settings)
 {
+    /// <summary>Fallback when the seed row is missing (older database); never blocks a report.</summary>
+    private const string DefaultCurrency = "TRY";
     private sealed record Row(
         DateTime CreatedAt, DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt,
-        StatusCategory Category, Guid? AssignedToId, Guid? CategoryId);
+        StatusCategory Category, Guid? AssignedToId, Guid? CategoryId,
+        decimal? EstimatedValue, decimal? ActualValue)
+    {
+        /// <summary>What reporting counts: the realised amount once known, otherwise the estimate.</summary>
+        public decimal? Value => ActualValue ?? EstimatedValue;
+
+        /// <summary>When the outcome landed. Falls back so a terminal ticket always lands in some month.</summary>
+        public DateTime OutcomeAt => ClosedAt ?? ResolvedAt ?? CreatedAt;
+    }
 
     public async Task<TicketReport> CompanyReportAsync(Guid companyId, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
         await EnsureCompanyAccessAsync(companyId, ct);
         // Tenant filter still applies for a non-super-admin: an out-of-scope companyId yields no rows.
         var rows = await LoadRowsAsync(db.Tickets.Where(t => t.CompanyId == companyId), from, to, ct);
-        return Build(companyId, from, to, rows);
+        // Money is a second gate on top of report access: seeing how many tickets closed is not the
+        // same as seeing what they were worth. Withheld here, so the figures never reach the client.
+        var revenue = await CanSeeValueAsync(companyId, ct) ? BuildRevenue(rows, await CurrencyAsync(ct)) : null;
+        return Build(companyId, from, to, rows, revenue);
     }
 
     public async Task<TicketReport> GlobalReportAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
     {
         EnsureGlobalAccess();
-        // SuperAdmin bypasses the tenant filter → all companies.
+        // SuperAdmin bypasses the tenant filter → all companies (and holds every permission).
         var rows = await LoadRowsAsync(db.Tickets.AsQueryable(), from, to, ct);
-        return Build(null, from, to, rows);
+        return Build(null, from, to, rows, BuildRevenue(rows, await CurrencyAsync(ct)));
     }
 
     /// <summary>Ticket-level CSV of the same scope (spec §15 "rapor almak" = export). CSV opens in Excel;
@@ -62,6 +76,15 @@ public sealed class ReportService(
             throw new ForbiddenException("report.forbidden", "You lack company report access.");
     }
 
+    /// <summary>Whether this caller may see money for this company (Faz 39).</summary>
+    private async Task<bool> CanSeeValueAsync(Guid companyId, CancellationToken ct)
+    {
+        if (currentUser.IsSuperAdmin) return true;
+        var userId = currentUser.UserId;
+        return userId is not null
+            && await permissions.HasPermissionAsync(userId.Value, companyId, PermissionKeys.TicketValue, ct);
+    }
+
     private void EnsureGlobalAccess()
     {
         if (!currentUser.IsSuperAdmin)
@@ -77,11 +100,12 @@ public sealed class ReportService(
         var joined = from t in tickets
                      join s in db.TicketStatuses.IgnoreQueryFilters() on t.StatusId equals s.Id
                      select new Row(t.CreatedAt, t.FirstResponseAt, t.ResolvedAt, t.ClosedAt,
-                         s.Category, t.AssignedToId, t.CategoryId);
+                         s.Category, t.AssignedToId, t.CategoryId, t.EstimatedValue, t.ActualValue);
         return await joined.ToListAsync(ct);
     }
 
-    private static TicketReport Build(Guid? companyId, DateTime? from, DateTime? to, List<Row> rows)
+    private static TicketReport Build(
+        Guid? companyId, DateTime? from, DateTime? to, List<Row> rows, RevenueSummary? revenue)
     {
         var byCategory = rows.GroupBy(r => r.Category)
             .Select(g => new StatusCategoryCount(g.Key, g.Count()))
@@ -114,7 +138,56 @@ public sealed class ReportService(
         return new TicketReport(companyId, from, to, rows.Count, byCategory,
             firstResponse.Count > 0 ? Math.Round(firstResponse.Average(), 2) : null,
             resolution.Count > 0 ? Math.Round(resolution.Average(), 2) : null,
-            staffLoad, categoryBreakdown, trend);
+            staffLoad, categoryBreakdown, trend, revenue);
+    }
+
+    /// <summary>
+    /// The money view (Faz 39). Won = Closed category, lost = Cancelled, everything else is open
+    /// pipeline — branching on the CATEGORY, never the status name, so a company that renames
+    /// "Tamamlandı" to "Teslim edildi" keeps correct totals (spec §4.3).
+    /// </summary>
+    private async Task<string> CurrencyAsync(CancellationToken ct) =>
+        await settings.GetValueAsync("finance.currency", ct) is { Length: > 0 } c ? c : DefaultCurrency;
+
+    private static RevenueSummary BuildRevenue(List<Row> rows, string currency)
+    {
+        var priced = rows.Where(r => r.Value is not null).ToList();
+        var won = priced.Where(r => r.Category == StatusCategory.Closed).ToList();
+        var lost = priced.Where(r => r.Category == StatusCategory.Cancelled).ToList();
+        var open = priced.Where(r => r.Category is not (StatusCategory.Closed or StatusCategory.Cancelled)).ToList();
+
+        var wonTotal = won.Sum(r => r.Value!.Value);
+        var lostTotal = lost.Sum(r => r.Value!.Value);
+        var decided = won.Count + lost.Count;
+        var decidedTotal = wonTotal + lostTotal;
+
+        // Forecast accuracy only means something where BOTH numbers exist: a won ticket whose actual
+        // was never entered would otherwise report a perfect 1.0 and flatter the average.
+        var estimated = won.Where(r => r.ActualValue is not null && r.EstimatedValue is > 0).ToList();
+        decimal? accuracy = estimated.Count > 0
+            ? Math.Round(estimated.Sum(r => r.ActualValue!.Value) / estimated.Sum(r => r.EstimatedValue!.Value), 4)
+            : null;
+
+        var byMonth = won.Concat(lost)
+            .GroupBy(r => new DateOnly(r.OutcomeAt.Year, r.OutcomeAt.Month, 1))
+            .OrderBy(g => g.Key)
+            .Select(g => new RevenueTrendPoint(
+                g.Key,
+                g.Where(r => r.Category == StatusCategory.Closed).Sum(r => r.Value!.Value),
+                g.Where(r => r.Category == StatusCategory.Cancelled).Sum(r => r.Value!.Value)))
+            .ToList();
+
+        return new RevenueSummary(
+            currency,
+            wonTotal, won.Count,
+            lostTotal, lost.Count,
+            open.Sum(r => r.Value!.Value), open.Count,
+            rows.Count - priced.Count,
+            // 0/0 is undefined, not zero — a company that has closed nothing has no win rate yet.
+            decided > 0 ? Math.Round((double)won.Count / decided, 4) : null,
+            decidedTotal > 0 ? Math.Round((double)(wonTotal / decidedTotal), 4) : null,
+            accuracy,
+            byMonth);
     }
 
     private sealed record ExportRow(string Number, string Title, string Status, StatusCategory Category,

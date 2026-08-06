@@ -12,6 +12,11 @@ public static class PermissionKeys
     public const string TicketAssign = "ticket.assign";
     public const string TicketStatusChange = "ticket.status.change";
 
+    /// <summary>See and set an opportunity's money figures, and open the revenue report (Faz 39).
+    /// Separate from ticket.view because commercial value is a different kind of secret from the
+    /// request itself: adding someone to a company should not hand them the whole order book.</summary>
+    public const string TicketValue = "ticket.value";
+
     public const string CommentInternal = "comment.internal";
 
     public const string ReportCompany = "report.company";
@@ -28,7 +33,7 @@ public static class PermissionKeys
     /// <summary>Every defined permission key — used by idempotent seed.</summary>
     public static readonly IReadOnlyList<string> All =
     [
-        TicketView, TicketEdit, TicketDelete, TicketAssign, TicketStatusChange,
+        TicketView, TicketEdit, TicketDelete, TicketAssign, TicketStatusChange, TicketValue,
         CommentInternal, ReportCompany, ReportGlobal, SettingsManage, StatusManage,
         UserInvite, PermissionAssign,
     ];
