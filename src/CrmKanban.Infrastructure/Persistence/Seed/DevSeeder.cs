@@ -190,24 +190,44 @@ public sealed class DevSeeder(
         db.Memberships.Add(new Membership(admin.Id, second.Id, RoleType.Admin));
 
         // 2. Per-user overrides at the FIRST company, where the demo tickets live.
-        var firstCompanyId = (await db.Companies.IgnoreQueryFilters().SingleAsync(c => c.Slug == "tekstil", ct)).Id;
+        // NOT SingleAsync over IgnoreQueryFilters: that set includes soft-deleted rows, so a company
+        // that was created, deleted and re-created under the same slug returns two and Single throws.
+        // This is tech debt #42's trap (filter bypassed without restating DeletedAt) — it took the
+        // live site down once already, from this very line.
+        var firstCompanyId = await db.Companies.IgnoreQueryFilters()
+            .Where(c => c.Slug == "tekstil" && c.DeletedAt == null)
+            .Select(c => c.Id).FirstOrDefaultAsync(ct);
+        if (firstCompanyId == Guid.Empty) return;
         var permissions = await db.Permissions.IgnoreQueryFilters().ToDictionaryAsync(p => p.Key, ct);
 
+        // Everything below is INSERT-IF-MISSING, like the rest of the seeders. The slug guard above
+        // only proves this block never ran before; it says nothing about rows that arrived some other
+        // way. A real example took the live site down: an operator had already trusted this customer
+        // through the moderation screen ("Onayla + güven"), so the plain insert hit the CustomerTrusts
+        // unique index and killed startup. Demo data must fit around whatever is already there.
+        var existingOverrides = await db.UserPermissions.IgnoreQueryFilters()
+            .Where(p => p.UserId == personel.Id && p.CompanyId == firstCompanyId && p.DeletedAt == null)
+            .Select(p => p.PermissionId).ToListAsync(ct);
+
         // Grant: personel normally has no money access; this one is trusted with the order book.
-        if (permissions.TryGetValue(PermissionKeys.TicketValue, out var value))
+        if (permissions.TryGetValue(PermissionKeys.TicketValue, out var value) && !existingOverrides.Contains(value.Id))
             db.UserPermissions.Add(new UserPermission(personel.Id, value.Id, UserPermissionType.Grant, firstCompanyId));
 
         // Deny: the same person may not delete tickets even though nothing in their role grants it —
         // an explicit Deny is what proves "Deny wins" is reachable from real data, not only from tests.
-        if (permissions.TryGetValue(PermissionKeys.TicketDelete, out var del))
+        if (permissions.TryGetValue(PermissionKeys.TicketDelete, out var del) && !existingOverrides.Contains(del.Id))
             db.UserPermissions.Add(new UserPermission(personel.Id, del.Id, UserPermissionType.Deny, firstCompanyId));
 
         // 3. One trusted customer; the other two stay untrusted so a new submission from them still
         //    lands in the moderation queue (Faz 35).
-        db.CustomerTrusts.Add(new CustomerTrust(firstCompanyId, trusted.Id, admin.Id));
+        if (!await db.CustomerTrusts.IgnoreQueryFilters()
+                .AnyAsync(t => t.CompanyId == firstCompanyId && t.UserId == trusted.Id && t.DeletedAt == null, ct))
+            db.CustomerTrusts.Add(new CustomerTrust(firstCompanyId, trusted.Id, admin.Id));
 
         // 4. An opt-out: this customer does not want comment mail, so fan-out has a skip to honour.
-        db.UserNotificationPrefs.Add(new UserNotificationPref(trusted.Id, TicketEventType.CommentAdded, enabled: false));
+        if (!await db.UserNotificationPrefs.IgnoreQueryFilters()
+                .AnyAsync(p => p.UserId == trusted.Id && p.EventType == TicketEventType.CommentAdded, ct))
+            db.UserNotificationPrefs.Add(new UserNotificationPref(trusted.Id, TicketEventType.CommentAdded, enabled: false));
 
         await db.SaveChangesAsync(ct);
         logger.LogInformation(

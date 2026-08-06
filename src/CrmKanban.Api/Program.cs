@@ -92,8 +92,22 @@ try
         await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync();
         // Demo data: always in Development, and on demand elsewhere via Seed:Demo=true (e.g. a review
         // deployment where you want the kanban/reports populated). Off by default in production.
+        //
+        // BEST EFFORT, deliberately. Schema (migrate) and the real seed (permissions, statuses, super
+        // admin) must succeed or the app is broken and should refuse to start. Demo data is a
+        // convenience: if it throws, the site still has to come up. Learned the hard way — a bad
+        // query in the demo seeder took the live site down with a 500.30, and the app itself was fine.
         if (builder.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Seed:Demo"))
-            await scope.ServiceProvider.GetRequiredService<DevSeeder>().SeedAsync();
+        {
+            try
+            {
+                await scope.ServiceProvider.GetRequiredService<DevSeeder>().SeedAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Demo seeding failed; continuing startup without it.");
+            }
+        }
     }
 
     // Behind a reverse proxy (IIS/ASP.NET Core Module on MonsterASP.NET, or nginx in Docker) so the
