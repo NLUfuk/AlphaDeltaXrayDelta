@@ -16,6 +16,12 @@
     <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.10" />
     <PackageVersion Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.22.0" />
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.22.0" />
+    <!-- Reporting. QuestPDF over PDFsharp/MigraDoc: it embeds its own font, so the same code renders
+         identical PDFs on Windows IIS (prod) and in the Linux dev container. PDFsharp needs a font
+         resolver + an embedded font file to survive that second environment.
+         LICENSE: QuestPDF Community is free while annual gross revenue stays under 1M USD; above that
+         it is a paid licence. Set explicitly in Program.cs so the choice is visible, not implicit. -->
+    <PackageVersion Include="QuestPDF" Version="2026.7.2" />
     <!-- Validation -->
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />

@@ -5,6 +5,10 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <!-- PDF export lives next to ReportService, the same place the CSV writer lived: rendering the
+         report is an output of the use case, not an infrastructure concern, and a one-implementation
+         IReportRenderer seam would be an abstraction with nothing to vary. -->
+    <PackageReference Include="QuestPDF" />
   </ItemGroup>
 
   <ItemGroup>

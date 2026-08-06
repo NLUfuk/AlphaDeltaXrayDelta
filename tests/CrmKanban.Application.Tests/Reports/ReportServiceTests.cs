@@ -1,3 +1,4 @@
+﻿using System.Text;
 using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Common;
 using CrmKanban.Application.Reports;
@@ -43,6 +44,8 @@ public class ReportServiceTests
     private static readonly Guid ClosedStatus = Guid.NewGuid();
     private static readonly Guid Staff1 = Guid.NewGuid();
 
+    private sealed class FixedClock : IClock { public DateTime UtcNow => new(2026, 8, 6, 9, 0, 0, DateTimeKind.Utc); }
+
     private static DbContextOptions<CrmDbContext> Store() =>
         new DbContextOptionsBuilder<CrmDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString(),
@@ -64,7 +67,7 @@ public class ReportServiceTests
     }
 
     private static ReportService Service(CrmDbContext db, ICurrentUserService user, IPermissionService? perms = null) =>
-        new(db, user, perms ?? new FakePermissions(CompanyA), new Application.Settings.SettingsService(db, user));
+        new(db, user, perms ?? new FakePermissions(CompanyA), new Application.Settings.SettingsService(db, user), new FixedClock());
 
     // ---- scope ----
 
@@ -191,22 +194,28 @@ public class ReportServiceTests
         report.AvgFirstResponseHours.Should().Be(3);
     }
 
+    /// <summary>
+    /// The PDF export replaced the CSV in Faz 41. This is the smoke test: rendering is a third-party
+    /// library doing layout, so the thing worth asserting is that the pipeline produces a real PDF at
+    /// all — the composition itself fails loudly (QuestPDF throws on an impossible layout), which is
+    /// exactly what this catches if a column definition and its cells ever drift apart.
+    /// </summary>
     [Fact]
-    public async Task Csv_export_has_a_header_plus_one_row_per_ticket_and_escapes_commas()
+    public async Task Pdf_export_produces_a_real_pdf_document()
     {
         var options = Store();
         var superAdmin = new FakeUser(true, Guid.NewGuid());
         await using var db = new CrmDbContext(options, superAdmin);
         await SeedStatusesAsync(db);
-        var ticket = new Ticket(CompanyA, "A-1", Guid.NewGuid(), OpenStatus, "Broken, urgent", "b");
-        db.Tickets.Add(ticket);
+        var customer = new User("musteri@ornek.com", "Ayşe", "Yılmaz");
+        db.Users.Add(customer);
+        db.Tickets.Add(new Ticket(CompanyA, "A-1", customer.Id, OpenStatus, "Broken, urgent", "b"));
         await db.SaveChangesAsync();
 
-        var csv = await Service(db, superAdmin).GlobalExportCsvAsync(null, null);
-        var lines = csv.TrimEnd().Split('\n');
+        var pdf = await Service(db, superAdmin).ExportPdfAsync(null, null, null);
 
-        lines.Should().HaveCount(2); // header + one ticket
-        lines[0].Should().StartWith("Number,Title,Status");
-        lines[1].Should().Contain("\"Broken, urgent\""); // comma-bearing field is quoted (RFC 4180)
+        pdf.Should().NotBeEmpty();
+        // %PDF- magic bytes: proves a document was written, not an empty or error buffer.
+        Encoding.ASCII.GetString(pdf, 0, 5).Should().Be("%PDF-");
     }
 }

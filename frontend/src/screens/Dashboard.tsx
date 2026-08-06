@@ -1,7 +1,7 @@
 import { useAuth } from '../lib/auth'
 import { useActiveCompany } from '../lib/company'
 import { statusCategory } from '../lib/messages'
-import { downloadCsv, useReport } from '../lib/reports'
+import { downloadReportPdf, useReport, type CustomerBreakdownItem } from '../lib/reports'
 import { Button, Card, Icon, Loading } from '../ui/primitives'
 import { BarList, TrendChart } from '../ui/charts'
 
@@ -28,7 +28,9 @@ export default function Dashboard() {
           <h1 className="text-lg font-semibold text-ink">{companyId ? 'Şirket Raporu' : 'Global Rapor'}</h1>
           <p className="text-sm text-muted">Ticket performans özeti</p>
         </div>
-        <Button variant="secondary" onClick={() => downloadCsv(companyId)}><Icon name="download" className="mr-1" />CSV indir</Button>
+        <Button variant="secondary" onClick={() => downloadReportPdf(companyId)}>
+          <Icon name="file-pdf-box" className="mr-1" />PDF indir
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -44,6 +46,63 @@ export default function Dashboard() {
       </div>
 
       <Panel title="Personel yükü (açık ticket)"><BarList rows={staffRows} /></Panel>
+
+      {/* Same rows the PDF prints. On screen too, so the export can be checked without downloading
+          it — and so "hangi müşteriyle ne kadar uğraşıldı" is answerable in the app. */}
+      <Panel title="Müşteri kırılımı">
+        <CustomerTable rows={r.customers} currency={r.revenue?.currency ?? null} />
+      </Panel>
+    </div>
+  )
+}
+
+/** Money columns disappear entirely without ticket.value (the server sends nulls) — a blank money
+ *  cell would be read as zero, which is worse than not showing the column. */
+function CustomerTable({ rows, currency }: { rows: CustomerBreakdownItem[]; currency: string | null }) {
+  if (rows.length === 0) return <p className="text-sm text-muted">Bu dönemde müşteri talebi yok.</p>
+  const money = currency !== null
+  const num = (n: number | null, digits = 1) =>
+    n === null ? '—' : n.toLocaleString('tr-TR', { maximumFractionDigits: digits })
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
+            <th className="py-2 text-left font-medium">Müşteri</th>
+            <th className="py-2 text-right font-medium">Talep</th>
+            <th className="py-2 text-right font-medium">Açık</th>
+            <th className="py-2 text-right font-medium">Kazanılan</th>
+            {money && <th className="py-2 text-right font-medium">Kazanılan ({currency})</th>}
+            {money && <th className="py-2 text-right font-medium">Açık ({currency})</th>}
+            <th className="py-2 text-right font-medium" title="Talebin açılışından çözümüne geçen takvim süresi">
+              Ort. çözüm (sa)
+            </th>
+            <th className="py-2 text-right font-medium">Toplam süre (sa)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((c) => (
+            <tr key={c.customerId} className="border-b border-line/60 last:border-0">
+              <td className="py-2">
+                <div className="font-medium text-ink">{c.name}</div>
+                <div className="text-xs text-muted">{c.email}</div>
+              </td>
+              <td className="py-2 text-right tabular-nums">{c.ticketCount}</td>
+              <td className="py-2 text-right tabular-nums">{c.openCount}</td>
+              <td className="py-2 text-right tabular-nums">{c.wonCount}</td>
+              {money && <td className="py-2 text-right tabular-nums">{num(c.wonTotal, 0)}</td>}
+              {money && <td className="py-2 text-right tabular-nums">{num(c.openTotal, 0)}</td>}
+              <td className="py-2 text-right tabular-nums">{num(c.avgResolutionHours)}</td>
+              <td className="py-2 text-right tabular-nums">{num(c.totalResolutionHours)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs text-muted">
+        Yalnız müşterilerin açtığı talepler; personel ve yöneticilerin açtıkları sayılmaz. Süreler
+        talebin açılışından çözümüne kadar geçen takvim süresidir, çalışılan saat kaydı tutulmaz.
+      </p>
     </div>
   )
 }

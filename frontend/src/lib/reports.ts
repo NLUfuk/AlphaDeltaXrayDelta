@@ -12,6 +12,27 @@ export type TicketReport = {
   trend: { date: string; opened: number; closed: number }[]
   /** Null when the caller lacks ticket.value — the figures are withheld server-side, not hidden here. */
   revenue: RevenueSummary | null
+  customers: CustomerBreakdownItem[]
+}
+
+/** Per-customer row: who was dealt with, how much, for how long, and what it was worth (Faz 41). */
+export type CustomerBreakdownItem = {
+  customerId: string
+  name: string
+  email: string
+  ticketCount: number
+  openCount: number
+  wonCount: number
+  lostCount: number
+  /** Both null without ticket.value — withheld server-side, exactly like `revenue`. */
+  wonTotal: number | null
+  openTotal: number | null
+  /** ELAPSED hours open→resolved, not worked hours: the system keeps no timesheets. */
+  avgResolutionHours: number | null
+  totalResolutionHours: number | null
+  avgFirstResponseHours: number | null
+  firstTicketAt: string
+  lastTicketAt: string
 }
 
 export type RevenueSummary = {
@@ -45,13 +66,19 @@ export function useReport(companyId: string | null) {
   })
 }
 
-/** Downloads the CSV through the authed client (a plain <a> can't send the Bearer header). */
-export async function downloadCsv(companyId: string | null) {
-  const res = await api.get(reportPath(companyId, '/export.csv'), { responseType: 'blob' })
+/**
+ * Downloads the report as a PDF through the authed client (a plain <a> can't send the Bearer header).
+ * Replaced the CSV export in Faz 41: the old file was a raw ticket dump with bare GUIDs in it, while
+ * the PDF carries the general stats, the money summary and the per-customer table with their labels.
+ */
+export async function downloadReportPdf(companyId: string | null) {
+  const res = await api.get(reportPath(companyId, '/export.pdf'), { responseType: 'blob' })
   const url = URL.createObjectURL(res.data as Blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = companyId ? `report-${companyId}.csv` : 'report-global.csv'
+  a.download = companyId ? `rapor-${companyId}.pdf` : 'rapor-tum-sirketler.pdf'
   a.click()
-  URL.revokeObjectURL(url)
+  // Revoked on the next tick: revoking synchronously can beat the click in Safari and the download
+  // silently produces an empty file.
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }

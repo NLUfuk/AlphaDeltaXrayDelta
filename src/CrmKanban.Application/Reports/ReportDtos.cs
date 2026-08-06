@@ -17,7 +17,42 @@ public sealed record TicketReport(
     IReadOnlyList<StaffLoadItem> StaffLoad,
     IReadOnlyList<CategoryCount> ByCategory,
     IReadOnlyList<TrendPoint> Trend,
-    RevenueSummary? Revenue);
+    RevenueSummary? Revenue,
+    IReadOnlyList<CustomerBreakdownItem> Customers);
+
+/// <summary>
+/// Per-customer view: who was dealt with, how much of it, for how long, and what it was worth
+/// (Faz 41 — the PDF report's core table).
+/// <para>
+/// "Customer" is the ticket's opener WITHOUT a membership in that ticket's company — the same
+/// definition <c>TicketAuthorizationService</c> uses to decide access. Membership is per company, so
+/// the same person can be staff at one company and a customer at another; the exclusion is applied
+/// per (company, opener) pair, never per user. A staff-opened ticket therefore never invents a
+/// customer out of a colleague.
+/// </para>
+/// </summary>
+public sealed record CustomerBreakdownItem(
+    Guid CustomerId,
+    string Name,
+    string Email,
+
+    int TicketCount, int OpenCount, int WonCount, int LostCount,
+
+    /// <summary>Money for this customer, both null when the caller lacks <c>ticket.value</c> — the
+    /// figures are withheld here exactly as they are on <see cref="RevenueSummary"/>, so a report
+    /// export can never become the back door to the order book.</summary>
+    decimal? WonTotal, decimal? OpenTotal,
+
+    /// <summary>ELAPSED hours from open to resolution, averaged and summed over this customer's
+    /// resolved tickets. This is calendar time, not worked time — the system tracks no timesheets,
+    /// and calling it "worked hours" would invent a number nobody measured. Null when nothing of
+    /// theirs has been resolved yet.</summary>
+    double? AvgResolutionHours, double? TotalResolutionHours,
+
+    /// <summary>Hours to the first staff reply, averaged. How fast this customer gets answered.</summary>
+    double? AvgFirstResponseHours,
+
+    DateTime FirstTicketAt, DateTime LastTicketAt);
 
 /// <summary>
 /// The money view of the same tickets (Faz 39). Null on the report when the caller lacks

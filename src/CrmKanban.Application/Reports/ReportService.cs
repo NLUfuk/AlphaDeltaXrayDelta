@@ -18,14 +18,17 @@ public sealed class ReportService(
     IAppDbContext db,
     ICurrentUserService currentUser,
     IPermissionService permissions,
-    Settings.SettingsService settings)
+    Settings.SettingsService settings,
+    IClock clock)
 {
     /// <summary>Fallback when the seed row is missing (older database); never blocks a report.</summary>
     private const string DefaultCurrency = "TRY";
     private sealed record Row(
         DateTime CreatedAt, DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt,
         StatusCategory Category, Guid? AssignedToId, Guid? CategoryId,
-        decimal? EstimatedValue, decimal? ActualValue)
+        decimal? EstimatedValue, decimal? ActualValue,
+        Guid CompanyId, Guid OpenedById, string? OpenedByName, string? OpenedByEmail,
+        bool OpenedByIsSuperAdmin)
     {
         /// <summary>What reporting counts: the realised amount once known, otherwise the estimate.</summary>
         public decimal? Value => ActualValue ?? EstimatedValue;
@@ -41,8 +44,9 @@ public sealed class ReportService(
         var rows = await LoadRowsAsync(db.Tickets.Where(t => t.CompanyId == companyId), from, to, ct);
         // Money is a second gate on top of report access: seeing how many tickets closed is not the
         // same as seeing what they were worth. Withheld here, so the figures never reach the client.
-        var revenue = await CanSeeValueAsync(companyId, ct) ? BuildRevenue(rows, await CurrencyAsync(ct)) : null;
-        return Build(companyId, from, to, rows, revenue);
+        var withMoney = await CanSeeValueAsync(companyId, ct);
+        var revenue = withMoney ? BuildRevenue(rows, await CurrencyAsync(ct)) : null;
+        return Build(companyId, from, to, rows, revenue, await BuildCustomersAsync(rows, withMoney, ct));
     }
 
     public async Task<TicketReport> GlobalReportAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
@@ -50,21 +54,46 @@ public sealed class ReportService(
         EnsureGlobalAccess();
         // SuperAdmin bypasses the tenant filter → all companies (and holds every permission).
         var rows = await LoadRowsAsync(db.Tickets.AsQueryable(), from, to, ct);
-        return Build(null, from, to, rows, BuildRevenue(rows, await CurrencyAsync(ct)));
+        return Build(null, from, to, rows, BuildRevenue(rows, await CurrencyAsync(ct)),
+            await BuildCustomersAsync(rows, withMoney: true, ct));
     }
 
-    /// <summary>Ticket-level CSV of the same scope (spec §15 "rapor almak" = export). CSV opens in Excel;
-    /// a native .xlsx would need a dependency (ClosedXML/EPPlus) — deferred until asked (ponytail).</summary>
-    public async Task<string> CompanyExportCsvAsync(Guid companyId, DateTime? from, DateTime? to, CancellationToken ct = default)
+    /// <summary>
+    /// The same report as a PDF (spec §15 "rapor almak" = export, Faz 41). Deliberately built from the
+    /// very same <see cref="CompanyReportAsync"/> / <see cref="GlobalReportAsync"/> result the screen
+    /// shows: one code path, so the export and the dashboard can never disagree, and the money gate is
+    /// enforced once instead of twice. The old ticket-level CSV was replaced, not kept alongside — it
+    /// dumped raw GUIDs and carried no money, no customer and no totals.
+    /// </summary>
+    public async Task<byte[]> ExportPdfAsync(Guid? companyId, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
-        await EnsureCompanyAccessAsync(companyId, ct);
-        return ToCsv(await LoadExportRowsAsync(db.Tickets.Where(t => t.CompanyId == companyId), from, to, ct));
+        var report = companyId is { } id
+            ? await CompanyReportAsync(id, from, to, ct)
+            : await GlobalReportAsync(from, to, ct);
+
+        var scopeName = companyId is { } cid
+            ? await db.Companies.IgnoreQueryFilters()
+                .Where(c => c.Id == cid).Select(c => c.Name).FirstOrDefaultAsync(ct)
+            : null;
+        var brand = await settings.GetValueAsync("brand.system_name", ct) is { Length: > 0 } b ? b : "Kanby";
+
+        return ReportPdf.Render(report, scopeName, brand, await LocalNowAsync(ct));
     }
 
-    public async Task<string> GlobalExportCsvAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
+    /// <summary>
+    /// "Generated at" in the operator's own timezone (<c>system.timezone</c>), not UTC. A printed
+    /// report is read by a person in a place; stamping it three hours off and calling it the time is
+    /// the kind of small lie that makes someone distrust every other number on the page.
+    /// Falls back to UTC if the configured zone is unknown to the host — never fails the export.
+    /// </summary>
+    private async Task<DateTime> LocalNowAsync(CancellationToken ct)
     {
-        EnsureGlobalAccess();
-        return ToCsv(await LoadExportRowsAsync(db.Tickets.AsQueryable(), from, to, ct));
+        var utc = DateTime.SpecifyKind(clock.UtcNow, DateTimeKind.Utc);
+        var id = await settings.GetValueAsync("system.timezone", ct);
+        if (string.IsNullOrWhiteSpace(id)) return utc;
+        try { return TimeZoneInfo.ConvertTimeFromUtc(utc, TimeZoneInfo.FindSystemTimeZoneById(id)); }
+        catch (TimeZoneNotFoundException) { return utc; }
+        catch (InvalidTimeZoneException) { return utc; }
     }
 
     private async Task EnsureCompanyAccessAsync(Guid companyId, CancellationToken ct)
@@ -96,16 +125,89 @@ public sealed class ReportService(
         if (from is { } f) tickets = tickets.Where(t => t.CreatedAt >= f);
         if (to is { } t2) tickets = tickets.Where(t => t.CreatedAt < t2);
 
-        // Join statuses (ignore their filter — global statuses have null CompanyId) to read the category.
+        // Join statuses (ignore their filter — global statuses have null CompanyId) to read the category,
+        // and the opener (customers are not company members, so their User row is out of tenant scope —
+        // the ticket set is already scoped, so the name lookup adds no reach).
+        // LEFT join on the opener, not inner: an inner join would silently drop a ticket whose opener
+        // row is gone (KVKK account deletion), and it would drop it from the TOTALS too — the headline
+        // "toplam talep" would quietly shrink because of something that happened to a user record.
         var joined = from t in tickets
                      join s in db.TicketStatuses.IgnoreQueryFilters() on t.StatusId equals s.Id
+                     join uj in db.Users.IgnoreQueryFilters() on t.OpenedById equals uj.Id into us
+                     from u in us.DefaultIfEmpty()
                      select new Row(t.CreatedAt, t.FirstResponseAt, t.ResolvedAt, t.ClosedAt,
-                         s.Category, t.AssignedToId, t.CategoryId, t.EstimatedValue, t.ActualValue);
+                         s.Category, t.AssignedToId, t.CategoryId, t.EstimatedValue, t.ActualValue,
+                         t.CompanyId, t.OpenedById,
+                         u == null ? null : u.FirstName + " " + u.LastName,
+                         u == null ? null : u.Email,
+                         u != null && u.IsSuperAdmin);
         return await joined.ToListAsync(ct);
     }
 
+    /// <summary>
+    /// Groups the rows by the person who opened them, keeping only real customers (Faz 41).
+    /// <para>
+    /// The staff exclusion is the whole point: an opener who holds a membership in that ticket's
+    /// company is a colleague, not a customer, and counting them would put the team's own internal
+    /// tickets in a report titled "customers". Membership is per company, so the check is on the
+    /// (company, opener) PAIR — the same person can legitimately be staff at one company and a
+    /// customer at another, and must appear only in the second.
+    /// </para>
+    /// </summary>
+    private async Task<List<CustomerBreakdownItem>> BuildCustomersAsync(
+        List<Row> rows, bool withMoney, CancellationToken ct)
+    {
+        if (rows.Count == 0) return [];
+
+        var openerIds = rows.Select(r => r.OpenedById).Distinct().ToList();
+        var companyIds = rows.Select(r => r.CompanyId).Distinct().ToList();
+        var staffPairs = await db.Memberships.IgnoreQueryFilters()
+            .Where(m => m.DeletedAt == null && openerIds.Contains(m.UserId) && companyIds.Contains(m.CompanyId))
+            .Select(m => new { m.UserId, m.CompanyId })
+            .ToListAsync(ct);
+        var staff = staffPairs.Select(p => (p.UserId, p.CompanyId)).ToHashSet();
+
+        return rows
+            // A super admin has NO membership anywhere — the flag is the role (Faz 2) — so the
+            // membership test alone would file them as a customer of every company whose ticket they
+            // ever touched. Found by reading the first real PDF, not by a test.
+            .Where(r => !r.OpenedByIsSuperAdmin)
+            .Where(r => !staff.Contains((r.OpenedById, r.CompanyId)))
+            .GroupBy(r => r.OpenedById)
+            .Select(g =>
+            {
+                var resolution = g.Where(r => r.ResolvedAt is not null)
+                    .Select(r => (r.ResolvedAt!.Value - r.CreatedAt).TotalHours).ToList();
+                var firstResponse = g.Where(r => r.FirstResponseAt is not null)
+                    .Select(r => (r.FirstResponseAt!.Value - r.CreatedAt).TotalHours).ToList();
+                var won = g.Where(r => r.Category == StatusCategory.Closed).ToList();
+                var open = g.Where(r => r.Category is not (StatusCategory.Closed or StatusCategory.Cancelled)).ToList();
+
+                return new CustomerBreakdownItem(
+                    g.Key,
+                    // A deleted account still owned real tickets; naming it plainly keeps its history
+                    // in the totals instead of hiding it behind a blank cell.
+                    g.First().OpenedByName?.Trim() is { Length: > 0 } n ? n : "(silinmiş kullanıcı)",
+                    g.First().OpenedByEmail ?? "—",
+                    g.Count(), open.Count, won.Count,
+                    g.Count(r => r.Category == StatusCategory.Cancelled),
+                    // Unpriced tickets contribute nothing rather than zero — same rule as the revenue
+                    // summary, so the two sections of the PDF can never disagree.
+                    withMoney ? won.Sum(r => r.Value ?? 0m) : null,
+                    withMoney ? open.Sum(r => r.Value ?? 0m) : null,
+                    resolution.Count > 0 ? Math.Round(resolution.Average(), 2) : null,
+                    resolution.Count > 0 ? Math.Round(resolution.Sum(), 2) : null,
+                    firstResponse.Count > 0 ? Math.Round(firstResponse.Average(), 2) : null,
+                    g.Min(r => r.CreatedAt), g.Max(r => r.CreatedAt));
+            })
+            // Busiest first: a report is read top-down and the people you spend most time on matter most.
+            .OrderByDescending(c => c.TicketCount).ThenBy(c => c.Name)
+            .ToList();
+    }
+
     private static TicketReport Build(
-        Guid? companyId, DateTime? from, DateTime? to, List<Row> rows, RevenueSummary? revenue)
+        Guid? companyId, DateTime? from, DateTime? to, List<Row> rows, RevenueSummary? revenue,
+        List<CustomerBreakdownItem> customers)
     {
         var byCategory = rows.GroupBy(r => r.Category)
             .Select(g => new StatusCategoryCount(g.Key, g.Count()))
@@ -138,7 +240,7 @@ public sealed class ReportService(
         return new TicketReport(companyId, from, to, rows.Count, byCategory,
             firstResponse.Count > 0 ? Math.Round(firstResponse.Average(), 2) : null,
             resolution.Count > 0 ? Math.Round(resolution.Average(), 2) : null,
-            staffLoad, categoryBreakdown, trend, revenue);
+            staffLoad, categoryBreakdown, trend, revenue, customers);
     }
 
     /// <summary>
@@ -190,42 +292,8 @@ public sealed class ReportService(
             byMonth);
     }
 
-    private sealed record ExportRow(string Number, string Title, string Status, StatusCategory Category,
-        Priority Priority, Guid? AssignedToId, Guid? CategoryId,
-        DateTime CreatedAt, DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt);
-
-    private async Task<List<ExportRow>> LoadExportRowsAsync(IQueryable<Domain.Entities.Ticket> tickets, DateTime? from, DateTime? to, CancellationToken ct)
-    {
-        if (from is { } f) tickets = tickets.Where(t => t.CreatedAt >= f);
-        if (to is { } t2) tickets = tickets.Where(t => t.CreatedAt < t2);
-        var joined = from t in tickets
-                     join s in db.TicketStatuses.IgnoreQueryFilters() on t.StatusId equals s.Id
-                     orderby t.CreatedAt
-                     select new ExportRow(t.Number, t.Title, s.Name, s.Category, t.Priority,
-                         t.AssignedToId, t.CategoryId, t.CreatedAt, t.FirstResponseAt, t.ResolvedAt, t.ClosedAt);
-        return await joined.ToListAsync(ct);
-    }
-
-    private static string ToCsv(List<ExportRow> rows)
-    {
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Number,Title,Status,Category,Priority,AssignedToId,CategoryId,CreatedAt,FirstResponseAt,ResolvedAt,ClosedAt");
-        foreach (var r in rows)
-            sb.AppendLine(string.Join(',', new[]
-            {
-                Csv(r.Number), Csv(r.Title), Csv(r.Status), Csv(r.Category.ToString()), Csv(r.Priority.ToString()),
-                Csv(r.AssignedToId?.ToString()), Csv(r.CategoryId?.ToString()),
-                Csv(r.CreatedAt.ToString("O")), Csv(r.FirstResponseAt?.ToString("O")),
-                Csv(r.ResolvedAt?.ToString("O")), Csv(r.ClosedAt?.ToString("O")),
-            }));
-        return sb.ToString();
-    }
-
-    // RFC 4180 escaping: wrap in quotes and double internal quotes when the field holds , " or a newline.
-    private static string Csv(string? field)
-    {
-        if (string.IsNullOrEmpty(field)) return "";
-        if (field.IndexOfAny([',', '"', '\n', '\r']) < 0) return field;
-        return $"\"{field.Replace("\"", "\"\"")}\"";
-    }
+    // The ticket-level CSV writer lived here until Faz 41. Deleted rather than kept beside the PDF:
+    // it exported bare GUIDs for assignee and category, carried no money and no customer, and nothing
+    // in the UI pointed at it any more. Bring it back only if someone actually needs Excel input —
+    // and then as a deliberate second format, not as the leftover it had become.
 }

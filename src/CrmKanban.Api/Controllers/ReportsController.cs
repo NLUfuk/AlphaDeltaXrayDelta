@@ -1,4 +1,3 @@
-using System.Text;
 using CrmKanban.Application.Reports;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,14 +21,13 @@ public sealed class ReportsController(ReportService reports) : ControllerBase
     public async Task<ActionResult<TicketReport>> Global([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct) =>
         Ok(await reports.GlobalReportAsync(from, to, ct));
 
-    [HttpGet("company/{companyId:guid}/export.csv")]
+    [HttpGet("company/{companyId:guid}/export.pdf")]
     public async Task<IActionResult> CompanyExport(Guid companyId, [FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct) =>
-        Csv(await reports.CompanyExportCsvAsync(companyId, from, to, ct), $"report-{companyId}.csv");
+        Pdf(await reports.ExportPdfAsync(companyId, from, to, ct), $"rapor-{companyId:N}.pdf");
 
-    [HttpGet("global/export.csv")]
+    [HttpGet("global/export.pdf")]
     public async Task<IActionResult> GlobalExport([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct) =>
-        Csv(await reports.GlobalExportCsvAsync(from, to, ct), "report-global.csv");
+        Pdf(await reports.ExportPdfAsync(null, from, to, ct), "rapor-tum-sirketler.pdf");
 
-    private FileContentResult Csv(string content, string fileName) =>
-        File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(content)).ToArray(), "text/csv", fileName);
+    private FileContentResult Pdf(byte[] content, string fileName) => File(content, "application/pdf", fileName);
 }

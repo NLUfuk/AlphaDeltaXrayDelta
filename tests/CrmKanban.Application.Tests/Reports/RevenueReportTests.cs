@@ -1,4 +1,4 @@
-using CrmKanban.Application.Abstractions;
+﻿using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Common;
 using CrmKanban.Application.Reports;
 using CrmKanban.Domain.Authorization;
@@ -49,6 +49,8 @@ public class RevenueReportTests
     private static readonly Guid WonStatus = Guid.NewGuid();
     private static readonly Guid LostStatus = Guid.NewGuid();
 
+    private sealed class FixedClock : IClock { public DateTime UtcNow => new(2026, 8, 6, 9, 0, 0, DateTimeKind.Utc); }
+
     private static DbContextOptions<CrmDbContext> Store() =>
         new DbContextOptionsBuilder<CrmDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString(),
@@ -71,7 +73,7 @@ public class RevenueReportTests
     }
 
     private static ReportService Service(CrmDbContext db, ICurrentUserService user, IPermissionService perms) =>
-        new(db, user, perms, new Application.Settings.SettingsService(db, user));
+        new(db, user, perms, new Application.Settings.SettingsService(db, user), new FixedClock());
 
     private static IPermissionService FullAccess =>
         new FakePermissions(CompanyA, PermissionKeys.ReportCompany, PermissionKeys.TicketValue);
