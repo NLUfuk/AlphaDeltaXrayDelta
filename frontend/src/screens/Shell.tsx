@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet } from 'react-router-dom'
-import { useCompanies } from '../lib/admin'
 import { useAuth } from '../lib/auth'
-import { setActiveCompany, useActiveCompany } from '../lib/company'
+import { setActiveCompany, useActiveCompany, useSelectableCompanies } from '../lib/company'
 import { isDark, toggleTheme } from '../lib/theme'
 import { Button, Icon, Loading } from '../ui/primitives'
 
@@ -54,11 +53,13 @@ function NavLinks({ items, onNavigate, collapsed }: { items: NavItem[]; onNaviga
   )
 }
 
-/** Company picker for admins who own more than one company — the staff screens all read the active one.
- * Rendered only in that case, so single-company users (and customers) never fire the companies query. */
+/** Company picker for anyone who can reach more than one company — the staff screens all read the
+ * active one. Rendered only in that case, so single-company users (and customers) see no clutter.
+ * Returns null rather than an empty <select> while the list is still loading. */
 function CompanySwitcher() {
-  const { data: companies } = useCompanies()
+  const companies = useSelectableCompanies()
   const active = useActiveCompany()
+  if (companies.length < 2) return null
   return (
     <select
       value={active ?? ''}
@@ -67,7 +68,7 @@ function CompanySwitcher() {
       title="Aktif şirket"
       className="max-w-[12rem] rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-ink"
     >
-      {companies?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
     </select>
   )
 }
@@ -158,7 +159,7 @@ export default function Shell() {
               </button>
             </div>
             <div className="flex items-center justify-end gap-3 text-sm text-muted">
-              {user.companies.length > 1 && <CompanySwitcher />}
+              <CompanySwitcher />
               <button
                 className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas"
                 onClick={() => setDark(toggleTheme())}

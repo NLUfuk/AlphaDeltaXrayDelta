@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { useCompanies } from './admin'
 import { useAuth } from './auth'
 
 // One admin can own several companies, so the company-scoped screens (kanban, onay kutusu, pano) need
@@ -17,11 +18,29 @@ export function setActiveCompany(companyId: string) {
   listeners.forEach((fn) => fn())
 }
 
-/** The company the staff screens work on: the stored pick if the user is still a member of it
- * (a deleted company must not linger), otherwise their first membership. */
+/**
+ * Companies this user may switch between. `GET /companies` is the authority: memberships for staff,
+ * every company for a super admin (CompanyService.ListAsync).
+ *
+ * The token's membership claims are used as an instant first answer so staff screens do not flash an
+ * empty state while the request is in flight. They cannot be the only source: a super admin holds no
+ * memberships, so deriving the active company from claims alone left them with no board at all
+ * ("Bu kullanıcı bir şirkete bağlı değil") — the one role that is supposed to see everything.
+ */
+export function useSelectableCompanies(): { id: string; name: string }[] {
+  return useCompanies().data?.map((c) => ({ id: c.id, name: c.name })) ?? []
+}
+
+/** The company the staff screens work on: the stored pick if it is still selectable (a deleted
+ * company must not linger), otherwise the first one available.
+ *
+ * Ids only, so the token's membership claims can stand in while `GET /companies` is in flight —
+ * that keeps staff screens from flashing an empty state. Names are not in the claims (`/me` returns
+ * ids and roles), which is why the switcher above reads the fetched list instead. */
 export function useActiveCompany(): string | undefined {
   const { user } = useAuth()
+  const fetched = useSelectableCompanies()
   const stored = useSyncExternalStore(subscribe, () => localStorage.getItem(KEY))
-  const ids = user?.companies.map((c) => c.companyId) ?? []
+  const ids = fetched.length ? fetched.map((c) => c.id) : (user?.companies.map((c) => c.companyId) ?? [])
   return stored && ids.includes(stored) ? stored : ids[0]
 }
