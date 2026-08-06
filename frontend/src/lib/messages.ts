@@ -55,6 +55,22 @@ export function errorText(err: unknown): string {
   return errorMessage(code, message)
 }
 
+/**
+ * Wording for a failed READ (a `useQuery` that errored), as opposed to a failed action.
+ *
+ * Screens used to hardcode a sentence each — "Rapor yüklenemedi (yetki gerekebilir)", "Kullanıcılar
+ * yüklenemedi (süper admin gerekli)". Two things were wrong with that: the text lived in the
+ * component, and the parenthetical was a guess. The server already answers precisely
+ * (`report.forbidden`, `settings.forbidden`, `auth.required`, …), so a known code wins and `what` is
+ * only the fallback subject for codes we have no sentence for.
+ */
+export function loadErrorText(err: unknown, what: string): string {
+  const { code, message } = toApiError(err)
+  if (code in ERRORS) return ERRORS[code]
+  // `undefined` shows up when a query resolves to nothing without throwing — no code, no server text.
+  return message ?? `${what} yüklenemedi.`
+}
+
 // StatusCategory enum (backend Enums.cs) → label + color. Indexed by the numeric enum value.
 export const STATUS_CATEGORIES = [
   { key: 'open', label: 'Açık', color: '#2563eb' },

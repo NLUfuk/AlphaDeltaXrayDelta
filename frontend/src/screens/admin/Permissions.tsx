@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { errorText } from '../../lib/messages'
 import { useAssignPermission, useClearPermission, useCompanies, useEffective, useMembers, usePermissionCatalog, type PermissionInfo } from '../../lib/admin'
-import { Alert, Card, Icon, Switch } from '../../ui/primitives'
+import { Alert, Card, Icon, Select, Switch } from '../../ui/primitives'
 
 // RBAC assignment UI (spec §7/§18.4): pick a company + member, then flip permissions on and off. The
 // escalation guard (only what you hold, only in your company, and only if you may manage permissions
@@ -54,16 +54,16 @@ export default function Permissions() {
       </header>
 
       <div className="flex flex-wrap gap-3">
-        <select className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink" value={companyId}
+        <Select value={companyId}
           onChange={(e) => { setCompanyId(e.target.value); setUserId(''); setErr(null) }}>
           <option value="">Şirket seç…</option>
           {companies?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink" value={userId}
+        </Select>
+        <Select value={userId}
           onChange={(e) => { setUserId(e.target.value); setErr(null) }} disabled={!companyId}>
           <option value="">Üye seç…</option>
           {members?.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
-        </select>
+        </Select>
       </div>
 
       {err && <Alert>{err}</Alert>}

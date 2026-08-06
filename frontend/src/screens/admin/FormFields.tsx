@@ -5,7 +5,7 @@ import { errorText } from '../../lib/messages'
 import {
   FIELD_TYPES, useCreateField, useDeleteField, useFormFields, useUpdateField, type FormField,
 } from '../../lib/formfields'
-import { Alert, Button, Card, Field, Icon, Input, Loading } from '../../ui/primitives'
+import { Alert, Button, Card, Field, Icon, Input, Loading, Select, Textarea } from '../../ui/primitives'
 
 // Configurable public-form fields (spec §4.6): a company admin adds extra fields (text / number / select)
 // that appear on the public request form and are captured on the ticket. Backend gates on company admin.
@@ -40,12 +40,11 @@ export default function FormFields() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-ink">Form alanları</h1>
         {(companies?.length ?? 0) > 1 && (
-          <select
-            className="rounded-md border border-line bg-surface px-2 py-2 text-sm"
+          <Select
             value={cid} onChange={(e) => setCompanyId(e.target.value)}
           >
             {companies?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </Select>
         )}
       </header>
       <p className="text-sm text-muted">Bu alanlar müşterinin talep formunda görünür ve talebe kaydedilir.</p>
@@ -65,15 +64,15 @@ export default function FormFields() {
         <form onSubmit={add} className="flex flex-wrap items-end gap-3">
           <Field label="Etiket"><Input className="w-48" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} required /></Field>
           <Field label="Tip">
-            <select className="rounded-md border border-line bg-surface px-2 py-2 text-sm" value={draft.type} onChange={(e) => setDraft({ ...draft, type: Number(e.target.value) })}>
+            <Select value={draft.type} onChange={(e) => setDraft({ ...draft, type: Number(e.target.value) })}>
               {FIELD_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            </Select>
           </Field>
           <label className="flex items-center gap-1.5 pb-2 text-sm text-muted">
             <input type="checkbox" checked={draft.required} onChange={(e) => setDraft({ ...draft, required: e.target.checked })} /> Zorunlu
           </label>
           {draft.type === 3 && (
-            <Field label="Seçenekler (her satıra bir)"><textarea className="h-20 w-56 rounded-md border border-line bg-surface px-2 py-1 text-sm" value={draft.options} onChange={(e) => setDraft({ ...draft, options: e.target.value })} /></Field>
+            <Field label="Seçenekler (her satıra bir)"><Textarea value={draft.options} onChange={(e) => setDraft({ ...draft, options: e.target.value })} /></Field>
           )}
           <Button type="submit" disabled={create.isPending}>Ekle</Button>
         </form>

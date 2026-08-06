@@ -6,7 +6,7 @@ import {
   useColumns, useCreateColumn, useDeleteColumn, useReorderColumns, useUpdateColumn, type StatusColumn,
 } from '../../lib/tickets'
 import { errorText } from '../../lib/messages'
-import { Alert, Button, Card, Field, Icon, Input } from '../../ui/primitives'
+import { Alert, Button, Card, Field, Icon, Input, Select } from '../../ui/primitives'
 
 // Kanban column manager (spec §12/§18.9): an admin adds a column anywhere in the chain, renames /
 // recolors it, reorders the board, or removes an empty one. The first change forks this company's
@@ -56,13 +56,9 @@ export default function Columns() {
           <p className="text-sm text-muted">Sütunları istediğiniz sıraya zincir gibi ekleyin ve düzenleyin.</p>
         </div>
         {companies && companies.length > 1 && (
-          <select
-            value={cid}
-            onChange={(e) => setCompanyId(e.target.value)}
-            className="rounded-md border border-line bg-surface px-3 py-2 text-sm"
-          >
+          <Select value={cid} onChange={(e) => setCompanyId(e.target.value)}>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </Select>
         )}
       </header>
 
@@ -106,18 +102,18 @@ export default function Columns() {
         <form onSubmit={add} className="flex flex-wrap items-end gap-3">
           <Field label="Yeni sütun"><Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="ör. Teklif verildi" /></Field>
           <Field label="Tür">
-            <select value={draft.category} onChange={(e) => setDraft({ ...draft, category: Number(e.target.value) })} className="rounded-md border border-line bg-surface px-3 py-2 text-sm">
+            <Select value={draft.category} onChange={(e) => setDraft({ ...draft, category: Number(e.target.value) })}>
               {STATUS_CATEGORIES.map((c, i) => <option key={c.key} value={i}>{c.label}</option>)}
-            </select>
+            </Select>
           </Field>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted">Renk</span>
             <input type="color" value={draft.color} onChange={(e) => setDraft({ ...draft, color: e.target.value })} className="h-9 w-12 rounded border border-line" />
           </label>
           <Field label="Konum">
-            <select value={draft.position} onChange={(e) => setDraft({ ...draft, position: Number(e.target.value) })} className="rounded-md border border-line bg-surface px-3 py-2 text-sm">
+            <Select value={draft.position} onChange={(e) => setDraft({ ...draft, position: Number(e.target.value) })}>
               {Array.from({ length: count + 1 }, (_, i) => <option key={i} value={i}>{i + 1}. sıra</option>)}
-            </select>
+            </Select>
           </Field>
           <Button type="submit" disabled={create.isPending || !draft.name.trim()}><Icon name="plus" className="mr-1" />Ekle</Button>
         </form>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { errorText } from '../../lib/messages'
 import { useAuth } from '../../lib/auth'
 import { useAnonymizeUser, useCreateAdmin, useUsers, type UserRow } from '../../lib/admin'
-import { Alert, Button, Card, Field, Icon, Input } from '../../ui/primitives'
+import { Alert, Button, Card, Field, Icon, Input, LoadError, Select } from '../../ui/primitives'
 
 // One vocabulary for "what kind of account is this" — the table, the filter and the badges all read it.
 type Kind = 'super' | 'admin' | 'staff' | 'customer'
@@ -91,7 +91,7 @@ export default function AdminUsers() {
     })
   }
 
-  if (error) return <p className="text-red-600">Kullanıcılar yüklenemedi (süper admin gerekli).</p>
+  if (error) return <LoadError error={error} what="Kullanıcılar" />
 
   return (
     <div className="space-y-4">
@@ -130,21 +130,19 @@ export default function AdminUsers() {
         <div className="w-64">
           <Input placeholder="Ara (ad / e-posta)…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <select
-          className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-ink"
+        <Select
           value={kindFilter} onChange={(e) => setKindFilter(e.target.value as '' | Kind)}
         >
           <option value="">Tür: tümü</option>
           {(Object.keys(KINDS) as Kind[]).map((k) => <option key={k} value={k}>{KINDS[k].label}</option>)}
-        </select>
-        <select
-          className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-ink"
+        </Select>
+        <Select
           value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'pending')}
         >
           <option value="">Durum: tümü</option>
           <option value="active">Aktif</option>
           <option value="pending">Davet bekliyor</option>
-        </select>
+        </Select>
         {(search || kindFilter || statusFilter) && (
           <button onClick={() => { setSearch(''); setKindFilter(''); setStatusFilter('') }} className="text-sm text-muted hover:text-ink">
             Temizle

@@ -4,7 +4,7 @@ import { useCompanies, useMembers } from '../lib/admin'
 import { useActiveCompany } from '../lib/company'
 import { errorText, PRIORITIES, priority as priorityOf, statusCategory } from '../lib/messages'
 import { useChangeStatus, useCreateTicket, useKanban, useModeration, type KanbanColumn, type KanbanFilters } from '../lib/tickets'
-import { Alert, Button, Icon, Input, Loading } from '../ui/primitives'
+import { Alert, Button, Icon, Input, LoadError, Loading, Select, Textarea } from '../ui/primitives'
 import { CustomerLink } from '../ui/CustomerLink'
 import { TicketCard } from '../ui/TicketCard'
 
@@ -34,7 +34,7 @@ export default function Kanban() {
   const memberName = (id: string | null) => members?.find((m) => m.userId === id)?.name
 
   if (!companyId) return <p className="text-muted">Bu kullanıcı bir şirkete bağlı değil (kanban için şirket gerekli).</p>
-  if (error) return <p className="text-red-600">Pano yüklenemedi.</p>
+  if (error) return <LoadError error={error} what="Pano" />
 
   function clearDrag() {
     setDrag(null)
@@ -107,22 +107,20 @@ export default function Kanban() {
             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
           />
         </div>
-        <select
-          className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-ink"
+        <Select
           value={filters.assignedToId ?? ''}
           onChange={(e) => setFilters((f) => ({ ...f, assignedToId: e.target.value || undefined }))}
         >
           <option value="">Atanan: herkes</option>
           {members?.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
-        </select>
-        <select
-          className="rounded-md border border-line bg-surface px-2 py-2 text-sm text-ink"
+        </Select>
+        <Select
           value={filters.priority ?? ''}
           onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value === '' ? undefined : Number(e.target.value) }))}
         >
           <option value="">Öncelik: tümü</option>
           {PRIORITIES.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
-        </select>
+        </Select>
         {(filters.search || filters.assignedToId || filters.priority !== undefined) && (
           <button onClick={() => setFilters({})} className="text-sm text-muted hover:text-ink">Temizle</button>
         )}
@@ -279,18 +277,17 @@ function QuickCreate({
     >
       <Input autoFocus required placeholder="Başlık" value={values.title}
         onChange={(e) => setValues({ ...values, title: e.target.value })} />
-      <textarea
+      <Textarea
         required rows={2} placeholder="Kısa açıklama"
-        className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
         value={values.body} onChange={(e) => setValues({ ...values, body: e.target.value })}
       />
       <div className="flex items-center gap-2">
-        <select
-          className="flex-1 rounded-md border border-line bg-surface px-2 py-1.5 text-sm text-ink"
+        <Select
+          className="flex-1 py-1.5"
           value={values.priority} onChange={(e) => setValues({ ...values, priority: Number(e.target.value) })}
         >
           {PRIORITIES.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
-        </select>
+        </Select>
         <Button type="submit" disabled={busy} className="px-3 py-1.5">{busy ? '…' : 'Ekle'}</Button>
         <button type="button" onClick={onCancel} className="text-sm text-muted hover:text-ink">Vazgeç</button>
       </div>

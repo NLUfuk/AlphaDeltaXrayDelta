@@ -1,7 +1,7 @@
 import { useAuth } from '../lib/auth'
 import { useActiveCompany } from '../lib/company'
 import { useReport } from '../lib/reports'
-import { Card, Icon, Loading } from '../ui/primitives'
+import { Card, Icon, LoadError, Loading } from '../ui/primitives'
 import { BarList, RevenueChart } from '../ui/charts'
 
 // Revenue tab (Faz 39). The board is an opportunity pipeline, so won/lost is a projection of the
@@ -24,7 +24,7 @@ export default function Revenue() {
     v === null ? '—' : `%${(v * 100).toLocaleString('tr-TR', { maximumFractionDigits: 1 })}`
 
   if (isLoading) return <Loading />
-  if (error || !r) return <p className="text-red-600">Rapor yüklenemedi.</p>
+  if (error || !r) return <LoadError error={error} what="Rapor" />
 
   if (!r.revenue)
     return (

@@ -2,7 +2,7 @@ import { useAuth } from '../lib/auth'
 import { useActiveCompany } from '../lib/company'
 import { statusCategory } from '../lib/messages'
 import { downloadReportPdf, useReport, type CustomerBreakdownItem } from '../lib/reports'
-import { Button, Card, Icon, Loading } from '../ui/primitives'
+import { Button, Card, Icon, LoadError, Loading } from '../ui/primitives'
 import { BarList, TrendChart } from '../ui/charts'
 
 // Report dashboard (spec §15), StarAdmin-inspired: stat tiles + charts. Super admin sees the global
@@ -14,7 +14,7 @@ export default function Dashboard() {
   const { data: r, isLoading, error } = useReport(companyId)
 
   if (isLoading) return <Loading />
-  if (error || !r) return <p className="text-red-600">Rapor yüklenemedi (yetki gerekebilir).</p>
+  if (error || !r) return <LoadError error={error} what="Rapor" />
 
   // Open = not in a terminal category (Closed=4 / Cancelled=5).
   const openCount = r.byStatusCategory.filter((c) => c.category !== 4 && c.category !== 5).reduce((n, c) => n + c.count, 0)

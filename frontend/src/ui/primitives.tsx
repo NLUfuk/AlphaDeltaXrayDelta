@@ -1,4 +1,7 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import type {
+  ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes,
+} from 'react'
+import { loadErrorText } from '../lib/messages'
 
 // Atomic primitives (spec §4.2): StarAdmin look — deep-blue primary, soft-shadow surfaces,
 // Manrope type. Screens compose these; they never re-write button/input markup inline.
@@ -28,6 +31,35 @@ export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInpu
   )
 }
 
+/**
+ * Dropdown. Existed as the same 60-character Tailwind class string copied into 12 places across 11
+ * screens; one of them had drifted to a different padding. A primitive makes "all our selects look
+ * the same" true by construction instead of by everyone remembering the string.
+ */
+export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      className={`rounded-md border border-line bg-surface px-2 py-2 text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 ${className}`}
+      {...props}
+    />
+  )
+}
+
+/**
+ * Multi-line input. Same story as Select: seven hand-written copies, three different paddings.
+ * Takes `ref` because the template editor needs it to insert a placeholder at the caret — React 19
+ * passes ref as an ordinary prop, but the type has to say so.
+ */
+export function Textarea({ className = '', rows = 3, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & { ref?: Ref<HTMLTextAreaElement> }) {
+  return (
+    <textarea
+      rows={rows}
+      className={`w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 ${className}`}
+      {...props}
+    />
+  )
+}
+
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-1 flex-col gap-1">
@@ -48,6 +80,18 @@ export function Loading({ className = '' }: { className?: string }) {
 
 export function Alert({ children }: { children: ReactNode }) {
   return <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{children}</div>
+}
+
+/**
+ * The one "this query failed" block. Ten screens each wrote their own sentence and their own markup
+ * (`<p className="text-red-600">Rapor yüklenemedi (yetki gerekebilir)</p>`), which had two problems:
+ * the wording lived in the component instead of the message catalog, and — worse — the sentence was a
+ * GUESS. The server had already said why (`report.forbidden`, `settings.forbidden`, …) and nobody
+ * looked. This renders the real reason and falls back to "<what> yüklenemedi" only for codes the
+ * catalog does not know.
+ */
+export function LoadError({ error, what }: { error: unknown; what: string }) {
+  return <Alert>{loadErrorText(error, what)}</Alert>
 }
 
 // Material Design Icons (reused from the StarAdmin template's mdi webfont). Usage: <Icon name="cog" />.

@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth'
 import { setActiveCompany, useActiveCompany, useSelectableCompanies } from '../lib/company'
 import { isDark, toggleTheme } from '../lib/theme'
 import { Logo, LogoMark } from '../ui/Logo'
-import { Button, Icon, Loading } from '../ui/primitives'
+import { Button, Icon, Loading, Select } from '../ui/primitives'
 
 type NavItem = { to: string; label: string; icon: string; end?: boolean }
 const NAV: NavItem[] = [
@@ -63,15 +63,15 @@ function CompanySwitcher() {
   const active = useActiveCompany()
   if (companies.length < 2) return null
   return (
-    <select
+    <Select
       value={active ?? ''}
       onChange={(e) => setActiveCompany(e.target.value)}
       aria-label="Aktif şirket"
       title="Aktif şirket"
-      className="max-w-[12rem] rounded-lg border border-line bg-surface px-2 py-1.5 text-sm text-ink"
+      className="max-w-[12rem] py-1.5"
     >
       {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-    </select>
+    </Select>
   )
 }
 

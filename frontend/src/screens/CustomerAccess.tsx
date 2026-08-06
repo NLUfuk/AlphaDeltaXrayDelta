@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { errorText } from '../lib/messages'
 import { useCustomerFormSubmit, useCustomerRegister, useFormConfig, useVerifyCode, type PublicField } from '../lib/public'
-import { Alert, Button, Field, Icon, Input, Loading } from '../ui/primitives'
+import { Alert, Button, Field, Icon, Input, Loading, Select, Textarea } from '../ui/primitives'
 
 // A company's own customer entrance (/c/{slug}) — the link staff generate and send over WhatsApp.
 // Sign up → 6-digit code from the email → session → first request. The request is what binds the
@@ -176,8 +176,7 @@ export default function CustomerAccess() {
                 <Input value={request.title} onChange={(e) => setRequest({ ...request, title: e.target.value })} required autoFocus />
               </Field>
               <Field label="Mesajınız">
-                <textarea
-                  className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
+                <Textarea
                   rows={5} value={request.body}
                   onChange={(e) => setRequest({ ...request, body: e.target.value })} required
                 />
@@ -212,20 +211,18 @@ function CustomField({ field, value, onChange }: { field: PublicField; value: st
   if (field.type === 3)
     return (
       <Field label={label}>
-        <select
-          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
+        <Select
           value={value} onChange={(e) => onChange(e.target.value)} required={field.required}
         >
           <option value="">Seçiniz…</option>
           {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        </Select>
       </Field>
     )
   if (field.type === 1)
     return (
       <Field label={label}>
-        <textarea
-          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink"
+        <Textarea
           value={value} onChange={(e) => onChange(e.target.value)} required={field.required}
         />
       </Field>

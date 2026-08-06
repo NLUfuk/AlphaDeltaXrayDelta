@@ -3,7 +3,7 @@ import { formatDateTime } from '../../lib/messages'
 import {
   renderPreview, TEMPLATE_GROUPS, TEMPLATE_LABELS, tokensFor, useEmailTemplates, useUpdateTemplate,
 } from '../../lib/templates'
-import { Button, Card, Icon, Input } from '../../ui/primitives'
+import { Button, Card, Icon, Input, LoadError, Textarea } from '../../ui/primitives'
 
 // Super-admin email template editor (spec §14/§9): list → editor → live preview. Bodies carry
 // {{placeholder}} tokens filled at send time; only the tokens this mail's payload actually carries are
@@ -17,7 +17,7 @@ export default function Templates() {
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   if (isLoading) return <p className="text-muted">Yükleniyor…</p>
-  if (error) return <p className="text-red-600">Şablonlar yüklenemedi (süper admin gerekli).</p>
+  if (error) return <LoadError error={error} what="Şablonlar" />
 
   const activeKey = selected ?? data?.[0]?.key ?? ''
   const current = data?.find((t) => t.key === activeKey)
@@ -106,9 +106,8 @@ export default function Templates() {
                 ))}
               </span>
             </div>
-            <textarea
+            <Textarea
               ref={bodyRef}
-              className="mt-1 h-64 w-full rounded-md border border-line bg-surface px-3 py-2 font-mono text-sm text-ink"
               value={view.body}
               onChange={(e) => setDraft({ ...view, body: e.target.value })}
             />

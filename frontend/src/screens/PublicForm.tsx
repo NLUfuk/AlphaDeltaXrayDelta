@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { errorText } from '../lib/messages'
-import { Alert, Button, Field, Icon, Input, Loading } from '../ui/primitives'
+import { Alert, Button, Field, Icon, Input, Loading, Select, Textarea } from '../ui/primitives'
 
 type PublicField = { id: string; label: string; type: number; required: boolean; options: string[] }
 type FormConfig = { companyName: string; kvkkText: string; brandName: string; primaryColor: string; logoUrl: string | null; fields: PublicField[] }
@@ -110,16 +110,14 @@ export default function PublicForm() {
             return (
               <Field key={f.id} label={f.label + (f.required ? ' *' : '')}>
                 {f.type === 3 ? (
-                  <select
-                    className="w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink"
+                  <Select
                     value={val} onChange={(e) => onChange(e.target.value)} required={f.required}
                   >
                     <option value="">Seçiniz…</option>
                     {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                  </select>
+                  </Select>
                 ) : f.type === 1 ? (
-                  <textarea
-                    className="w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink"
+                  <Textarea
                     value={val} onChange={(e) => onChange(e.target.value)} required={f.required}
                   />
                 ) : (

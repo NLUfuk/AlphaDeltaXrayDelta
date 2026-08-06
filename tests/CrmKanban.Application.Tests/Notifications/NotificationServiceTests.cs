@@ -289,4 +289,34 @@ public class NotificationServiceTests
         var payload = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(staffMail.Payload)!;
         payload["change"].Should().Be("durum güncellendi: İşlemde", "the {{change}} token names the change");
     }
+
+    /// <summary>
+    /// Money must not escape through the mail (Faz 42). `ticket.value` withholds the amount from the
+    /// API, but an email is read outside the app where no permission can gate it — so a value change
+    /// must never reach the opener, and the staff notice must name the event without the figure.
+    /// The event type existed from Faz 40 with no matrix entry at all, i.e. it notified nobody by
+    /// omission; this test pins the deliberate rule in place of that accident.
+    /// </summary>
+    [Fact]
+    public async Task A_value_change_never_reaches_the_customer_and_carries_no_amount()
+    {
+        var options = Store();
+        var s = await SeedAsync(options);
+        await using (var db = new CrmDbContext(options, new SuperAdmin()))
+        {
+            db.TicketEvents.Add(new TicketEvent(Company, s.TicketId, s.AdminId, TicketEventType.ValueChanged, "100000/-", "100000/90000"));
+            await db.SaveChangesAsync();
+            await ServiceOver(db, new RecordingSender()).FanOutEventsAsync();
+        }
+
+        var recipients = await QueuedRecipientsAsync(options);
+        recipients.Should().NotContain(CustomerEmail, "the amount is the company's commercial position");
+        recipients.Should().ContainSingle().Which.Should().Be(StaffEmail); // the assignee
+
+        await using var read = new CrmDbContext(options, new SuperAdmin());
+        var mail = await read.EmailQueue.SingleAsync();
+        var payload = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(mail.Payload)!;
+        payload["change"].Should().Be("tutar güncellendi");
+        payload["change"].Should().NotContain("90000", "the mail names the event, never the figure");
+    }
 }

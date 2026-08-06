@@ -94,6 +94,16 @@ public static class NotificationMatrix
             [TicketEventType.CategoryChanged] = new(
                 [RecipientSlot.Assignee], StaffTemplate.Update,
                 NotifyOpenerEvenIfActor: false, Critical: false),
+
+            // Money (Faz 39). Added in Faz 42: the event type existed since Faz 40 but had no entry
+            // here, so pricing a deal notified nobody — silence by omission rather than by decision.
+            // The opener is DELIBERATELY absent: the amount is the company's commercial position, it
+            // sits behind `ticket.value`, and mailing "tahmini tutarınız 100.000 → 90.000 oldu" to a
+            // customer would hand out through the mail exactly what the permission withholds in the
+            // API. The assignee gets the generic staff update, which names the event, not the figure.
+            [TicketEventType.ValueChanged] = new(
+                [RecipientSlot.Assignee], StaffTemplate.Update,
+                NotifyOpenerEvenIfActor: false, Critical: false),
         };
 
     // Deleted, Unassigned → nobody. (Unassigned would have to mail the *previous* assignee; the event

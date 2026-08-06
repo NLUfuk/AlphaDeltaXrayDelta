@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { useMembers } from '../lib/admin'
-import { PRIORITIES, formatDateTime, priority, statusCategory } from '../lib/messages'
+import { PRIORITIES, errorText, formatDateTime, priority, statusCategory } from '../lib/messages'
 import {
   downloadAttachment, isImage, useAttachmentBlobUrl,
   useAddComment, useAssignTicket, useChangeTicketStatus, useDeleteTicket, useSetTicketPriority, useSetTicketValue, useStatuses, useTicket, useUploadAttachment,
   type Attachment,
 } from '../lib/tickets'
-import { Badge, Button, Card, Icon, Input, Loading } from '../ui/primitives'
+import { Alert, Badge, Button, Card, Icon, Input, LoadError, Loading, Select as SelectBox } from '../ui/primitives'
 
 // Server-side allow-list mirrored for the picker; the backend re-checks bytes either way.
 const ACCEPT = '.png,.jpg,.jpeg,.webp,.pdf,.txt,.doc,.docx'
@@ -55,7 +55,7 @@ export default function TicketDetail() {
     user.companies.some((c) => c.companyId === ticket?.companyId && c.role === 1))
 
   if (isLoading) return <Loading />
-  if (error || !ticket) return <p className="text-red-600">Ticket yüklenemedi.</p>
+  if (error || !ticket) return <LoadError error={error} what="Talep" />
 
   const cat = statusCategory(ticket.category)
   const p = priority(ticket.priority)
@@ -208,7 +208,10 @@ export default function TicketDetail() {
             </ul>
           </>
         )}
-        {upload.isError && <p className="mt-1 text-sm text-red-600">Yükleme başarısız (tip veya boyut).</p>}
+        {/* The server distinguishes wrong type, size, count, empty file and content mismatch, and the
+            catalog has a sentence for each — "tip veya boyut" threw all five away and made the user
+            guess which one they hit. */}
+        {upload.isError && <div className="mt-1"><Alert>{errorText(upload.error)}</Alert></div>}
         <p className="mt-2 text-xs text-muted">Görsel (PNG, JPG, WEBP) ve belge (PDF, TXT, DOC, DOCX) yükleyebilirsiniz.</p>
       </Card>
 
@@ -290,12 +293,10 @@ function Control({ label, children }: { label: string; children: React.ReactNode
   )
 }
 
+// Local wrapper only for the (value, onChange(v)) shape this screen's three dropdowns share; the
+// look comes from the primitive, so it can no longer drift from every other select in the app.
 function Select({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: React.ReactNode }) {
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary">
-      {children}
-    </select>
-  )
+  return <SelectBox value={value} onChange={(e) => onChange(e.target.value)}>{children}</SelectBox>
 }
 
 /// Estimated vs realised amount. Two fields, not one: overwriting the estimate on close makes

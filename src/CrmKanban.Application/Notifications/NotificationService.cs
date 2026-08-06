@@ -184,6 +184,9 @@ public sealed class NotificationService(
         TicketEventType.Edited => "başlık/içerik güncellendi",
         TicketEventType.Approved => "talep onaylandı",
         TicketEventType.Rejected => "talep reddedildi",
+        // Names the event, never the figure. The event row carries old/new amounts, but a mail is
+        // read outside the app where `ticket.value` cannot gate anything.
+        TicketEventType.ValueChanged => "tutar güncellendi",
         _ => "güncelleme var",
     };
 

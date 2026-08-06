@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { errorText, priority, statusCategory } from '../lib/messages'
 import { useCreateCustomerTicket } from '../lib/public'
 import { useMyCompanies, useMyTickets } from '../lib/tickets'
-import { Alert, Badge, Button, Field, Icon, Input, Loading } from '../ui/primitives'
+import { Alert, Badge, Button, Field, Icon, Input, LoadError, Loading, Select, Textarea } from '../ui/primitives'
 
 // A customer's own ticket list (spec §17.4) + a "new message" composer that opens a request to a
 // company they pick from the public list. Customers aren't company members, so this is their portal.
@@ -12,7 +12,7 @@ export default function CustomerTickets() {
   const [composing, setComposing] = useState(false)
 
   if (isLoading) return <Loading />
-  if (error) return <p className="text-red-600">Talepler yüklenemedi.</p>
+  if (error) return <LoadError error={error} what="Talepler" />
   const items = data?.items ?? []
 
   return (
@@ -85,24 +85,23 @@ function NewMessage({ onDone }: { onDone: () => void }) {
     <form onSubmit={submit} className="space-y-3 rounded-xl border border-line bg-surface p-5">
       {error && <Alert>{error}</Alert>}
       <Field label="Firma">
-        <select
+        <Select
           value={form.companyId}
           onChange={(e) => setForm({ ...form, companyId: e.target.value })}
           required
-          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+          className="w-full"
         >
           <option value="" disabled>Firma seçin…</option>
           {companies?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        </Select>
       </Field>
       <Field label="Konu"><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></Field>
       <Field label="Mesaj">
-        <textarea
+        <Textarea
           value={form.body}
           onChange={(e) => setForm({ ...form, body: e.target.value })}
           required
           rows={4}
-          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
         />
       </Field>
       <Button type="submit" disabled={create.isPending || !form.companyId}>

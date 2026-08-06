@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { errorText } from '../../lib/messages'
 import { useCompanies, useCreateCompany, useDeleteCompany, useInvite, useMembers, useRemoveMember, type Company } from '../../lib/admin'
 import { useAuth } from '../../lib/auth'
-import { Alert, Button, Field, Icon, Input } from '../../ui/primitives'
+import { Alert, Button, Field, Icon, Input, LoadError, Select } from '../../ui/primitives'
 import { CustomerLink } from '../../ui/CustomerLink'
 
 // Companies (spec §8/§9): an admin opens as many as they need; the list + members drive assignment/
@@ -26,7 +26,7 @@ export default function Companies() {
     }
   }
 
-  if (error) return <p className="text-red-600">Şirketler yüklenemedi.</p>
+  if (error) return <LoadError error={error} what="Şirketler" />
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -111,10 +111,10 @@ function CompanyCard({ company }: { company: Company }) {
             <Field label="Soyad"><Input className="w-28" value={inv.lastName} onChange={(e) => setInv({ ...inv, lastName: e.target.value })} required /></Field>
             <Field label="E-posta"><Input className="w-48" type="email" value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} required /></Field>
             <Field label="Rol">
-              <select className="rounded-md border border-line px-2 py-2" value={inv.role} onChange={(e) => setInv({ ...inv, role: Number(e.target.value) })}>
+              <Select value={inv.role} onChange={(e) => setInv({ ...inv, role: Number(e.target.value) })}>
                 <option value={2}>Personel</option>
                 <option value={1}>Admin</option>
-              </select>
+              </Select>
             </Field>
             <Button type="submit" disabled={invite.isPending}>Davet et</Button>
           </form>
