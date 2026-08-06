@@ -3,7 +3,7 @@
 
   Produces ./publish containing the API exe + the SPA in wwwroot + the .NET 10 runtime (self-contained,
   so the host needs no .NET installed) + web.config (in-process ASP.NET Core Module). Upload the whole
-  folder to your MonsterASP.NET site root, then set config (see DEPLOY-monsterasp.md).
+  folder to your MonsterASP.NET site root, then set config (see docs/DEPLOY-monsterasp.md).
 
   Usage:  ./publish.ps1            # win-x64, self-contained, output ./publish
 #>
@@ -35,4 +35,4 @@ dotnet publish $api -c Release -r $Runtime --self-contained true -o $Out
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
 
 Write-Host "Done. Upload the contents of ./$Out to your MonsterASP.NET site root." -ForegroundColor Green
-Write-Host 'Then set ConnectionStrings__Default, Jwt__SigningKey, SuperAdmin__*, Email__* (see DEPLOY-monsterasp.md).'
+Write-Host 'Then set ConnectionStrings__Default, Jwt__SigningKey, SuperAdmin__*, Email__* (see docs/DEPLOY-monsterasp.md).'

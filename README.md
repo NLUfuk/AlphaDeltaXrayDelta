@@ -2,11 +2,11 @@
 
 Multi-tenant CRM with a Kanban ticket pipeline. .NET 10 (Clean Architecture) + React 19/Vite + MSSQL + S3-compatible storage.
 
-- Architecture and spec: `crm-kanban-mimari.md`
-- Progress, decisions, tech debt: `PROGRESS.md`
-- Roadmap and deferred suggestions: `ONERILER.md`
-- Requirement checklist (with evidence): `CRM_Kanban_Gereksinim_Listesi.md`
-- Deploying to IIS / MonsterASP.NET instead of Docker: `DEPLOY-monsterasp.md`
+- Architecture and spec: `docs/crm-kanban-mimari.md`
+- Progress, decisions, tech debt: `docs/PROGRESS.md`
+- Roadmap and deferred suggestions: `docs/ONERILER.md`
+- Requirement checklist (with evidence): `docs/CRM_Kanban_Gereksinim_Listesi.md`
+- Deploying to IIS / MonsterASP.NET instead of Docker: `docs/DEPLOY-monsterasp.md`
 
 ## Quickest start (Windows, Docker)
 
@@ -107,12 +107,12 @@ variable to its `Section__Key`. Outside Docker, set `Section__Key` directly in t
 ```
 
 Upload the contents of `./publish` to the site root and set the config keys above in the panel's
-environment variables. Full walkthrough, including the storage options: `DEPLOY-monsterasp.md`.
+environment variables. Full walkthrough, including the storage options: `docs/DEPLOY-monsterasp.md`.
 
 ### Production notes
 
 - **TLS** terminates at the reverse proxy (nginx `web` service). Put a real cert / a fronting proxy
   in front of it before exposing publicly; the API speaks plain HTTP inside the compose network.
 - **Migrations** run on API startup — fine for single-instance. For multi-instance, move them to a
-  one-shot job (see `PROGRESS.md` tech debt #6).
+  one-shot job (see `docs/PROGRESS.md` tech debt #6).
 - Secrets come from `.env` / the orchestrator's secret store, never from committed files.
