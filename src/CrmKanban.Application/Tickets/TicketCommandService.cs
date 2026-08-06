@@ -163,8 +163,12 @@ public sealed class TicketCommandService(
     }
 
     /// <summary>Approve a pending public submission into the pool (spec §10). Staff-only; requires
-    /// ticket.edit (Admin/SuperAdmin by default), so triage stays with people who can act on it.</summary>
-    public async Task ApproveAsync(Guid ticketId, CancellationToken ct = default)
+    /// ticket.edit (Admin/SuperAdmin by default), so triage stays with people who can act on it.
+    /// <para><paramref name="trustCustomer"/> also records standing trust for this customer at this
+    /// company (Faz 35), so their later tickets skip the queue instead of needing this click every
+    /// time. Scoped to the ticket's company — vouching here says nothing about any other company.</para>
+    /// </summary>
+    public async Task ApproveAsync(Guid ticketId, bool trustCustomer = false, CancellationToken ct = default)
     {
         var ticket = await LoadPendingAsync(ticketId, ct);
         var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
@@ -172,6 +176,17 @@ public sealed class TicketCommandService(
 
         ticket.Approve();
         db.TicketEvents.Add(Event(ticket, actor.UserId, TicketEventType.Approved, null, ticket.Number));
+
+        if (trustCustomer)
+        {
+            // Idempotent: approving a second ticket with the box ticked must not violate the unique
+            // (CompanyId, UserId) index.
+            var already = await db.CustomerTrusts.IgnoreQueryFilters().AnyAsync(
+                t => t.CompanyId == ticket.CompanyId && t.UserId == ticket.OpenedById && t.DeletedAt == null, ct);
+            if (!already)
+                db.CustomerTrusts.Add(new CustomerTrust(ticket.CompanyId, ticket.OpenedById, actor.UserId));
+        }
+
         await db.SaveChangesAsync(ct);
     }
 

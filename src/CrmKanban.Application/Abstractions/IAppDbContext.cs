@@ -19,6 +19,7 @@ public interface IAppDbContext
     DbSet<UserPermission> UserPermissions { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<Invitation> Invitations { get; }
+    DbSet<CustomerTrust> CustomerTrusts { get; }
     DbSet<AuditLog> AuditLogs { get; }
 
     DbSet<Ticket> Tickets { get; }

@@ -1,4 +1,5 @@
 using CrmKanban.Application.Companies;
+using CrmKanban.Application.PublicForm;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,8 +9,16 @@ namespace CrmKanban.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/companies")]
-public sealed class CompaniesController(CompanyService companies) : ControllerBase
+public sealed class CompaniesController(CompanyService companies, CustomerInviteService customerInvites) : ControllerBase
 {
+    /// <summary>Mint a per-customer sign-in link (<c>/c/{slug}?davet=…</c>) whose holder's first ticket
+    /// skips the moderation queue (Faz 35). Requires user.invite on this company. The raw token is
+    /// returned on purpose — staff paste the link into WhatsApp; it is not a login credential.</summary>
+    [HttpPost("{id:guid}/customer-invites")]
+    public async Task<ActionResult<CustomerInviteResult>> CreateCustomerInvite(
+        Guid id, CustomerInviteRequest request, CancellationToken ct) =>
+        Ok(await customerInvites.CreateAsync(id, request, ct));
+
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CompanyDto>>> List(CancellationToken ct) =>
         Ok(await companies.ListAsync(ct));

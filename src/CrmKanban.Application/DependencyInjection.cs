@@ -31,6 +31,8 @@ public static class DependencyInjection
         services.AddScoped<Files.AttachmentService>();
         services.AddScoped<Forms.FormFieldService>();
         services.AddScoped<PublicForm.PublicFormService>();
+        services.AddScoped<PublicForm.IntakeTrustService>();
+        services.AddScoped<PublicForm.CustomerInviteService>();
 
         services.AddScoped<Settings.SettingsService>();
         services.AddScoped<Notifications.EmailTemplateService>();

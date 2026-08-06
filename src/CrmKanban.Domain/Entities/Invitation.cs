@@ -18,16 +18,26 @@ public sealed class Invitation : Entity
     private Invitation() { } // EF
 
     public Invitation(Guid userId, string tokenHash, DateTime expiresAt, Guid? invitedById,
-        InvitationKind kind = InvitationKind.Link)
+        InvitationKind kind = InvitationKind.Link, Guid? companyId = null)
     {
+        // A customer-access token means "come to THIS company's board". Without the scope it would be
+        // a cross-tenant skeleton key: an invite issued by one company would skip moderation at every
+        // other one. Account tokens (Link/Code) are identity-wide by design and stay unscoped.
+        if (kind == InvitationKind.CustomerAccess && companyId is null)
+            throw new ArgumentNullException(nameof(companyId), "A customer-access invitation must be company-scoped.");
+
         UserId = userId;
         TokenHash = tokenHash;
         ExpiresAt = expiresAt;
         InvitedById = invitedById;
         Kind = kind;
+        CompanyId = companyId;
     }
 
     public Guid UserId { get; private set; }
+
+    /// <summary>Set only for <see cref="InvitationKind.CustomerAccess"/>; null for account tokens.</summary>
+    public Guid? CompanyId { get; private set; }
     public string TokenHash { get; private set; } = null!;
     public DateTime ExpiresAt { get; private set; }
     public DateTime? AcceptedAt { get; private set; }

@@ -17,6 +17,18 @@ export function useForgotPassword() {
   })
 }
 
+/**
+ * Mints a per-customer sign-in link. The returned token is bound to this email + company and is
+ * consumed by the first ticket, so the link is safe to hand over but useless to anyone else.
+ */
+export function useCreateCustomerInvite(companyId: string) {
+  return useMutation({
+    mutationFn: async (v: { email: string; firstName?: string; lastName?: string }) =>
+      (await api.post<{ url: string; email: string; expiresAt: string }>(
+        `/companies/${companyId}/customer-invites`, v)).data,
+  })
+}
+
 // ---- company sign-in page (/c/{slug}): sign up with an emailed code, then send the first request ----
 
 export type PublicField = { id: string; label: string; type: number; required: boolean; options: string[] }
@@ -51,12 +63,21 @@ export function useVerifyCode(slug: string) {
   })
 }
 
-/** A signed-in customer's request through the company link — the first one creates the relationship. */
+/**
+ * A signed-in customer's request through the company link — the first one creates the relationship.
+ * `inviteToken` is the `?davet=` value from a staff-issued link, if the customer arrived with one:
+ * it is what lets their first request skip the moderation queue. Absent = the request waits for
+ * approval, which is the correct default for whoever simply found the page.
+ */
 export function useCustomerFormSubmit(slug: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (v: { title: string; body: string; customFields: Record<string, string> }) =>
-      (await api.post<{ ticketNumber: string }>(`/public/form/${slug}/ticket`, v)).data,
+    mutationFn: async (v: {
+      title: string
+      body: string
+      customFields: Record<string, string>
+      inviteToken?: string | null
+    }) => (await api.post<{ ticketNumber: string }>(`/public/form/${slug}/ticket`, v)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-tickets'] })
       qc.invalidateQueries({ queryKey: ['my-companies'] })

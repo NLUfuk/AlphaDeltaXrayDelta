@@ -17,7 +17,10 @@ export default function Moderation() {
     <div className="mx-auto max-w-3xl space-y-4">
       <header>
         <h1 className="text-lg font-semibold text-ink">Onay bekleyen talepler</h1>
-        <p className="text-sm text-muted">İlk kez gelen müşterilerin talepleri, havuza girmeden önce burada onaylanır.</p>
+        <p className="text-sm text-muted">
+          Davetsiz gelen talepler havuza girmeden önce burada onaylanır. Bir müşteriyle düzenli
+          çalışıyorsanız <b>Onayla + güven</b> deyin: sonraki talepleri doğrudan panoya düşer.
+        </p>
       </header>
 
       {isLoading && <Loading className="text-sm" />}
@@ -38,11 +41,18 @@ export default function Moderation() {
               </div>
               <p className="text-xs text-muted">{new Date(t.createdAt).toLocaleString('tr-TR')}</p>
             </div>
-            <Button variant="secondary" onClick={() => reject.mutate(t.id)} disabled={reject.isPending}>
+            <Button variant="secondary" onClick={() => reject.mutate({ ticketId: t.id })} disabled={reject.isPending}>
               <Icon name="close" className="mr-1" />Reddet
             </Button>
-            <Button onClick={() => approve.mutate(t.id)} disabled={approve.isPending}>
+            <Button variant="secondary" onClick={() => approve.mutate({ ticketId: t.id })} disabled={approve.isPending}>
               <Icon name="check" className="mr-1" />Onayla
+            </Button>
+            <Button
+              onClick={() => approve.mutate({ ticketId: t.id, trust: true })}
+              disabled={approve.isPending}
+              title="Bu talebi onayla ve bu müşteriye artık güven — sonraki talepleri doğrudan panoya düşsün"
+            >
+              <Icon name="shield-check-outline" className="mr-1" />Onayla + güven
             </Button>
           </Card>
         ))}

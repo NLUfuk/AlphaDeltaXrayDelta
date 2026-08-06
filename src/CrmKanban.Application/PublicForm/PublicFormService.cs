@@ -24,6 +24,7 @@ public sealed class PublicFormService(
     IClock clock,
     Settings.SettingsService settings,
     ICurrentUserService currentUser,
+    IntakeTrustService intakeTrust,
     IOptions<AuthOptions> authOptions,
     IOptions<AppOptions> appOptions)
 {
@@ -59,10 +60,12 @@ public sealed class PublicFormService(
         var email = request.Email.Trim().ToLowerInvariant();
         var (user, inviteToken) = await ResolveCustomerAsync(email, request.FirstName, request.LastName, now, ct);
 
-        // Zero-trust intake (spec §10): a first-time (unknown) customer's ticket is held for manual
-        // approval before it enters the pool; a known customer (existing user) goes straight in.
+        // Zero-trust intake (spec §10, Faz 35): held for approval unless staff vouched for this
+        // customer or issued them an invitation. Recognising the email is NOT enough — that was the
+        // old rule and it let any past submitter skip moderation forever.
+        var hold = await intakeTrust.ShouldHoldForApprovalAsync(company.Id, user.Id, request.InviteToken, ct);
         var ticket = await AddTicketAsync(company, user.Id, request.Title, request.Body, request.CustomFields,
-            pendingApproval: inviteToken is not null, request.Attachments, ct);
+            pendingApproval: hold, request.Attachments, ct);
 
         // First-time customer: email the account-activation link. Clicking it verifies the address and
         // lets them set a password (spec §9). Known customers already have an account — no email.
@@ -75,22 +78,26 @@ public sealed class PublicFormService(
                 });
 
         await db.SaveChangesAsync(ct);
-        return new PublicFormResult(ticket.Number, inviteToken is not null);
+        return new PublicFormResult(ticket.Number, inviteToken is not null, hold);
     }
 
     /// <summary>A signed-in customer sends a request through the company's own link (/c/{slug}) — the
     /// first-contact channel that creates the relationship the portal then scopes to (Faz 17). No CAPTCHA
-    /// or KVKK re-consent: they consented and proved their address when they registered, which is also why
-    /// the ticket enters the pool directly instead of waiting for moderation.</summary>
+    /// or KVKK re-consent: they consented and proved their address when they registered.
+    /// <para>Being signed in is NOT a reason to skip moderation (changed in Faz 35). Anyone can register
+    /// on a public company page, so "has an account" only proves they own a mailbox — it says nothing
+    /// about whether this company wants their tickets. Moderation is decided by the same gate as the
+    /// anonymous form: a staff invitation or standing trust.</para></summary>
     public async Task<PublicFormResult> SubmitAsCustomerAsync(
         string slug, CustomerFormSubmitRequest request, CancellationToken ct = default)
     {
         var userId = currentUser.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
         var company = await CompanyLookup.OpenBySlugAsync(db, slug, ct);
+        var hold = await intakeTrust.ShouldHoldForApprovalAsync(company.Id, userId, request.InviteToken, ct);
         var ticket = await AddTicketAsync(company, userId, request.Title, request.Body, request.CustomFields,
-            pendingApproval: false, request.Attachments, ct);
+            pendingApproval: hold, request.Attachments, ct);
         await db.SaveChangesAsync(ct);
-        return new PublicFormResult(ticket.Number, NewAccount: false);
+        return new PublicFormResult(ticket.Number, NewAccount: false, PendingApproval: hold);
     }
 
     /// <summary>Shared ticket construction for both intake paths (anonymous form / signed-in customer):

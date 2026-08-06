@@ -101,7 +101,8 @@ public class PublicFormServiceTests
         var settings = new Application.Settings.SettingsService(db, new Anonymous());
         var formFields = new Application.Forms.FormFieldService(db, new Anonymous());
         return new PublicFormService(db, new FakeCaptcha(captchaOk), attachments, formFields, new FixedClock(),
-            settings, caller ?? new Anonymous(), Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
+            settings, caller ?? new Anonymous(), new IntakeTrustService(db, new FixedClock()),
+            Options.Create(new AuthOptions()), Options.Create(new AppOptions()));
     }
 
     private static PublicFormSubmitRequest Request(bool consent = true) =>
@@ -207,8 +208,14 @@ public class PublicFormServiceTests
         (await read.Tickets.SingleAsync()).ApprovalState.Should().Be(TicketApprovalState.Pending);
     }
 
+    /// <summary>
+    /// Changed in Faz 35. This used to assert the opposite ("known email → straight into the pool"),
+    /// which meant anyone who had ever submitted the form bypassed moderation forever — recognising an
+    /// address is not vouching for it. Now only a staff invitation or standing trust opens the gate
+    /// (see <see cref="IntakeTrustTests"/>).
+    /// </summary>
     [Fact]
-    public async Task Submit_by_a_known_customer_enters_the_pool_directly()
+    public async Task Submit_by_a_known_customer_is_still_held_for_approval()
     {
         var options = Store();
         await SeedCompanyAsync(options);
@@ -221,6 +228,31 @@ public class PublicFormServiceTests
         }
 
         await ServiceFor(options).SubmitAsync(Slug, Request());
+
+        await using var read = new CrmDbContext(options, new SuperAdmin());
+        (await read.Tickets.SingleAsync()).ApprovalState.Should().Be(TicketApprovalState.Pending);
+    }
+
+    [Fact]
+    public async Task Submit_with_a_staff_invitation_enters_the_pool_directly()
+    {
+        var options = Store();
+        var companyId = await SeedCompanyAsync(options);
+        string token;
+        await using (var seed = new CrmDbContext(options, new SuperAdmin()))
+        {
+            var u = new User("jane@example.com", "Jane", "Doe");
+            u.SetPasswordHash("hash");
+            seed.Users.Add(u);
+            await seed.SaveChangesAsync();
+            token = TokenHasher.NewRawToken();
+            seed.Invitations.Add(new Invitation(u.Id, TokenHasher.Hash(token),
+                new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), Guid.NewGuid(),
+                InvitationKind.CustomerAccess, companyId));
+            await seed.SaveChangesAsync();
+        }
+
+        await ServiceFor(options).SubmitAsync(Slug, Request() with { InviteToken = token });
 
         await using var read = new CrmDbContext(options, new SuperAdmin());
         (await read.Tickets.SingleAsync()).ApprovalState.Should().Be(TicketApprovalState.Approved);
@@ -272,8 +304,15 @@ public class PublicFormServiceTests
 
     // ---- signed-in customer path (/c/{slug}), the first contact that creates the relationship ----
 
+    /// <summary>
+    /// Changed in Faz 35. This used to assert the ticket entered the pool directly because the address
+    /// had been proven by the emailed code. But anyone can register on a public company page, so a
+    /// proven mailbox only says "this person exists" — not "this company wants their tickets". That is
+    /// exactly the case the operator hit: a link handed to a friend put their ticket straight on the
+    /// board. Being signed in no longer decides moderation; the invitation does.
+    /// </summary>
     [Fact]
-    public async Task A_signed_in_customer_request_enters_the_pool_directly_and_creates_the_relationship()
+    public async Task A_signed_in_customer_without_an_invitation_is_held_for_approval()
     {
         var options = Store();
         var companyId = await SeedCompanyAsync(options);
@@ -292,9 +331,34 @@ public class PublicFormServiceTests
         var ticket = await read.Tickets.SingleAsync();
         ticket.CompanyId.Should().Be(companyId);
         ticket.OpenedById.Should().Be(customer.Id);
-        ticket.ApprovalState.Should().Be(TicketApprovalState.Approved,
-            "the address was already proven by the emailed code — no moderation hold");
+        ticket.ApprovalState.Should().Be(TicketApprovalState.Pending);
         (await read.EmailQueue.CountAsync()).Should().Be(0, "the account already exists; nothing to activate");
+    }
+
+    [Fact]
+    public async Task A_signed_in_customer_with_a_staff_invitation_enters_the_pool_directly()
+    {
+        var options = Store();
+        var companyId = await SeedCompanyAsync(options);
+        var customer = new User("jane@example.com", "Jane", "Doe");
+        string token;
+        await using (var seed = new CrmDbContext(options, new SuperAdmin()))
+        {
+            seed.Users.Add(customer);
+            await seed.SaveChangesAsync();
+            token = TokenHasher.NewRawToken();
+            seed.Invitations.Add(new Invitation(customer.Id, TokenHasher.Hash(token),
+                new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), Guid.NewGuid(),
+                InvitationKind.CustomerAccess, companyId));
+            await seed.SaveChangesAsync();
+        }
+
+        await ServiceFor(options, caller: new SignedIn(customer.Id)).SubmitAsCustomerAsync(
+            Slug, new CustomerFormSubmitRequest("Teklif", "Fiyat alabilir miyim?", InviteToken: token));
+
+        await using var read = new CrmDbContext(options, new SuperAdmin());
+        (await read.Tickets.SingleAsync()).ApprovalState.Should().Be(TicketApprovalState.Approved);
+        (await read.Invitations.IgnoreQueryFilters().SingleAsync()).AcceptedAt.Should().NotBeNull("one-shot");
     }
 
     [Fact]

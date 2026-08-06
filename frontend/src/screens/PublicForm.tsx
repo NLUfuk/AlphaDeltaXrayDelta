@@ -26,7 +26,7 @@ export default function PublicForm() {
   const [consent, setConsent] = useState(false)
   const [files, setFiles] = useState<Descriptor[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ ticketNumber: string; newAccount: boolean } | null>(null)
+  const [result, setResult] = useState<{ ticketNumber: string; newAccount: boolean; pendingApproval: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
 
@@ -61,7 +61,11 @@ export default function PublicForm() {
     setBusy(true)
     try {
       const { data } = await api.post(`/public/form/${slug}`, { ...form, kvkkConsent: consent, attachments: files, customFields })
-      setResult({ ticketNumber: data.ticketNumber, newAccount: !!data.newAccount })
+      setResult({
+        ticketNumber: data.ticketNumber,
+        newAccount: !!data.newAccount,
+        pendingApproval: !!data.pendingApproval,
+      })
     } catch (err) {
       setError(errorText(err))
     } finally {
@@ -81,9 +85,12 @@ export default function PublicForm() {
           <Icon name="check-circle-outline" className="text-3xl text-emerald-500" />
           <p className="mt-2 text-ink">Talebiniz alındı. Ticket no: <b>{result.ticketNumber}</b>.</p>
           <p className="mt-1 text-sm text-muted">
+            {result.pendingApproval
+              ? 'Talebiniz ekibimizin onayının ardından işleme alınacaktır. '
+              : 'Talebiniz ekibimize iletildi. '}
             {result.newAccount
-              ? 'Talebiniz ekibimizin onayının ardından işleme alınacaktır. Hesabınızı etkinleştirip taleplerinizi takip edebilmeniz için e-postanıza bir bağlantı gönderdik.'
-              : 'Talebiniz mevcut hesabınıza eklendi. Giriş yaparak takip edebilirsiniz.'}
+              ? 'Hesabınızı etkinleştirip taleplerinizi takip edebilmeniz için e-postanıza bir bağlantı gönderdik.'
+              : 'Mevcut hesabınıza eklendi; giriş yaparak takip edebilirsiniz.'}
           </p>
         </div>
       ) : (

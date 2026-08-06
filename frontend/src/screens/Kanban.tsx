@@ -81,7 +81,7 @@ export default function Kanban() {
         </div>
       </header>
 
-      {company && <CustomerLink slug={company.slug} companyName={company.name} />}
+      {company && <CustomerLink companyId={company.id} companyName={company.name} />}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="w-56">

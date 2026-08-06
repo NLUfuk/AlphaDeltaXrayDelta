@@ -83,7 +83,7 @@ function CompanyCard({ company }: { company: Company }) {
 
       {!company.isArchived && (
         <div className="mt-3">
-          <CustomerLink slug={company.slug} companyName={company.name} />
+          <CustomerLink companyId={company.id} companyName={company.name} />
         </div>
       )}
 

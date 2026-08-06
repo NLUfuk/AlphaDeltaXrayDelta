@@ -27,6 +27,7 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
     public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Invitation> Invitations => Set<Invitation>();
+    public DbSet<CustomerTrust> CustomerTrusts => Set<CustomerTrust>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<TicketStatus> TicketStatuses => Set<TicketStatus>();
@@ -70,6 +71,16 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
         b.Entity<Membership>(e =>
         {
             e.HasIndex(x => new { x.UserId, x.CompanyId }).IsUnique();
+            e.HasQueryFilter(x => x.DeletedAt == null && (IsSuperAdmin || CompanyScope.Contains(x.CompanyId)));
+        });
+
+        // ---- CustomerTrust ----
+        // Company-scoped like Membership: trust granted by one company must never read as trust at
+        // another. The intake path reads it with IgnoreQueryFilters (an anonymous/customer caller has
+        // no company scope at all) and therefore ALWAYS carries an explicit CompanyId predicate.
+        b.Entity<CustomerTrust>(e =>
+        {
+            e.HasIndex(x => new { x.CompanyId, x.UserId }).IsUnique();
             e.HasQueryFilter(x => x.DeletedAt == null && (IsSuperAdmin || CompanyScope.Contains(x.CompanyId)));
         });
 

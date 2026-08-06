@@ -24,3 +24,15 @@ public sealed class CustomerFormSubmitRequestValidator : AbstractValidator<Custo
         RuleFor(x => x.Body).NotEmpty().MaximumLength(10000);
     }
 }
+
+/// <summary>Staff minting a customer link. The email is the only required field — it is what the
+/// token binds to; the name merely prefills the sign-up form (Faz 35).</summary>
+public sealed class CustomerInviteRequestValidator : AbstractValidator<CustomerInviteRequest>
+{
+    public CustomerInviteRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(x => x.FirstName).MaximumLength(100);
+        RuleFor(x => x.LastName).MaximumLength(100);
+    }
+}

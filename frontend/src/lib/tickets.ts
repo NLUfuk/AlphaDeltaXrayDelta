@@ -186,10 +186,13 @@ export function useModeration(companyId: string | undefined) {
   })
 }
 
+/** `trust` (approve only) also marks the customer trusted for this company, so their later tickets
+ *  skip the queue instead of needing this click every time. */
 function useModerationMutation(companyId: string | undefined, action: 'approve' | 'reject') {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (ticketId: string) => api.post(`/tickets/${ticketId}/${action}`),
+    mutationFn: ({ ticketId, trust }: { ticketId: string; trust?: boolean }) =>
+      api.post(`/tickets/${ticketId}/${action}${trust ? '?trust=true' : ''}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['moderation', companyId] })
       qc.invalidateQueries({ queryKey: ['kanban', companyId] })

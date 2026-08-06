@@ -107,4 +107,14 @@ public enum InvitationKind
 {
     Link = 0,
     Code = 1,
+
+    /// <summary>
+    /// A staff-issued "you are expected" token carried in the company sign-in link
+    /// (<c>/c/{slug}?davet=…</c>). High entropy, looked up BY TOKEN like <see cref="Link"/>, but it is
+    /// NOT an account credential: it never sets a password and never logs anyone in. Its only effect
+    /// is that the holder's first ticket skips the moderation queue (Faz 35). Kept distinct from
+    /// <see cref="Link"/> precisely so the /invite password flow can never consume it, and so a
+    /// customer-access token can never be replayed as a password-set token.
+    /// </summary>
+    CustomerAccess = 2,
 }

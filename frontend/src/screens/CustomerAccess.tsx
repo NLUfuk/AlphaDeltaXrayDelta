@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { errorText } from '../lib/messages'
 import { useCustomerFormSubmit, useCustomerRegister, useFormConfig, useVerifyCode, type PublicField } from '../lib/public'
@@ -12,6 +12,11 @@ type Step = 'signup' | 'code' | 'login' | 'compose' | 'done'
 
 export default function CustomerAccess() {
   const { slug = '' } = useParams()
+  // ?davet= marks a customer staff actually invited. Read once and carried through sign-up so it
+  // survives the code step; without it the request lands in the approval queue, which is what should
+  // happen to anyone who merely found this page.
+  const [searchParams] = useSearchParams()
+  const inviteToken = searchParams.get('davet')
   const { data: cfg, isLoading } = useFormConfig(slug)
   const { user, login, adoptSession } = useAuth()
 
@@ -68,7 +73,7 @@ export default function CustomerAccess() {
   const onSubmitRequest = (e: React.FormEvent) => {
     e.preventDefault()
     return run(async () => {
-      const result = await submit.mutateAsync({ ...request, customFields })
+      const result = await submit.mutateAsync({ ...request, customFields, inviteToken })
       setTicketNumber(result.ticketNumber)
       setStep('done')
     })

@@ -42,10 +42,12 @@ public sealed class TicketsController(
     public async Task<ActionResult<IReadOnlyList<TicketListItem>>> Moderation(Guid companyId, CancellationToken ct) =>
         Ok(await queries.ModerationQueueAsync(companyId, ct));
 
+    /// <summary><paramref name="trust"/> also marks the customer as trusted for this company, so their
+    /// later tickets enter the pool without another approval click (Faz 35).</summary>
     [HttpPost("{id:guid}/approve")]
-    public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Approve(Guid id, [FromQuery] bool trust, CancellationToken ct)
     {
-        await commands.ApproveAsync(id, ct);
+        await commands.ApproveAsync(id, trust, ct);
         return NoContent();
     }
 
