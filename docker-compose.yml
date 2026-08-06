@@ -83,6 +83,9 @@ services:
       Email__Password: ${EMAIL_PASSWORD:-}
       Email__From: ${EMAIL_FROM:-no-reply@crm-kanban.local}
       Email__FromName: ${EMAIL_FROM_NAME:-}
+      # Required whenever EMAIL_FROM is a freemail address — without it the relay injects that
+      # address as Reply-To and SpamAssassin scores +2.75. See EmailOptions.ReplyTo.
+      Email__ReplyTo: ${EMAIL_REPLY_TO:-}
       # Origin used to build activation/invite links in outbound email — must match how users reach the app.
       App__PublicBaseUrl: ${APP_PUBLIC_BASE_URL:-http://localhost:8080}
       # Demo data (two companies, tickets across every column, sample customers). Off for real production.

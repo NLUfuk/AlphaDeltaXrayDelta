@@ -2,8 +2,8 @@
 
 | Alan | Değer |
 |---|---|
-| Son güncelleme | 2026-08-05 |
-| Aktif faz | **Faz 0-32 tamam. 193 test yeşil** (16 domain + 169 application + 8 API/HTTP). **Faz 32 (2026-08-05):** gereksinim notlarının (OneDrive/Belgeler txt'leri) koda karşı denetimi — SOLID/clean-arch maddeleri karşılanıyor; txt'nin açıkça şikâyet ettiği **UI tekrarı kapatıldı** (15 ekrandaki hata-mesajı kopyası → tek `errorText`, 10 ekrandaki "Yükleniyor…" → tek `Loading` primitive'i); **deploy sertleştirme:** teknik borç #35 (yanlış 500 log alarmı) ve #40 (yetki anahtarı ↔ uygulama yeri denetim testi, negatif doğrulamalı) kapandı, UTC serileştirici kültür bağımsız (`src/` 0 uyarı), `publish.ps1` paketi uçtan uca üretildi. **Faz 31 (2026-08-05):** yetkilerde üçüncü durum — Ver / Reddet / **rol varsayılanına dön** (`DELETE /permissions/assign`); bu sırada "silinmiş yetki satırları hâlâ uygulanıyor" bug'ı bulundu ve kapatıldı (Faz 28 ile aynı sınıf: `IgnoreQueryFilters` + eksik `DeletedAt` koşulu). **Faz 30 (2026-08-05):** yetki ekranı on/off switch'e geçti (StarAdmin `.form-switch` biçimi) + her yetkinin ne iş yaptığı yazıldı; kullanıcı satırındaki "kimliğine gir / hesabı sil" buton oldu; **dört yetki bug'ı** bulundu ve kapatıldı — `ticket.view` hiçbir yerde uygulanmıyordu, `permission.assign` yazma yolunda kontrol edilmiyordu, iki global yetki şirket bazında atanabilir görünüyordu, katalog her kullanıcıya açıktı. **Faz 29 (2026-08-05):** doküman denetimi — 6 md dosyasında 21 sapma bulundu ve düzeltildi; spec 16 faz sonra ilk kez koda göre güncellendi (presigned→API-proxy, .NET 10, şirket-özel statüler, eksik tablolar, §18.21/22 boşluğu). **Faz 28 (2026-08-05):** manuel test turunda **iki kiracı-izolasyonu açığı** bulundu ve kapatıldı — (1) `GET /api/tickets` + moderasyon kuyruğu her personele tüm firmaların taleplerini veriyordu (`IgnoreQueryFilters()` join'i sorgu genelinde filtreyi kapatıyor), (2) soft-delete edilmiş üyelik token/`/me` kapsamında kalıyordu, yani şirketten çıkarılan personel yeni girişte tam yetkiyle dönüyordu. +10 test, canlı doğrulandı; `CRM_Kanban_Gereksinim_Listesi.md` kanıtlarıyla işaretlendi. **Faz 27 (2026-08-04):** şirket silme — çift onay (UI paneli + sunucuda şirket adı doğrulaması), yalnız sahibi admin/süper admin, soft delete + arşiv + slug serbest bırakma; bir admin birden fazla şirket açabiliyor (navbar'da aktif şirket seçici + şirket açma/silme sonrası token tazeleme). **Faz 26 (2026-08-04):** müşteri görsel yükleme (png/jpg/webp, magic-byte doğrulamalı) + ticket detayda küçük resim; **dosyalar artık AWS S3'te** (`crm-kanban-fiskirmacoop`, eu-north-1, tek-bucket'lık IAM kullanıcısı). **Faz 25:** bildirim dili alıcıya göre + Brevo. **Faz 25 (2026-08-04):** talep bildirimleri artık hem müşteriye hem atanana gidiyor, şablon alıcıya göre seçiliyor (müşteri dili / personel dili `ticket_staff_update`); Brevo için `Email__FromName` + `.env.example`. **Faz 24 (2026-08-04):** `/admin/users` (sunucu-taraflı arama + tür/durum filtresi + müşteri-firma ilişkisi + KVKK hesap silme + davet bağlantısı) ve `/admin/templates` (gruplu liste + canlı önizleme + şablona özel yer tutucular). **Faz 23 (2026-08-04):** şirkete özel müşteri giriş sayfası `/c/{slug}` (kayıt → e-postaya 6 haneli kod → doğrula → ilk talep doğrudan fırsat havuzuna), "müşteri linki oluştur" (kopyala/WhatsApp/e-posta), personel için "Yeni" + sütun içi hızlı ekleme, Odoo (`o_kanban_group`/`o_opportunity_kanban`) görünümü. Öncesi: **Faz 0-19** **Faz 19 (2026-08-03):** süper admin görünmezliği (member list + effective-view + assign-target sızıntıları kapatıldı) + ham yetki anahtarları Türkçeleştirildi + **yetki Ver/Reddet toggle 500 bug'ı düzeltildi** (remove+add → yerinde güncelle). **Faz 16-18 (2026-08-03):** (16) süper admin impersonation UI; (17) müşteri portalı ilişki-scope'u (yalnız iş yaptığı firmalar) + müşteri süreç göstergesi; **deploy config:** SMTP→Resend (canlı doğrulandı), depolama→host diski `local` (+azure/s3 provider); (18) hesap sayfası (`/account`: bilgi + parola değiştir + KVKK hesap silme) + mail şablonları anlamsallaştırıldı (buton/footer + ticket deep-link). Kalan: operasyonel (TLS→MonsterASP, CAPTCHA provider, prod secret) — ONERILER P0 |
+| Son güncelleme | 2026-08-06 |
+| Aktif faz | **Faz 0-33 tamam. 198 test yeşil** (16 domain + 174 application + 8 API/HTTP). **Faz 33 (2026-08-06):** mail teslimatı — "sadece benim adresime gidiyor" şikâyeti ölçüldü: **alıcı kısıtı yok** (ham SMTP `RCPT TO` üç sağlayıcıya 250, uygulama akışından üçüncü taraf adrese gerçek teslim), sorun **spam eşiği** idi (SpamAssassin 4.1/5.0). İki fix: `SmtpEmailSender` artık `multipart/alternative` (HTML + türetilmiş düz metin) ve yeni `Email__ReplyTo` — Brevo'nun freemail `From`'u yeniden yazarken enjekte ettiği Reply-To'yu (`FREEMAIL_FORGED_REPLYTO` +2.5) engelliyor. **Ölçülen: 4.9/10 → 7.8/10, SpamAssassin 4.1 → 1.2.** `From`'u `<id>.brevosend.com`'a taşıma denendi ve **reddedildi** (relay 250 veriyor, mesaj sessizce hiç teslim edilmiyor — maili tamamen keserdi). `publish-fd/` gitignore'a alındı (dolu secret'lı `appsettings.Production.json` taşıyor). **Faz 32 (2026-08-05):** gereksinim notlarının (OneDrive/Belgeler txt'leri) koda karşı denetimi — SOLID/clean-arch maddeleri karşılanıyor; txt'nin açıkça şikâyet ettiği **UI tekrarı kapatıldı** (15 ekrandaki hata-mesajı kopyası → tek `errorText`, 10 ekrandaki "Yükleniyor…" → tek `Loading` primitive'i); **deploy sertleştirme:** teknik borç #35 (yanlış 500 log alarmı) ve #40 (yetki anahtarı ↔ uygulama yeri denetim testi, negatif doğrulamalı) kapandı, UTC serileştirici kültür bağımsız (`src/` 0 uyarı), `publish.ps1` paketi uçtan uca üretildi. **Faz 31 (2026-08-05):** yetkilerde üçüncü durum — Ver / Reddet / **rol varsayılanına dön** (`DELETE /permissions/assign`); bu sırada "silinmiş yetki satırları hâlâ uygulanıyor" bug'ı bulundu ve kapatıldı (Faz 28 ile aynı sınıf: `IgnoreQueryFilters` + eksik `DeletedAt` koşulu). **Faz 30 (2026-08-05):** yetki ekranı on/off switch'e geçti (StarAdmin `.form-switch` biçimi) + her yetkinin ne iş yaptığı yazıldı; kullanıcı satırındaki "kimliğine gir / hesabı sil" buton oldu; **dört yetki bug'ı** bulundu ve kapatıldı — `ticket.view` hiçbir yerde uygulanmıyordu, `permission.assign` yazma yolunda kontrol edilmiyordu, iki global yetki şirket bazında atanabilir görünüyordu, katalog her kullanıcıya açıktı. **Faz 29 (2026-08-05):** doküman denetimi — 6 md dosyasında 21 sapma bulundu ve düzeltildi; spec 16 faz sonra ilk kez koda göre güncellendi (presigned→API-proxy, .NET 10, şirket-özel statüler, eksik tablolar, §18.21/22 boşluğu). **Faz 28 (2026-08-05):** manuel test turunda **iki kiracı-izolasyonu açığı** bulundu ve kapatıldı — (1) `GET /api/tickets` + moderasyon kuyruğu her personele tüm firmaların taleplerini veriyordu (`IgnoreQueryFilters()` join'i sorgu genelinde filtreyi kapatıyor), (2) soft-delete edilmiş üyelik token/`/me` kapsamında kalıyordu, yani şirketten çıkarılan personel yeni girişte tam yetkiyle dönüyordu. +10 test, canlı doğrulandı; `CRM_Kanban_Gereksinim_Listesi.md` kanıtlarıyla işaretlendi. **Faz 27 (2026-08-04):** şirket silme — çift onay (UI paneli + sunucuda şirket adı doğrulaması), yalnız sahibi admin/süper admin, soft delete + arşiv + slug serbest bırakma; bir admin birden fazla şirket açabiliyor (navbar'da aktif şirket seçici + şirket açma/silme sonrası token tazeleme). **Faz 26 (2026-08-04):** müşteri görsel yükleme (png/jpg/webp, magic-byte doğrulamalı) + ticket detayda küçük resim; **dosyalar artık AWS S3'te** (`crm-kanban-fiskirmacoop`, eu-north-1, tek-bucket'lık IAM kullanıcısı). **Faz 25:** bildirim dili alıcıya göre + Brevo. **Faz 25 (2026-08-04):** talep bildirimleri artık hem müşteriye hem atanana gidiyor, şablon alıcıya göre seçiliyor (müşteri dili / personel dili `ticket_staff_update`); Brevo için `Email__FromName` + `.env.example`. **Faz 24 (2026-08-04):** `/admin/users` (sunucu-taraflı arama + tür/durum filtresi + müşteri-firma ilişkisi + KVKK hesap silme + davet bağlantısı) ve `/admin/templates` (gruplu liste + canlı önizleme + şablona özel yer tutucular). **Faz 23 (2026-08-04):** şirkete özel müşteri giriş sayfası `/c/{slug}` (kayıt → e-postaya 6 haneli kod → doğrula → ilk talep doğrudan fırsat havuzuna), "müşteri linki oluştur" (kopyala/WhatsApp/e-posta), personel için "Yeni" + sütun içi hızlı ekleme, Odoo (`o_kanban_group`/`o_opportunity_kanban`) görünümü. Öncesi: **Faz 0-19** **Faz 19 (2026-08-03):** süper admin görünmezliği (member list + effective-view + assign-target sızıntıları kapatıldı) + ham yetki anahtarları Türkçeleştirildi + **yetki Ver/Reddet toggle 500 bug'ı düzeltildi** (remove+add → yerinde güncelle). **Faz 16-18 (2026-08-03):** (16) süper admin impersonation UI; (17) müşteri portalı ilişki-scope'u (yalnız iş yaptığı firmalar) + müşteri süreç göstergesi; **deploy config:** SMTP→Resend (canlı doğrulandı), depolama→host diski `local` (+azure/s3 provider); (18) hesap sayfası (`/account`: bilgi + parola değiştir + KVKK hesap silme) + mail şablonları anlamsallaştırıldı (buton/footer + ticket deep-link). Kalan: operasyonel (TLS→MonsterASP, CAPTCHA provider, prod secret) — ONERILER P0 |
 | Genel durum | Faz 0-8 + onboarding/RBAC + Faz 9 tamam. **Faz 9 (2026-07-31):** (1) müşteri self-registration e-posta doğrulama akışı uçtan uca bağlandı — public form yeni müşteride `account_invite` mailini kuyruğa atıyor, `/invite` ekranı token'la şifre belirleyip hesabı aktive ediyor (personel daveti de `staff_invite` maili gönderiyor); (2) müşteri yüzeyi: `Home` dispatcher (personel→kanban, müşteri→Taleplerim), `CustomerTickets` listesi, müşteri-sade nav; (3) **bug fix:** müşteri yazma yolu (`CommentService`/`TicketCommandService` ticket load) tenant filtresiyle yüklüyordu → müşterinin şirket scope'u yok → kendi ticket'ına yorum/iptal 404; `IgnoreQueryFilters + authz` deseniyle düzeltildi; (4) kanban drag-drop: `dataTransfer` set (Firefox), `onDragEnd` temizliği, kendi kolonuna no-op drop engeli, sürükleme görsel geri bildirimi; (5) CRM-tadında demo seed (teklif/talep + müşteri-personel yorum thread'leri) + `Seed:Demo` bayrağıyla Production'da da çalıştırılabilir. **96 test yeşil** (+3 müşteri yazma-yolu). Docker stack `up.ps1` ile ayağa kaldırıldı, e2e doğrulandı (login/public-form→mail→invite→müşteri yorum) |
 | Remote | https://github.com/NLUfuk/AlphaDeltaXrayDelta.git |
 | Ana branch | `main` |
@@ -384,7 +384,7 @@ Kullanıcı bildirimi: bir talepte değişiklik olduğunda hem (varsa) müşteri
 - [x] **Canlı doğrulama (docker 8080):** TEKSTIL-14 admin tarafından atandı + statü değişti → kuyrukta `ticket_assigned` (atanan personele), `ticket_staff_update` (atanan personele, statü değişimi) ve `ticket_status_changed` (talebi açan müşteriye, gerçek adrese **gönderildi**). Demo `.local` adresleri beklendiği gibi Failed.
 
 **Mail sağlayıcı — Brevo (2026-08-04, canlı):** `.env` Brevo SMTP'ye geçirildi (`smtp-relay.brevo.com:587`, STARTTLS, SMTP login `b456b4001@smtp-brevo.com`, SMTP key `.env`'de — repoya girmez; panoyla dosyaya aktarıldı, sohbete/loga yazılmadı). Gönderici: Brevo'da **doğrulanmış** `fiskirmacoop <ufukf1998@gmail.com>`; `EMAIL_FROM_NAME=CRM Kanban`. Doğrulama: `forgot-password` → EmailQueue `Sent` + Brevo Logs **Sent → Delivered → First opening**. Resend'in aksine Brevo serbest alıcıya gönderiyor (sandbox kısıtı yok), yani müşteri akışı gerçek adreslerle çalışır.
-- **Açık (teknik borç #33):** gönderici `gmail.com` olduğu için Brevo From'u `ufukf1998@11818676.brevosend.com` olarak yeniden yazıyor ve Google/Yahoo gönderici kuralları uyarısı duruyor. Kendi domainin Brevo > Domains'te DKIM/DMARC ile doğrulanıp `EMAIL_FROM=destek@<domain>` yapılmalı — spam'e düşmemek için üretim öncesi şart.
+- **Açık (teknik borç #33):** gönderici `gmail.com` olduğu için Brevo From'u `ufukf1998@11818676.brevosend.com` olarak yeniden yazıyor ve Google/Yahoo gönderici kuralları uyarısı duruyor. Kendi domainin Brevo > Domains'te DKIM/DMARC ile doğrulanıp `EMAIL_FROM=destek@<domain>` yapılmalı — spam'e düşmemek için üretim öncesi şart. *(Faz 33: yeniden yazmanın asıl zararı ölçüldü ve büyük kısmı `Email__ReplyTo` ile giderildi; domain doğrulaması hâlâ kalıcı çözüm.)*
 
 **Karar/Varsayım (Faz 25):**
 - *Personel için tek jenerik şablon, olay başına ayrı şablon değil:* kullanıcının tarifi ("xyz nolu işleminizde güncelleme olmuştur göz atınız") zaten tek cümle; 10 şablonun ikinci bir kopyası bakım yüküydü. Ne değiştiği `{{change}}` ile taşınıyor. Olay bazında özel personel metni gerekirse `StaffTemplateKey` alanına yeni anahtar yazmak yeterli (seam hazır).
@@ -617,6 +617,73 @@ architecture maddeleri** — ve projenin deploy'a hazır hâle getirilmesi.
   sihir, EF'e daha iyi çeviriliyor), FluentValidation zaten güncel pipeline ile bağlı, kimlik modeli
   Identity yerine kendi `User`/`Membership`/`RoleType` modelimiz (çok-kiracılı yetki Identity rollerine
   sığmıyordu). Yani o dosya bir gereksinim değil, bir geçmiş kayıt olarak okundu.
+
+### Faz 33 — Mail teslimatı: "sadece benim adresime gidiyor" + canlı deploy ✅ (2026-08-06)
+
+Kullanıcı bildirimi: *"mail için de sadece benim emailim değil, bütün maillere gönderim yapılması lazım."*
+
+**Önce teşhis, sonra kod.** Şikâyet "gönderim yapılmıyor" gibi okunuyordu; ölçüm başka bir şey söyledi.
+
+- [x] **Alıcı kısıtı YOK — doğrulandı, varsayılmadı.** Üç ayrı kanıt: (1) uygulama kodunda alıcı
+  allowlist/override araması boş döndü (`NotificationService` alıcıyı matristen çözüyor, adrese
+  bakmıyor); (2) Brevo relay'ine ham SMTP oturumu açıldı, `RCPT TO` üç farklı sağlayıcıya
+  (gmail/outlook/yandex) `250` döndü; (3) uygulamanın kendi akışından (`/api/public/form/{slug}/register`)
+  üçüncü taraf bir adrese gerçek mail gönderildi, `EmailQueue.Status=Sent`, saniyeler içinde teslim.
+  **Yani mail zaten herkese gidiyordu.** `.env`'deki "mail YALNIZ hesabın adresine gider" yorumu
+  Resend döneminden kalma ölü bilgiydi (Brevo'ya Faz 25'te geçilmiş, yorum güncellenmemişti) — silindi.
+- [x] **Gerçek sorun: spam eşiği.** mail-tester.com'a uygulamanın kendi `account_code` maili
+  gönderildi → **4.9/10, SpamAssassin 4.1/5.0**. Eşik 5.0. Yani her mail spam klasörüne bir adım
+  uzaktaydı. Kullanıcının kendi Gmail'i kendi adresinden geleni beyaz listeye aldığı için ona
+  düşüyordu; başkasının sağlayıcısı filtreliyordu. Şikâyetin fiziksel karşılığı tam olarak bu.
+- [x] **Fix 1 — `text/plain` parçası (`SmtpEmailSender`).** Mailler HTML-only gidiyordu:
+  `MIME_HTML_ONLY` (+0.1) ve relay kendi açılma-takip pikselini enjekte edince `HTML_IMAGE_ONLY_16`
+  (+1.0). Artık `multipart/alternative`; düz metin şablonun HTML'inden türetiliyor (şablonlar tek
+  kaynak kalsın). +5 test (`PlainTextPartTests`): kod/entity çözümü, buton linkinin URL'inin metinde
+  korunması, boşluk sadeleştirme, boş gövde.
+- [x] **Fix 2 — `Email__ReplyTo` (asıl kazanç).** `From` freemail olduğu için Brevo onu
+  `<id>.brevosend.com`'a yeniden yazıyor **ve Reply-To'ya orijinal gmail adresini enjekte ediyordu**;
+  SpamAssassin bunu klasik sahtecilik imzası sayıyor: `FREEMAIL_FORGED_REPLYTO` +2.5 +
+  `FREEMAIL_REPLYTO_END_DIGIT` +0.25. Kendi Reply-To'muzu vermek enjeksiyonu engelliyor.
+- [x] **Ölçülen sonuç (mail-tester, canlı Brevo relay'i, üçüncü taraf alıcı):**
+
+  | Yapılandırma | SpamAssassin (eşik 5.0) | mail-tester |
+  |---|---|---|
+  | Başlangıç | 4.1 | 4.9/10 |
+  | `+ text/plain` | 4.0 | 5.0/10 |
+  | `+ ReplyTo` (freemail olmayan) | **1.2** | **7.8/10** |
+
+- [x] **Config bağlandı:** `docker-compose.yml` (`Email__ReplyTo`), `.env`, `.env.example`,
+  `DEPLOY-monsterasp.md` (yeni §9 + sorun giderme maddesi). Container'da `printenv` ile doğrulandı.
+- [x] **`publish-fd/` `.gitignore`'a eklendi** — içinde doldurulmuş `appsettings.Production.json`
+  (gerçek connection string, SMTP key, S3 anahtarları) var. Commit edilmemişti ama bir `git add -A`
+  ile edilebilirdi; kapatıldı.
+- [x] **Doğrulama:** 198 test yeşil (16 domain + 174 application + 8 API), lokal stack
+  (docker compose: api/db/minio/web) ayakta, SPA + kanban çalışıyor.
+
+**Karar/Varsayım (Faz 33):**
+- *`From` olarak `<id>.brevosend.com` adresi DENENDİ ve REDDEDİLDİ.* "From'u Brevo'nun kendi
+  doğrulanmış alanına taşıyalım, yeniden yazma da olmaz" en temiz çözüm gibiydi.
+  `no-reply@11818676.brevosend.com` ile gönderildi: relay SMTP'de **kabul etti** (`SmtpClient.Send`
+  hatasız döndü, `250 OK`) ama mesaj **hiç teslim edilmedi** — 10+ dakika beklendi, gelmedi; kontrol
+  olarak aynı mesaj gmail From'uyla saniyeler içinde geldi. Brevo yalnız doğrulanmış göndericiden
+  gönderiyor, gerisini sessizce düşürüyor. **Bu yol maili tamamen kesiyordu ve SMTP hatası da
+  vermiyordu** (kuyruk `Sent` görünürdü, kimse mail almazdı) — canlıya çıksaydı teşhisi en zor
+  arıza sınıfı olurdu. Kayda geçiyor ki bir daha denenmesin.
+- *Reply-To olarak `no-reply@crm-kanban.runasp.net` seçildi:* gerçek bir posta kutusu değil, ama
+  gerekmiyor — şablonlar zaten "bu otomatik bir bildirimdir; lütfen yanıtlamayın" diyor. Kriter tek:
+  freemail **olmaması**. Alternatif (Reply-To'yu tamamen boş bırakmak) işe yaramıyor, çünkü boşsa
+  Brevo kendi enjeksiyonunu yapıyor — başlığı sahiplenmek gerekiyor.
+- *Düz metin şablondan türetiliyor, ayrı bir `BodyText` sütunu eklenmedi:* her şablonun ikinci bir
+  elle yazılmış kopyası bakım yükü ve senkronizasyon borcu olurdu. Şablonlar bu uygulamanın kendi
+  seed'inden gelen sabit, basit bir markup kümesi (paragraf, kalın, tek buton) — regex ile
+  düzleştirme yeterli, HTML parser bağımlılığı değil. Şablonlar kullanıcı-yazımı HTML'e dönerse
+  (`ponytail:` notu kodda) AngleSharp'a geçilir.
+- *`HTML_IMAGE_ONLY_16` (+1.0) kapatılmadı:* kaynağı Brevo'nun açılma-takip pikseli, kod tarafında
+  değil Brevo panelinde (Senders & IP → tracking) kapatılıyor. 1.2/5.0'da riski yok; kullanıcının
+  panel kararı, koda gömülmez.
+- *Kalıcı çözüm hâlâ teknik borç #33 (domain doğrulama).* Bu faz borcu kapatmadı, **zararını**
+  ~%70 azalttı. Domain doğrulanınca `EMAIL_FROM=destek@<domain>` olur, yeniden yazma biter,
+  `EMAIL_REPLY_TO` gereksizleşir (boş bırakılabilir) ve DMARC hizalanır.
 
 ## Bir sonraki oturum — açık uçlar (spec §18.23-24)
 

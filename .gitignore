@@ -7,6 +7,9 @@
 [Ll]ogs/
 artifacts/
 publish/
+# Framework-dependent publish output — carries a filled-in appsettings.Production.json (real
+# connection string, SMTP key, S3 keys). Never commit it.
+publish-fd/
 *.dll
 *.exe
 *.pdb
