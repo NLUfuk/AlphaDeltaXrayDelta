@@ -2,6 +2,7 @@
 
 Multi-tenant CRM with a Kanban ticket pipeline. .NET 10 (Clean Architecture) + React 19/Vite + MSSQL + S3-compatible storage.
 
+- Architecture and feature report (what the system actually is today): `docs/MIMARI-RAPOR.md`
 - Architecture and spec: `docs/crm-kanban-mimari.md`
 - Progress, decisions, tech debt: `docs/PROGRESS.md`
 - Roadmap and deferred suggestions: `docs/ONERILER.md`
