@@ -20,8 +20,7 @@ public sealed class Ticket : Entity
         Guid initialStatusId,
         string title,
         string body,
-        Priority priority = Priority.Normal,
-        Guid? categoryId = null)
+        Priority priority = Priority.Normal)
     {
         CompanyId = companyId;
         Number = number;
@@ -30,7 +29,6 @@ public sealed class Ticket : Entity
         Title = title.Trim();
         Body = body;
         Priority = priority;
-        CategoryId = categoryId;
     }
 
     public string Number { get; private set; } = null!;
@@ -38,7 +36,6 @@ public sealed class Ticket : Entity
     public Guid OpenedById { get; private set; }
     public Guid? AssignedToId { get; private set; }
     public Guid StatusId { get; private set; }
-    public Guid? CategoryId { get; private set; }
     public Priority Priority { get; private set; }
     public string Title { get; private set; } = null!;
     public string Body { get; private set; } = null!;
@@ -113,7 +110,6 @@ public sealed class Ticket : Entity
 
     public void SetPriority(Priority priority) => Priority = priority;
 
-    public void SetCategory(Guid? categoryId) => CategoryId = categoryId;
 
     /// <summary>Repoint the ticket at an equivalent status during a status-set migration (same category,
     /// e.g. when a company forks the global column set into its own). Not a workflow move — no state

@@ -71,8 +71,10 @@ public sealed class AttachmentService(
 
     /// <summary>Zero-trust public upload (spec §10): buffer the bytes through the API (capped at the
     /// size limit — the client's declared size is never trusted), inspect extension + content-type +
-    /// magic bytes, and only then store. Returns a descriptor the form submit links. Restricted to
-    /// pdf/txt/doc/docx; nothing else a customer sends is accepted.</summary>
+    /// magic bytes, and only then store. Returns a descriptor the form submit links. The accepted set is
+    /// whatever <see cref="PublicFileValidator"/> declares — documents (pdf, txt, doc, docx) and images
+    /// (png, jpg, webp); nothing else a customer sends is accepted. Do not restate the list here: this
+    /// comment said "pdf/txt/doc/docx only" for three phases after images were added.</summary>
     public async Task<AttachmentDescriptor> StorePublicUploadAsync(
         string keyPrefix, string fileName, string declaredContentType, Stream content, CancellationToken ct = default)
     {

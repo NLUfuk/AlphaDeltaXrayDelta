@@ -85,13 +85,9 @@ public static class NotificationMatrix
             [TicketEventType.Edited] = new(
                 [RecipientSlot.Opener, RecipientSlot.Assignee], "ticket_edited",
                 NotifyOpenerEvenIfActor: false, Critical: false, StaffTemplate.Update),
-            // Internal bookkeeping: the assignee needs to know, the customer does not (priority and
-            // category are staff concepts — mailing them would leak internal triage and add noise).
+            // Internal bookkeeping: the assignee needs to know, the customer does not (priority is a
+            // staff concept — mailing it would leak internal triage and add noise).
             [TicketEventType.PriorityChanged] = new(
-                [RecipientSlot.Assignee], StaffTemplate.Update,
-                NotifyOpenerEvenIfActor: false, Critical: false),
-
-            [TicketEventType.CategoryChanged] = new(
                 [RecipientSlot.Assignee], StaffTemplate.Update,
                 NotifyOpenerEvenIfActor: false, Critical: false),
 

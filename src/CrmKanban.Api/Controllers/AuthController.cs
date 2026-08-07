@@ -12,6 +12,7 @@ namespace CrmKanban.Api.Controllers;
 public sealed class AuthController(AuthService auth, ICurrentUserService currentUser) : ControllerBase
 {
     [AllowAnonymous]
+    [EnableRateLimiting("login")]
     [HttpPost("login")]
     public async Task<ActionResult<AuthResult>> Login(LoginRequest request, CancellationToken ct) =>
         Ok(await auth.LoginAsync(request, ct));

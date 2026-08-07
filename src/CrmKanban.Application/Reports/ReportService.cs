@@ -1,4 +1,5 @@
 using CrmKanban.Application.Abstractions;
+using CrmKanban.Application.Authorization;
 using CrmKanban.Application.Common;
 using CrmKanban.Domain.Authorization;
 using CrmKanban.Domain.Enums;
@@ -25,7 +26,7 @@ public sealed class ReportService(
     private const string DefaultCurrency = "TRY";
     private sealed record Row(
         DateTime CreatedAt, DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt,
-        StatusCategory Category, Guid? AssignedToId, Guid? CategoryId,
+        StatusCategory Category, Guid? AssignedToId,
         decimal? EstimatedValue, decimal? ActualValue,
         Guid CompanyId, Guid OpenedById, string? OpenedByName, string? OpenedByEmail,
         bool OpenedByIsSuperAdmin)
@@ -44,7 +45,7 @@ public sealed class ReportService(
         var rows = await LoadRowsAsync(db.Tickets.Where(t => t.CompanyId == companyId), from, to, ct);
         // Money is a second gate on top of report access: seeing how many tickets closed is not the
         // same as seeing what they were worth. Withheld here, so the figures never reach the client.
-        var withMoney = await CanSeeValueAsync(companyId, ct);
+        var withMoney = await permissions.CanSeeValueAsync(currentUser, companyId, ct);
         var revenue = withMoney ? BuildRevenue(rows, await CurrencyAsync(ct)) : null;
         return Build(companyId, from, to, rows, revenue, await BuildCustomersAsync(rows, withMoney, ct));
     }
@@ -105,15 +106,6 @@ public sealed class ReportService(
             throw new ForbiddenException("report.forbidden", "You lack company report access.");
     }
 
-    /// <summary>Whether this caller may see money for this company (Faz 39).</summary>
-    private async Task<bool> CanSeeValueAsync(Guid companyId, CancellationToken ct)
-    {
-        if (currentUser.IsSuperAdmin) return true;
-        var userId = currentUser.UserId;
-        return userId is not null
-            && await permissions.HasPermissionAsync(userId.Value, companyId, PermissionKeys.TicketValue, ct);
-    }
-
     private void EnsureGlobalAccess()
     {
         if (!currentUser.IsSuperAdmin)
@@ -136,7 +128,7 @@ public sealed class ReportService(
                      join uj in db.Users.IgnoreQueryFilters() on t.OpenedById equals uj.Id into us
                      from u in us.DefaultIfEmpty()
                      select new Row(t.CreatedAt, t.FirstResponseAt, t.ResolvedAt, t.ClosedAt,
-                         s.Category, t.AssignedToId, t.CategoryId, t.EstimatedValue, t.ActualValue,
+                         s.Category, t.AssignedToId, t.EstimatedValue, t.ActualValue,
                          t.CompanyId, t.OpenedById,
                          u == null ? null : u.FirstName + " " + u.LastName,
                          u == null ? null : u.Email,
@@ -224,10 +216,6 @@ public sealed class ReportService(
             .Select(g => new StaffLoadItem(g.Key, g.Count()))
             .OrderByDescending(s => s.OpenCount).ToList();
 
-        var categoryBreakdown = rows.GroupBy(r => r.CategoryId)
-            .Select(g => new CategoryCount(g.Key, g.Count()))
-            .OrderByDescending(c => c.Count).ToList();
-
         var opened = rows.GroupBy(r => DateOnly.FromDateTime(r.CreatedAt))
             .ToDictionary(g => g.Key, g => g.Count());
         var closed = rows.Where(r => r.ClosedAt is not null)
@@ -240,7 +228,7 @@ public sealed class ReportService(
         return new TicketReport(companyId, from, to, rows.Count, byCategory,
             firstResponse.Count > 0 ? Math.Round(firstResponse.Average(), 2) : null,
             resolution.Count > 0 ? Math.Round(resolution.Average(), 2) : null,
-            staffLoad, categoryBreakdown, trend, revenue, customers);
+            staffLoad, trend, revenue, customers);
     }
 
     /// <summary>

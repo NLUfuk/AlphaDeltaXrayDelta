@@ -12,7 +12,6 @@ export type TicketListItem = {
   statusColor: string
   priority: number
   assignedToId: string | null
-  categoryId: string | null
   createdAt: string
   /** Reportable amount. Null when the caller lacks ticket.value (withheld server-side, not hidden here). */
   value: number | null
@@ -50,7 +49,6 @@ export type TicketDetail = {
   priority: number
   openedById: string
   assignedToId: string | null
-  categoryId: string | null
   createdAt: string
   comments: Comment[]
   attachments: Attachment[]

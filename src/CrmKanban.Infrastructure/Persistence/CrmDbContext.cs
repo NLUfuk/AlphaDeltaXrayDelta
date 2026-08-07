@@ -32,7 +32,6 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<TicketStatus> TicketStatuses => Set<TicketStatus>();
     public DbSet<StatusTransition> StatusTransitions => Set<StatusTransition>();
-    public DbSet<TicketCategory> TicketCategories => Set<TicketCategory>();
     public DbSet<Comment> Comments => Set<Comment>();
     public DbSet<CommentRevision> CommentRevisions => Set<CommentRevision>();
     public DbSet<TicketEvent> TicketEvents => Set<TicketEvent>();
@@ -149,11 +148,6 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
             e.HasIndex(x => new { x.FromStatusId, x.ToStatusId }).IsUnique();
             e.Property(x => x.AllowedByPermissionKey).HasMaxLength(100);
             e.HasQueryFilter(x => x.DeletedAt == null);
-        });
-        b.Entity<TicketCategory>(e =>
-        {
-            e.Property(x => x.Name).HasMaxLength(150).IsRequired();
-            e.HasQueryFilter(x => x.DeletedAt == null && (IsSuperAdmin || CompanyScope.Contains(x.CompanyId)));
         });
         b.Entity<Comment>(e =>
         {

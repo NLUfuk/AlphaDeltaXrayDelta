@@ -74,6 +74,20 @@ try
                     Window = TimeSpan.FromMinutes(1),
                     QueueLimit = 0,
                 }));
+        // Login gets its own, looser window: it is the one anonymous endpoint real users hit repeatedly,
+        // and a whole office behind one NAT address shares the partition key — 5/min would lock them out
+        // every morning. 20/min per IP still turns password brute force from "unbounded" into pointless.
+        // ponytail: per-IP only. Add per-account lockout (failed-attempt counter on User) if credential
+        // stuffing from a botnet — many IPs, one account — actually shows up in the audit log.
+        options.AddPolicy("login", httpContext =>
+            System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 20,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                }));
     });
 
     var app = builder.Build();
@@ -120,6 +134,13 @@ try
     };
     forwarded.KnownIPNetworks.Clear();
     forwarded.KnownProxies.Clear();
+    // ForwardLimit=1 (the default, set explicitly because the rate limiter depends on it): the middleware
+    // walks X-Forwarded-For RIGHT to left and takes ONE entry — the one our own proxy appended. A client
+    // that sends "X-Forwarded-For: 1.2.3.4" gets it pushed left by the proxy's append and ignored, so the
+    // rate-limit partition key (Program.cs "public-form") can't be rotated per request to bypass the limit.
+    // Raising this, or clearing it, re-opens that bypass. Verify with /health "ip" after any proxy change:
+    // curl -H "X-Forwarded-For: 1.2.3.4" https://host/health must NOT echo 1.2.3.4.
+    forwarded.ForwardLimit = 1;
     app.UseForwardedHeaders(forwarded);
 
     // Request logging OUTSIDE the exception handler: the handler turns a domain exception into its real
@@ -146,7 +167,10 @@ try
     app.UseRateLimiter();
 
     app.MapControllers();
-    app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+    // "ip" echoes the caller its OWN resolved address (no other client's data) so the X-Forwarded-For
+    // trust chain above stays verifiable in prod — it is what the rate limiter partitions on.
+    app.MapGet("/health", (HttpContext ctx) =>
+        Results.Ok(new { status = "ok", ip = ctx.Connection.RemoteIpAddress?.ToString() })).AllowAnonymous();
     app.MapFallbackToFile("index.html"); // SPA client-side routes (404 if no wwwroot, e.g. Docker API)
 
     app.Run();

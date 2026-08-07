@@ -179,7 +179,6 @@ public sealed class NotificationService(
         TicketEventType.InternalNoteAdded => "iç not eklendi",
         TicketEventType.Assigned => "talep atandı",
         TicketEventType.PriorityChanged => $"öncelik değişti: {PriorityText(ev.NewValue)}",
-        TicketEventType.CategoryChanged => "kategori değişti",
         TicketEventType.AttachmentAdded => "yeni dosya eklendi",
         TicketEventType.Edited => "başlık/içerik güncellendi",
         TicketEventType.Approved => "talep onaylandı",

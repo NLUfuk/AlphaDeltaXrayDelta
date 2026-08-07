@@ -1,4 +1,5 @@
 using CrmKanban.Application.Abstractions;
+using CrmKanban.Application.Authorization;
 using CrmKanban.Application.Common;
 using CrmKanban.Domain.Authorization;
 using CrmKanban.Domain.Entities;
@@ -142,10 +143,10 @@ public sealed class TicketQueryService(
 
         var customFields = ParseCustomFields(ticket.CustomFieldsJson);
 
-        var canSeeValue = await CanSeeValueAsync(ticket.CompanyId, ct);
+        var canSeeValue = await permissions.CanSeeValueAsync(currentUser, ticket.CompanyId, ct);
         return new TicketDetail(ticket.Id, ticket.Number, ticket.CompanyId, ticket.Title, ticket.Body,
             ticket.StatusId, status.Name, status.Category, ticket.Priority,
-            ticket.OpenedById, ticket.AssignedToId, ticket.CategoryId,
+            ticket.OpenedById, ticket.AssignedToId,
             ticket.FirstResponseAt, ticket.ResolvedAt, ticket.ClosedAt, ticket.CreatedAt, comments, attachmentDtos,
             customFields,
             canSeeValue ? ticket.EstimatedValue : null,
@@ -167,7 +168,7 @@ public sealed class TicketQueryService(
 
         var byStatus = tickets.ToLookup(t => t.StatusId);
         var statusById = statuses.ToDictionary(s => s.Id);
-        var withValue = await CanSeeValueAsync(companyId, ct);
+        var withValue = await permissions.CanSeeValueAsync(currentUser, companyId, ct);
         return statuses.Select(s => new KanbanColumn(s.Id, s.Name, s.Category, s.Color, s.Order,
             byStatus[s.Id].Select(t => ToListItem(t, statusById, withValue)).ToList())).ToList();
     }
@@ -186,7 +187,7 @@ public sealed class TicketQueryService(
             .Where(t => t.CompanyId == companyId && t.ApprovalState == TicketApprovalState.Pending)
             .OrderBy(t => t.CreatedAt).ToListAsync(ct);
         var statusById = await LoadStatusesAsync(ct);
-        var withValue = await CanSeeValueAsync(companyId, ct);
+        var withValue = await permissions.CanSeeValueAsync(currentUser, companyId, ct);
         return tickets.Select(t => ToListItem(t, statusById, withValue)).ToList();
     }
 
@@ -241,7 +242,6 @@ public sealed class TicketQueryService(
             q = q.Where(t => EF.Functions.Like(t.Number, $"%{s}%") || EF.Functions.Like(t.Title, $"%{s}%"));
         }
         if (query.StatusId is { } statusId) q = q.Where(t => t.StatusId == statusId);
-        if (query.CategoryId is { } categoryId) q = q.Where(t => t.CategoryId == categoryId);
         if (query.AssignedToId is { } assignee) q = q.Where(t => t.AssignedToId == assignee);
         if (query.Priority is { } priority) q = q.Where(t => t.Priority == priority);
         return q;
@@ -278,22 +278,13 @@ public sealed class TicketQueryService(
     {
         var s = statusById[t.StatusId];
         return new TicketListItem(t.Id, t.Number, t.Title, t.StatusId, s.Name, s.Category, s.Color,
-            t.Priority, t.AssignedToId, t.CategoryId, t.CreatedAt,
+            t.Priority, t.AssignedToId, t.CreatedAt,
             withValue ? t.ActualValue ?? t.EstimatedValue : null);
     }
 
-    /// <summary>
-    /// Whether this caller may see money for this company (Faz 39). Amounts are stripped from the DTO
-    /// when false, so a personel without ticket.value never receives them — hiding a field in the UI
-    /// while shipping it in the JSON is not access control.
-    /// </summary>
-    private async Task<bool> CanSeeValueAsync(Guid companyId, CancellationToken ct)
-    {
-        if (currentUser.IsSuperAdmin) return true;
-        var userId = currentUser.UserId;
-        return userId is not null
-            && await permissions.HasPermissionAsync(userId.Value, companyId, PermissionKeys.TicketValue, ct);
-    }
+    // Money visibility (ticket.value) is decided by ValueVisibility.CanSeeValueAsync — shared with
+    // ReportService. Amounts are stripped from the DTO when false: hiding a field in the UI while
+    // shipping it in the JSON is not access control.
 
     private Guid RequireUserId() =>
         currentUser.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");

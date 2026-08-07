@@ -91,7 +91,6 @@ public enum TicketEventType
     CommentAdded = 4,
     InternalNoteAdded = 5,
     PriorityChanged = 6,
-    CategoryChanged = 7,
     Reopened = 8,
     Edited = 9,
     Deleted = 10,

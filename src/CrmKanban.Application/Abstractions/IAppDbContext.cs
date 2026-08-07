@@ -25,7 +25,6 @@ public interface IAppDbContext
     DbSet<Ticket> Tickets { get; }
     DbSet<TicketStatus> TicketStatuses { get; }
     DbSet<StatusTransition> StatusTransitions { get; }
-    DbSet<TicketCategory> TicketCategories { get; }
     DbSet<Comment> Comments { get; }
     DbSet<CommentRevision> CommentRevisions { get; }
     DbSet<TicketEvent> TicketEvents { get; }

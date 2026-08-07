@@ -8,7 +8,6 @@ export type TicketReport = {
   avgFirstResponseHours: number | null
   avgResolutionHours: number | null
   staffLoad: { assignedToId: string | null; openCount: number }[]
-  byCategory: { categoryId: string | null; count: number }[]
   trend: { date: string; opened: number; closed: number }[]
   /** Null when the caller lacks ticket.value — the figures are withheld server-side, not hidden here. */
   revenue: RevenueSummary | null

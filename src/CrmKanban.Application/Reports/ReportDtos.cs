@@ -15,7 +15,6 @@ public sealed record TicketReport(
     double? AvgFirstResponseHours,
     double? AvgResolutionHours,
     IReadOnlyList<StaffLoadItem> StaffLoad,
-    IReadOnlyList<CategoryCount> ByCategory,
     IReadOnlyList<TrendPoint> Trend,
     RevenueSummary? Revenue,
     IReadOnlyList<CustomerBreakdownItem> Customers);
@@ -96,7 +95,5 @@ public sealed record StatusCategoryCount(StatusCategory Category, int Count);
 
 /// <summary>Currently-open tickets per assignee (null = unassigned).</summary>
 public sealed record StaffLoadItem(Guid? AssignedToId, int OpenCount);
-
-public sealed record CategoryCount(Guid? CategoryId, int Count);
 
 public sealed record TrendPoint(DateOnly Date, int Opened, int Closed);

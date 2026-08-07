@@ -94,6 +94,11 @@ public sealed class DatabaseSeeder(
         var have = existingKeys.ToHashSet();
         foreach (var s in DefaultSettings.All.Where(s => !have.Contains(s.Key)))
             db.Settings.Add(s);
+
+        // Retired keys are deleted, not just dropped from the default list — otherwise the old row stays
+        // in every existing database and the settings screen keeps offering a control that does nothing.
+        foreach (var stale in await db.Settings.Where(s => DefaultSettings.RetiredKeys.Contains(s.Key)).ToListAsync(ct))
+            db.Settings.Remove(stale);
     }
 
     private async Task SeedSuperAdminAsync(CrmDbContext db, CancellationToken ct)

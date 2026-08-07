@@ -27,7 +27,11 @@ public static class DefaultSettings
             "json", "file"),
         // Form
         Make("form.captcha_enabled", "false", "bool", "form"),
-        Make("form.rate_limit_per_minute", "5", "int", "form"),
+        // NOT here: `form.rate_limit_per_minute`. It was seeded and shown in the settings UI, but the
+        // limiter reads a constant in Program.cs — the super admin edited a number that changed nothing.
+        // Fixing it by honouring the row would be worse: a rate limit is abuse protection, i.e. infra,
+        // and §13 keeps infra out of the runtime-editable store precisely so nobody can widen it to
+        // 100000 from a web form. It stays in code; RetiredKeys below removes the stale row.
         Make("form.kvkk_text",
             "Bu form aracılığıyla ilettiğiniz kişisel verileriniz, talebinizin değerlendirilmesi amacıyla 6698 sayılı KVKK kapsamında işlenmektedir.",
             "html", "form"),
@@ -45,6 +49,13 @@ public static class DefaultSettings
         // KVKK
         Make("kvkk.retention_days", "365", "int", "kvkk"),
     ];
+
+    /// <summary>
+    /// Keys that were once seeded and must now be REMOVED from existing databases. Dropping a key from
+    /// <see cref="All"/> is not enough: seeding only fills missing keys, so an old row would survive and
+    /// keep showing an editable control that drives nothing.
+    /// </summary>
+    public static readonly string[] RetiredKeys = ["form.rate_limit_per_minute"];
 
     private static Setting Make(string key, string value, string type, string group) =>
         new(key, value, type, group, id: DeterministicId(key));

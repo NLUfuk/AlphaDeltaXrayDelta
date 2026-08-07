@@ -39,7 +39,7 @@ public sealed class TicketCommandService(
 
         var initialStatus = await InitialStatusAsync(request.CompanyId, ct);
         var ticket = new Ticket(request.CompanyId, company.AllocateTicketNumber(), userId,
-            initialStatus.Id, request.Title, request.Body, request.Priority, request.CategoryId);
+            initialStatus.Id, request.Title, request.Body, request.Priority);
 
         db.Tickets.Add(ticket);
         db.TicketEvents.Add(new TicketEvent(request.CompanyId, ticket.Id, userId, TicketEventType.Created, null, ticket.Number));

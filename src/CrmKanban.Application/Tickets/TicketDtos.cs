@@ -4,7 +4,7 @@ using CrmKanban.Domain.Enums;
 namespace CrmKanban.Application.Tickets;
 
 public sealed record CreateTicketRequest(
-    Guid CompanyId, string Title, string Body, Priority Priority = Priority.Normal, Guid? CategoryId = null);
+    Guid CompanyId, string Title, string Body, Priority Priority = Priority.Normal);
 
 /// <summary>A logged-in customer opening a request to a company they picked from the portal (spec §18.5).
 /// No priority/category — those are staff-set; the customer only chooses the company and writes.</summary>
@@ -32,14 +32,13 @@ public sealed record TicketListQuery(
     int PageSize = 20,
     string? Search = null,
     Guid? StatusId = null,
-    Guid? CategoryId = null,
     Guid? AssignedToId = null,
     Priority? Priority = null,
     StatusCategory? Category = null);
 
 public sealed record TicketListItem(
     Guid Id, string Number, string Title, Guid StatusId, string StatusName, StatusCategory Category,
-    string StatusColor, Priority Priority, Guid? AssignedToId, Guid? CategoryId, DateTime CreatedAt,
+    string StatusColor, Priority Priority, Guid? AssignedToId, DateTime CreatedAt,
     /// <summary>Reportable amount (actual, else estimate). Null when the caller lacks ticket.value —
     /// withheld, not merely hidden by the UI (Faz 39).</summary>
     decimal? Value = null);
@@ -50,7 +49,7 @@ public sealed record CommentDto(
 public sealed record TicketDetail(
     Guid Id, string Number, Guid CompanyId, string Title, string Body,
     Guid StatusId, string StatusName, StatusCategory Category, Priority Priority,
-    Guid OpenedById, Guid? AssignedToId, Guid? CategoryId,
+    Guid OpenedById, Guid? AssignedToId,
     DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt,
     DateTime CreatedAt, IReadOnlyList<CommentDto> Comments, IReadOnlyList<AttachmentDto> Attachments,
     IReadOnlyList<CustomFieldValue> CustomFields,
