@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { setActiveCompany, useActiveCompany, useSelectableCompanies } from '../lib/company'
+import { ALL_COMPANIES, setActiveCompany, useActiveCompany, useSelectableCompanies } from '../lib/company'
 import { isDark, toggleTheme } from '../lib/theme'
 import { Logo, LogoMark } from '../ui/Logo'
 import { Button, Icon, Loading, Select } from '../ui/primitives'
@@ -59,6 +59,7 @@ function NavLinks({ items, onNavigate, collapsed }: { items: NavItem[]; onNaviga
  * active one. Rendered only in that case, so single-company users (and customers) see no clutter.
  * Returns null rather than an empty <select> while the list is still loading. */
 function CompanySwitcher() {
+  const { user } = useAuth()
   const companies = useSelectableCompanies()
   const active = useActiveCompany()
   if (companies.length < 2) return null
@@ -73,6 +74,9 @@ function CompanySwitcher() {
         aria-label="Aktif şirket"
         className="max-w-[12rem] py-1.5"
       >
+        {/* Only the super admin gets the cross-company view, and only by asking for it: their
+            reports used to be pinned to it, which left the switcher looking broken. */}
+        {user?.isSuperAdmin && <option value={ALL_COMPANIES}>Tüm şirketler</option>}
         {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
     </label>

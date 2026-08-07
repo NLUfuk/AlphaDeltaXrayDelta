@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useActiveCompany } from '../../lib/company'
+import { ALL_COMPANIES, useActiveCompany } from '../../lib/company'
 import { STATUS_CATEGORIES } from '../../lib/messages'
 import {
   useColumns, useCreateColumn, useDeleteColumn, useReorderColumns, useUpdateColumn, type StatusColumn,
 } from '../../lib/tickets'
 import { errorText } from '../../lib/messages'
-import { Alert, Button, Card, Field, Icon, Input, Select } from '../../ui/primitives'
+import { Alert, Button, Card, Field, Icon, Input, PickCompany, Select } from '../../ui/primitives'
 
 // Kanban column manager (spec §12/§18.9): an admin adds a column anywhere in the chain, renames /
 // recolors it, reorders the board, or removes an empty one. The first change forks this company's
@@ -45,6 +45,8 @@ export default function Columns() {
       { onSuccess: () => setDraft({ name: '', category: 1, color: '#6366f1', position: count + 1 }), onError: fail },
     )
   }
+
+  if (cid === ALL_COMPANIES) return <PickCompany what="Sütun düzeni" />
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">

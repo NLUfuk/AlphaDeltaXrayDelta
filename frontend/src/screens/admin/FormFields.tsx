@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { useActiveCompany } from '../../lib/company'
+import { ALL_COMPANIES, useActiveCompany } from '../../lib/company'
 import { errorText } from '../../lib/messages'
 import {
   FIELD_TYPES, useCreateField, useDeleteField, useFormFields, useUpdateField, type FormField,
 } from '../../lib/formfields'
-import { Alert, Button, Card, Field, Icon, Input, Loading, Select, Textarea } from '../../ui/primitives'
+import { Alert, Button, Card, Field, Icon, Input, Loading, PickCompany, Select, Textarea } from '../../ui/primitives'
 
 // Configurable public-form fields (spec §4.6): a company admin adds extra fields (text / number / select)
 // that appear on the public request form and are captured on the ticket. Backend gates on company admin.
@@ -31,6 +31,8 @@ export default function FormFields() {
       { onSuccess: () => setDraft({ label: '', type: 0, required: false, options: '' }), onError: fail },
     )
   }
+
+  if (cid === ALL_COMPANIES) return <PickCompany what="Form alanları" />
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">

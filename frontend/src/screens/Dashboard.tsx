@@ -1,16 +1,14 @@
-import { useAuth } from '../lib/auth'
-import { useActiveCompany } from '../lib/company'
+import { useReportCompany } from '../lib/company'
 import { statusCategory } from '../lib/messages'
 import { downloadReportPdf, useReport, type CustomerBreakdownItem } from '../lib/reports'
 import { Button, Card, Icon, LoadError, Loading } from '../ui/primitives'
 import { BarList, TrendChart } from '../ui/charts'
 
-// Report dashboard (spec §15), StarAdmin-inspired: stat tiles + charts. Super admin sees the global
-// report; an admin sees their company. Metrics branch on status category, never the display name (§4.3).
+// Report dashboard (spec §15), StarAdmin-inspired: stat tiles + charts. Scope follows the navbar's
+// company pick, including for a super admin, whose "Tüm şirketler" pick is the global report.
+// Metrics branch on status category, never the display name (§4.3).
 export default function Dashboard() {
-  const { user } = useAuth()
-  const active = useActiveCompany()
-  const companyId = user?.isSuperAdmin ? null : (active ?? null)
+  const companyId = useReportCompany()
   const { data: r, isLoading, error } = useReport(companyId)
 
   if (isLoading) return <Loading />

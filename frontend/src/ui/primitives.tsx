@@ -94,6 +94,18 @@ export function LoadError({ error, what }: { error: unknown; what: string }) {
   return <Alert>{loadErrorText(error, what)}</Alert>
 }
 
+/** Shown by the four screens that only make sense for one company (board, onay kuyruğu, sütun ve form
+ *  düzenleyicileri) when the super admin's pick is "Tüm şirketler". Not an error: the reports answer
+ *  that question, a board cannot. */
+export function PickCompany({ what }: { what: string }) {
+  return (
+    <p className="flex items-center gap-2 text-sm text-muted">
+      <Icon name="domain" className="text-lg" />
+      {what} tek bir şirket üzerinde çalışır — üstteki seçiciden bir şirket seçin.
+    </p>
+  )
+}
+
 // Material Design Icons (reused from the StarAdmin template's mdi webfont). Usage: <Icon name="cog" />.
 export function Icon({ name, className = '' }: { name: string; className?: string }) {
   return <i className={`mdi mdi-${name} ${className}`} aria-hidden="true" />

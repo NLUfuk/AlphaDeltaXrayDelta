@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCompanies, useMembers } from '../lib/admin'
-import { useActiveCompany } from '../lib/company'
+import { ALL_COMPANIES, useActiveCompany } from '../lib/company'
 import { errorText, PRIORITIES, priority as priorityOf, statusCategory } from '../lib/messages'
 import { useChangeStatus, useCreateTicket, useKanban, useModeration, useStatuses, type KanbanColumn, type KanbanFilters } from '../lib/tickets'
-import { Alert, Button, Icon, Input, LoadError, Loading, Select, Textarea } from '../ui/primitives'
+import { Alert, Button, Icon, Input, LoadError, Loading, PickCompany, Select, Textarea } from '../ui/primitives'
 import { CustomerLink } from '../ui/CustomerLink'
 import { TicketCard } from '../ui/TicketCard'
 
@@ -34,6 +34,7 @@ export default function Kanban() {
   const company = companies?.find((c) => c.id === companyId)
   const memberName = (id: string | null) => members?.find((m) => m.userId === id)?.name
 
+  if (companyId === ALL_COMPANIES) return <PickCompany what="Pano" />
   if (!companyId) return <p className="text-muted">Bu kullanıcı bir şirkete bağlı değil (kanban için şirket gerekli).</p>
   if (error) return <LoadError error={error} what="Pano" />
 

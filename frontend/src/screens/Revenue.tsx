@@ -1,5 +1,4 @@
-import { useAuth } from '../lib/auth'
-import { useActiveCompany } from '../lib/company'
+import { useReportCompany } from '../lib/company'
 import { useReport } from '../lib/reports'
 import { Card, Icon, LoadError, Loading } from '../ui/primitives'
 import { BarList, RevenueChart } from '../ui/charts'
@@ -9,9 +8,7 @@ import { BarList, RevenueChart } from '../ui/charts'
 // Every figure here comes from the report endpoint, which withholds `revenue` entirely when the
 // caller lacks ticket.value; there is nothing to hide client-side.
 export default function Revenue() {
-  const { user } = useAuth()
-  const active = useActiveCompany()
-  const companyId = user?.isSuperAdmin ? null : (active ?? null)
+  const companyId = useReportCompany()
   const { data: r, isLoading, error } = useReport(companyId)
 
   // Currency arrives with the figures (the /settings endpoint is super-admin only, and an amount

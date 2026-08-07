@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
-import { useActiveCompany } from '../lib/company'
+import { ALL_COMPANIES, useActiveCompany } from '../lib/company'
 import { useApproveTicket, useModeration, useRejectTicket } from '../lib/tickets'
-import { Button, Card, Icon, Loading } from '../ui/primitives'
+import { Button, Card, Icon, Loading, PickCompany } from '../ui/primitives'
 
 // Zero-trust intake queue (spec §10): first-time public submissions land here and stay out of the
 // board until a staff member approves them. Reject dismisses for good.
@@ -11,6 +11,7 @@ export default function Moderation() {
   const approve = useApproveTicket(companyId)
   const reject = useRejectTicket(companyId)
 
+  if (companyId === ALL_COMPANIES) return <PickCompany what="Onay kuyruğu" />
   if (!companyId) return <p className="text-muted">Bu kullanıcı bir şirkete bağlı değil.</p>
 
   return (

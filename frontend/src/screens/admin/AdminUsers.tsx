@@ -17,6 +17,21 @@ const KINDS: Record<Kind, { label: string; className: string }> = {
 const kindOf = (u: UserRow, role?: number): Kind =>
   u.isSuperAdmin ? 'super' : role === 1 || (role === undefined && u.canCreateCompany) ? 'admin' : role === 2 ? 'staff' : 'customer'
 
+/**
+ * Every kind an account holds — a plural, because one person can be admin of one company and staff
+ * of another, and the filter has to match either.
+ *
+ * The filter used to call `kindOf(u)` with no role for the "customer" case. Without a role that
+ * expression falls through to 'customer', so **every staff member matched the Müşteri filter** and
+ * picking it changed nothing visible. The real discriminator is not the role argument, it is whether
+ * the account has memberships at all — which is exactly how `group()` below buckets the table.
+ */
+function kindsOf(u: UserRow): Kind[] {
+  if (u.isSuperAdmin) return ['super']
+  if (u.companies.length > 0) return u.companies.map((c) => kindOf(u, c.role))
+  return [u.canCreateCompany ? 'admin' : 'customer']
+}
+
 /// Company groups (staff, by membership) + one bucket for everyone else, split by kind.
 function group(users: UserRow[]) {
   const companies = new Map<string, { name: string; rows: { u: UserRow; role: number }[] }>()
@@ -57,10 +72,7 @@ export default function AdminUsers() {
   const filtered = useMemo(() => (users ?? []).filter((u) => {
     if (statusFilter === 'active' && !u.isActive) return false
     if (statusFilter === 'pending' && u.isActive) return false
-    if (!kindFilter) return true
-    if (kindFilter === 'staff' || kindFilter === 'admin')
-      return u.companies.some((c) => kindOf(u, c.role) === kindFilter)
-    return kindOf(u) === kindFilter
+    return !kindFilter || kindsOf(u).includes(kindFilter)
   }), [users, kindFilter, statusFilter])
 
   const groups = group(filtered)
@@ -245,8 +257,17 @@ function UserTableRow({
           {u.isActive ? 'Aktif' : 'Davet bekliyor'}
         </span>
       </td>
+      {/* Staff used to render a bare "—" here: the cell only ever showed `customerOf`, which is the
+          "opened a ticket there" relation and is empty for anyone who has a membership instead. Both
+          relations are shown now, and the super admin — who has neither, by design — says so. */}
       <td className="px-2 py-2.5 text-xs text-muted">
-        {u.customerOf.length > 0 ? u.customerOf.join(', ') : u.companies.length > 0 ? '—' : 'henüz talep yok'}
+        {u.isSuperAdmin
+          ? 'Kanby CRM (tüm şirketler)'
+          : u.companies.length > 0
+            ? u.companies.map((c) => c.companyName).join(' / ')
+            : u.customerOf.length > 0
+              ? u.customerOf.join(' / ')
+              : 'henüz talep yok'}
       </td>
       <td className="px-4 py-2.5 text-right whitespace-nowrap">
         {/* Erasure is irreversible, so it takes a second click — inline, not a browser dialog. */}
