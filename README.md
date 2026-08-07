@@ -2,12 +2,15 @@
 
 Multi-tenant CRM with a Kanban ticket pipeline. .NET 10 (Clean Architecture) + React 19/Vite + MSSQL + S3-compatible storage.
 
-- Architecture and feature report (what the system actually is today): `docs/MIMARI-RAPOR.md`
-- Architecture and spec: `docs/crm-kanban-mimari.md`
-- Progress, decisions, tech debt: `docs/PROGRESS.md`
-- Roadmap and deferred suggestions: `docs/ONERILER.md`
-- Requirement checklist (with evidence): `docs/CRM_Kanban_Gereksinim_Listesi.md`
-- Deploying to IIS / MonsterASP.NET instead of Docker: `docs/DEPLOY-monsterasp.md`
+> **`docs/` is not published.** The spec, the progress/decision log, the requirement checklist,
+> the roadmap and the deploy walkthrough are kept in the working tree but deliberately untracked
+> (owner's call, 2026-08-07) — this repository carries only what runs the project. The files below
+> exist next to a local clone's checkout; they are not resolvable links here.
+>
+> `docs/MIMARI-RAPOR.md` (what the system actually is today) · `docs/crm-kanban-mimari.md` (spec) ·
+> `docs/PROGRESS.md` (progress, decisions, tech debt) · `docs/ONERILER.md` (roadmap) ·
+> `docs/CRM_Kanban_Gereksinim_Listesi.md` (requirement checklist) ·
+> `docs/DEPLOY-monsterasp.md` (IIS / MonsterASP.NET deploy)
 
 ## Quickest start (Windows, Docker)
 
