@@ -78,10 +78,12 @@ export default function Revenue() {
           />
           <dl className="mt-4 space-y-1.5 border-t border-line pt-3 text-sm">
             <Row label="Karara bağlanan toplam" value={money(decided)} />
+            {/* Sapma payı, oran değil: %100 tavan ve iki yöne de aynı bedeli ödetir. Bu yüzden yön
+                bilgisi (üstü/altı) burada yok — o ayrı bir metrik olurdu. */}
             <Row
               label="Tahmin isabeti"
               value={v.forecastAccuracy === null ? '—' : percent(v.forecastAccuracy)}
-              hint="Gerçekleşen ÷ tahmin. %100 üstü: olduğundan düşük tahmin ediyorsunuz."
+              hint="Kapanan işlerde tahminin ne kadar tuttuğu: %100 = tam isabet. Sapma iki yönde de düşürür; tahminin iki katını aşan sapma %0 okunur."
             />
             <Row
               label="Tutarı girilmemiş talep"

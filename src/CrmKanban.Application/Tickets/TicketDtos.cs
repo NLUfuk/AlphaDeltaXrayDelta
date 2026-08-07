@@ -64,7 +64,13 @@ public sealed record SetTicketValueRequest(decimal? EstimatedValue, decimal? Act
 /// <summary>A value captured from a configurable public-form field (spec §4.6), denormalized as label+value.</summary>
 public sealed record CustomFieldValue(string Label, string Value);
 
-public sealed record StatusDto(Guid Id, string Name, StatusCategory Category, string Color, int Order, bool IsTerminal);
+/// <summary>A status column plus the columns it may legally move to (spec §12). The transition graph
+/// is the server's rule; shipping it with the catalog lets a picker offer only reachable targets
+/// instead of listing everything and letting the move fail. Empty for a terminal status — that is the
+/// rule itself, not missing data: nothing leaves Tamamlandı/İptal except reopen.</summary>
+public sealed record StatusDto(
+    Guid Id, string Name, StatusCategory Category, string Color, int Order, bool IsTerminal,
+    IReadOnlyList<Guid>? AllowedTargetStatusIds = null);
 
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
 

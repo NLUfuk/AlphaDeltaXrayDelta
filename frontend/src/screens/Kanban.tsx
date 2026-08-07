@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useCompanies, useMembers } from '../lib/admin'
 import { useActiveCompany } from '../lib/company'
 import { errorText, PRIORITIES, priority as priorityOf, statusCategory } from '../lib/messages'
-import { useChangeStatus, useCreateTicket, useKanban, useModeration, type KanbanColumn, type KanbanFilters } from '../lib/tickets'
+import { useChangeStatus, useCreateTicket, useKanban, useModeration, useStatuses, type KanbanColumn, type KanbanFilters } from '../lib/tickets'
 import { Alert, Button, Icon, Input, LoadError, Loading, Select, Textarea } from '../ui/primitives'
 import { CustomerLink } from '../ui/CustomerLink'
 import { TicketCard } from '../ui/TicketCard'
@@ -20,6 +20,7 @@ export default function Kanban() {
   const { data: members } = useMembers(companyId)
   const { data: companies } = useCompanies()
   const { data: pending } = useModeration(companyId)
+  const { data: statuses } = useStatuses(companyId)
   const changeStatus = useChangeStatus(companyId)
   const create = useCreateTicket(companyId)
   const [drag, setDrag] = useState<{ id: string; fromStatusId: string } | null>(null)
@@ -50,10 +51,19 @@ export default function Kanban() {
     setComposeIn((cur) => (cur === statusId ? null : statusId))
   }
 
+  // A drag is the board's version of the status dropdown, so it obeys the same transition graph the
+  // server enforces: a card in a terminal column (Tamamlandı/İptal) has no outgoing edge and cannot be
+  // dropped anywhere — dragging it back to "Yeni" used to fire a request that always 4xx'd, silently.
+  function canDrop(statusId: string): boolean {
+    if (!drag || drag.fromStatusId === statusId) return false
+    const from = statuses?.find((s) => s.id === drag.fromStatusId)
+    // Statuses still loading: let the server be the judge rather than blocking a legal move.
+    return from ? from.allowedTargetStatusIds.includes(statusId) : true
+  }
+
   function drop(statusId: string) {
-    // Only a real column change hits the server; dropping a card back in its own column is a no-op.
-    if (drag && drag.fromStatusId !== statusId)
-      changeStatus.mutate({ id: drag.id, targetStatusId: statusId })
+    if (canDrop(statusId))
+      changeStatus.mutate({ id: drag!.id, targetStatusId: statusId })
     clearDrag()
   }
 
@@ -128,6 +138,9 @@ export default function Kanban() {
 
       {isLoading && <Loading />}
       {createError && <Alert>{createError}</Alert>}
+      {/* A rejected move (permission, or a graph the client read before an admin changed it) left the
+          card snapping back with no explanation. */}
+      {changeStatus.isError && <Alert>{errorText(changeStatus.error)}</Alert>}
 
       {/* Box grid, not side-by-side columns. The old layout was a fixed-width horizontal strip
           (w-72 × N inside overflow-x-auto): with 6 statuses only the first four fit, and because
@@ -146,7 +159,9 @@ export default function Kanban() {
           return (
             <section
               key={col.statusId}
-              onDragOver={(e) => { e.preventDefault(); setOverId(col.statusId) }}
+              // No preventDefault on an illegal target: the browser then shows the "no drop" cursor
+              // and the column never lights up, so the rule is visible before the release.
+              onDragOver={(e) => { if (canDrop(col.statusId)) { e.preventDefault(); setOverId(col.statusId) } }}
               onDragLeave={() => setOverId((cur) => (cur === col.statusId ? null : cur))}
               onDrop={() => drop(col.statusId)}
               className={`flex flex-col overflow-hidden rounded-xl border bg-canvas transition-colors ${

@@ -39,6 +39,15 @@ const ERRORS: Record<string, string> = {
   'attachment.too_large': 'Dosya boyutu izin verilen sınırın dışında.',
   'attachment.too_many': 'Çok fazla dosya eklediniz.',
   'attachment.empty': 'Boş dosya yüklenemez.',
+  'ticket.status.terminal': 'Bu talep kapandı; statüsü değiştirilemez. Gerekiyorsa yeniden açın.',
+  'ticket.status.customer_forbidden': 'Talebinizi yalnızca iptal edebilir veya tamamlandı olarak işaretleyebilirsiniz.',
+  'ticket.status.transition_invalid': 'Bu statü geçişine izin verilmiyor.',
+  'ticket.status.forbidden': 'Bu statü geçişi için yetkiniz yok.',
+  'ticket.status.unchanged': 'Talep zaten bu statüde.',
+  'ticket.status.stale': 'Talebin statüsü değişmiş; sayfayı yenileyip tekrar deneyin.',
+  'ticket.reopen.not_closed': 'Yalnızca kapanmış bir talep yeniden açılabilir.',
+  'ticket.reopen.target_terminal': 'Talep açık bir statüye alınmalı.',
+  'ticket.reopen.window_expired': 'Yeniden açma süresi doldu; yeni bir talep oluşturun.',
 }
 
 export function errorMessage(code: string, serverMessage?: string): string {

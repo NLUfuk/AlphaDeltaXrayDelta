@@ -82,8 +82,9 @@ public sealed record RevenueSummary(
     double? WinRateByCount,
     double? WinRateByValue,
 
-    /// <summary>Realised ÷ estimated across won tickets that carry both figures. 1.0 = estimates land;
-    /// below 1 = habitual over-promising. Null when no won ticket has both numbers.</summary>
+    /// <summary>How close the estimates landed across won tickets carrying both figures:
+    /// 1 - (total absolute error ÷ total estimated), so 1.0 = perfect and it never exceeds it.
+    /// Over- and under-shooting cost the same; floored at 0. Null when no won ticket has both numbers.</summary>
     decimal? ForecastAccuracy,
 
     IReadOnlyList<RevenueTrendPoint> Trend);

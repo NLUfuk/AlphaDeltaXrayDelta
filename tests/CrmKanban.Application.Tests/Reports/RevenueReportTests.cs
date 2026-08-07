@@ -207,6 +207,44 @@ public class RevenueReportTests
     }
 
     [Fact]
+    public async Task Forecast_accuracy_never_exceeds_one_when_the_job_came_in_over_the_quote()
+    {
+        var options = Store();
+        var user = new FakeUser(false, Guid.NewGuid(), CompanyA);
+        await using (var db = new CrmDbContext(options, new FakeUser(true, null)))
+        {
+            await SeedStatusesAsync(db);
+            db.Tickets.Add(Priced(CompanyA, "A-1", WonStatus, estimated: 100_000m, actual: 110_000m));
+            await db.SaveChangesAsync();
+        }
+
+        await using var read = new CrmDbContext(options, user);
+        var r = (await Service(read, user, FullAccess).CompanyReportAsync(CompanyA, null, null)).Revenue!;
+
+        // Realised ÷ estimated said 1.10 here — a 10% miss outscoring a perfect estimate. Accuracy is a
+        // distance, so overrunning by 10% is worth exactly as much as undershooting by 10%.
+        r.ForecastAccuracy.Should().Be(0.9m);
+    }
+
+    [Fact]
+    public async Task Forecast_accuracy_floors_at_zero_instead_of_going_negative()
+    {
+        var options = Store();
+        var user = new FakeUser(false, Guid.NewGuid(), CompanyA);
+        await using (var db = new CrmDbContext(options, new FakeUser(true, null)))
+        {
+            await SeedStatusesAsync(db);
+            db.Tickets.Add(Priced(CompanyA, "A-1", WonStatus, estimated: 10_000m, actual: 45_000m));
+            await db.SaveChangesAsync();
+        }
+
+        await using var read = new CrmDbContext(options, user);
+        var r = (await Service(read, user, FullAccess).CompanyReportAsync(CompanyA, null, null)).Revenue!;
+
+        r.ForecastAccuracy.Should().Be(0m, "a 350% overrun is a total miss, and '-250% isabet' is not a percentage");
+    }
+
+    [Fact]
     public async Task Forecast_accuracy_ignores_won_tickets_with_no_actual_figure()
     {
         var options = Store();

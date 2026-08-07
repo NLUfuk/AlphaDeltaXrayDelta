@@ -41,6 +41,12 @@ export function useActiveCompany(): string | undefined {
   const { user } = useAuth()
   const fetched = useSelectableCompanies()
   const stored = useSyncExternalStore(subscribe, () => localStorage.getItem(KEY))
-  const ids = fetched.length ? fetched.map((c) => c.id) : (user?.companies.map((c) => c.companyId) ?? [])
-  return stored && ids.includes(stored) ? stored : ids[0]
+  const claimed = user?.companies.map((c) => c.companyId) ?? []
+  const ids = fetched.length ? fetched.map((c) => c.id) : claimed
+  if (stored && ids.includes(stored)) return stored
+  // No stored pick yet: only fall back to the claims when there is nothing to choose between. The
+  // claims come out in membership order, which for a two-company admin put the SECOND company first
+  // — the screens then loaded that one while the navbar switcher (which waits for the named, sorted
+  // list) said the other. Guessing from an arbitrary order is worse than one render of "loading".
+  return fetched.length || claimed.length === 1 ? ids[0] : undefined
 }

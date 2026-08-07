@@ -5,7 +5,7 @@ import { useMembers } from '../lib/admin'
 import { PRIORITIES, errorText, formatDateTime, priority, statusCategory } from '../lib/messages'
 import {
   downloadAttachment, isImage, useAttachmentBlobUrl,
-  useAddComment, useAssignTicket, useChangeTicketStatus, useDeleteTicket, useSetTicketPriority, useSetTicketValue, useStatuses, useTicket, useUploadAttachment,
+  useAddComment, useAssignTicket, useChangeTicketStatus, useDeleteTicket, useReopenTicket, useSetTicketPriority, useSetTicketValue, useStatuses, useTicket, useUploadAttachment,
   type Attachment,
 } from '../lib/tickets'
 import { Alert, Badge, Button, Card, Icon, Input, LoadError, Loading, Select as SelectBox } from '../ui/primitives'
@@ -43,9 +43,12 @@ export default function TicketDetail() {
   const upload = useUploadAttachment(id)
   const remove = useDeleteTicket(id, ticket?.companyId)
   const setValue = useSetTicketValue(id, ticket?.companyId)
+  const reopen = useReopenTicket(id, ticket?.companyId)
   const [body, setBody] = useState('')
   const [internal, setInternal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Which terminal status the customer just asked for (4 Closed / 5 Cancelled), pending confirmation.
+  const [confirmTo, setConfirmTo] = useState<number | null>(null)
 
   // ticket.delete is seeded to Admin/SuperAdmin, so mirror that to decide whether to offer the button.
   // ponytail: role check, not effective-permission check — an admin who explicitly denied ticket.delete
@@ -61,6 +64,15 @@ export default function TicketDetail() {
   const p = priority(ticket.priority)
   const isTerminal = ticket.category === 4 || ticket.category === 5
   const statusId = (c: number) => statuses?.find((s) => s.category === c)?.id
+
+  // The picker offers the current status plus exactly the ones the server's transition graph allows
+  // out of it. A terminal status has no outgoing edges, so the list collapses to the current status
+  // alone — "iptal edilen bir daha Yeni yapılamaz" is enforced by the graph, not by a UI rule.
+  // ponytail: edges carrying AllowedByPermissionKey are still offered; the seed puts the same
+  // ticket.status.change on all of them, and a 403 now renders. Filter here if keys ever diverge.
+  const current = statuses?.find((s) => s.id === ticket.statusId)
+  const statusOptions = statuses?.filter(
+    (s) => s.id === ticket.statusId || current?.allowedTargetStatusIds.includes(s.id)) ?? []
 
   function send(e: React.FormEvent) {
     e.preventDefault()
@@ -105,8 +117,8 @@ export default function TicketDetail() {
       {isStaff ? (
         <Card className="flex flex-wrap items-end gap-4 p-4">
           <Control label="Statü">
-            <Select value={ticket.statusId} onChange={(v) => changeStatus.mutate(v)}>
-              {statuses?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <Select value={ticket.statusId} onChange={(v) => changeStatus.mutate(v)} disabled={isTerminal}>
+              {statusOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select>
           </Control>
           <Control label="Atanan">
@@ -150,16 +162,55 @@ export default function TicketDetail() {
         </Card>
       ) : (
         !isTerminal && (
-          <Card className="flex gap-2 p-4">
-            <Button variant="secondary" onClick={() => statusId(5) && changeStatus.mutate(statusId(5)!)}>
-              <Icon name="close-circle-outline" className="mr-1" />İptal et
-            </Button>
-            <Button onClick={() => statusId(4) && changeStatus.mutate(statusId(4)!)}>
-              <Icon name="check-circle-outline" className="mr-1" />Tamamlandı
-            </Button>
+          <Card className="p-4">
+            {confirmTo === null ? (
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => setConfirmTo(5)}>
+                  <Icon name="close-circle-outline" className="mr-1" />İptal et
+                </Button>
+                <Button onClick={() => setConfirmTo(4)}>
+                  <Icon name="check-circle-outline" className="mr-1" />Tamamlandı
+                </Button>
+              </div>
+            ) : (
+              // Both targets are terminal and the graph has no edge out of a terminal status, so this
+              // is a one-way door — worth the same confirm step the delete button already gets.
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted">
+                  {confirmTo === 5 ? 'Talep iptal edilsin mi?' : 'Talep tamamlandı olarak işaretlensin mi?'}
+                </span>
+                <Button variant="secondary" onClick={() => setConfirmTo(null)} disabled={changeStatus.isPending}>
+                  Vazgeç
+                </Button>
+                <Button
+                  disabled={changeStatus.isPending || !statusId(confirmTo)}
+                  onClick={() => changeStatus.mutate(statusId(confirmTo)!, { onSuccess: () => setConfirmTo(null) })}
+                >
+                  {changeStatus.isPending ? 'Gönderiliyor…' : 'Evet'}
+                </Button>
+              </div>
+            )}
           </Card>
         )
       )}
+
+      {/* Terminal is a dead end on purpose: the transition graph has no outgoing edge from
+          Tamamlandı/İptal, so neither the customer nor staff can move the ticket. Reopen is the one
+          exit, and the server bounds it by ClosedAt + the reopen window. Both roles get the button;
+          the server decides. */}
+      {isTerminal && (
+        <Card className="flex flex-wrap items-center gap-3 p-4">
+          <span className="text-sm text-muted">Bu talep kapandı; statüsü değiştirilemez.</span>
+          <Button variant="secondary" disabled={reopen.isPending || !statusId(0)} onClick={() => reopen.mutate(statusId(0)!)}>
+            <Icon name="restore" className="mr-1" />{reopen.isPending ? 'Açılıyor…' : 'Yeniden aç'}
+          </Button>
+          {reopen.isError && <div className="w-full"><Alert>{errorText(reopen.error)}</Alert></div>}
+        </Card>
+      )}
+
+      {/* Without this a rejected status change was invisible: the staff Select and the customer buttons
+          both fired, the server answered 4xx, and nothing appeared on screen. */}
+      {changeStatus.isError && <Alert>{errorText(changeStatus.error)}</Alert>}
 
       {/* Money sits behind ticket.value; the server already withheld the numbers, so canSeeValue
           only decides whether to render the box at all. */}
@@ -295,8 +346,10 @@ function Control({ label, children }: { label: string; children: React.ReactNode
 
 // Local wrapper only for the (value, onChange(v)) shape this screen's three dropdowns share; the
 // look comes from the primitive, so it can no longer drift from every other select in the app.
-function Select({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: React.ReactNode }) {
-  return <SelectBox value={value} onChange={(e) => onChange(e.target.value)}>{children}</SelectBox>
+function Select({ value, onChange, children, disabled }: {
+  value: string; onChange: (v: string) => void; children: React.ReactNode; disabled?: boolean
+}) {
+  return <SelectBox value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>{children}</SelectBox>
 }
 
 /// Estimated vs realised amount. Two fields, not one: overwriting the estimate on close makes

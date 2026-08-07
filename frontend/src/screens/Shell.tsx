@@ -62,16 +62,20 @@ function CompanySwitcher() {
   const companies = useSelectableCompanies()
   const active = useActiveCompany()
   if (companies.length < 2) return null
+  // The icon is not decoration: as a bare dropdown this read as a filter, and an admin with two
+  // companies could not tell it was what decided which company every screen was showing.
   return (
-    <Select
-      value={active ?? ''}
-      onChange={(e) => setActiveCompany(e.target.value)}
-      aria-label="Aktif şirket"
-      title="Aktif şirket"
-      className="max-w-[12rem] py-1.5"
-    >
-      {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-    </Select>
+    <label className="flex items-center gap-1.5" title="Aktif şirket — tüm ekranlar bu şirketi gösterir">
+      <Icon name="domain" className="text-lg text-muted" />
+      <Select
+        value={active ?? ''}
+        onChange={(e) => setActiveCompany(e.target.value)}
+        aria-label="Aktif şirket"
+        className="max-w-[12rem] py-1.5"
+      >
+        {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </Select>
+    </label>
   )
 }
 

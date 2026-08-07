@@ -133,7 +133,12 @@ export function useChangeStatus(companyId: string | undefined) {
   })
 }
 
-export type Status = { id: string; name: string; category: number; color: string; order: number; isTerminal: boolean }
+/** `allowedTargetStatusIds` is the server's transition graph for this column — empty for a terminal
+ *  status, which is why a cancelled ticket can never be set back to Yeni. */
+export type Status = {
+  id: string; name: string; category: number; color: string; order: number; isTerminal: boolean
+  allowedTargetStatusIds: string[]
+}
 
 export function useStatuses(companyId?: string) {
   return useQuery({
@@ -223,6 +228,17 @@ export function useChangeTicketStatus(ticketId: string, companyId: string | unde
   return useTicketMutation<string>(ticketId, companyId, (targetStatusId) =>
     api.post(`/tickets/${ticketId}/status`, { targetStatusId }))
 }
+/**
+ * Reopens a terminal ticket into a non-terminal status. The only way out of Tamamlandı/İptal —
+ * the transition graph has no outgoing edge from a terminal status, by design. The server enforces
+ * the window (ClosedAt + Tickets:ReopenWindowDays) and answers `ticket.reopen.window_expired`,
+ * so the UI just offers the button and renders whatever comes back.
+ */
+export function useReopenTicket(ticketId: string, companyId: string | undefined) {
+  return useTicketMutation<string>(ticketId, companyId, (targetStatusId) =>
+    api.post(`/tickets/${ticketId}/reopen`, { targetStatusId }))
+}
+
 export function useAssignTicket(ticketId: string, companyId: string | undefined) {
   return useTicketMutation<string | null>(ticketId, companyId, (assigneeUserId) =>
     api.post(`/tickets/${ticketId}/assign`, { assigneeUserId }))

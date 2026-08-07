@@ -128,7 +128,7 @@ public static class ReportPdf
                 Tile(row, "Kaybedilen", Money(m.LostTotal, m.Currency), $"{m.LostCount} talep", Lost);
                 Tile(row, "Açık hat", Money(m.OpenTotal, m.Currency), $"{m.OpenCount} talep", Accent);
                 Tile(row, "Kazanma oranı", Percent(m.WinRateByCount), $"tutarca {Percent(m.WinRateByValue)}");
-                Tile(row, "Tahmin isabeti", Percent(m.ForecastAccuracy is { } f ? (double)f : null), "gerçekleşen ÷ tahmin");
+                Tile(row, "Tahmin isabeti", Percent(m.ForecastAccuracy is { } f ? (double)f : null), "%100 = tam isabet");
                 Tile(row, "Tutarsız talep", m.UnpricedCount.ToString(Tr), "toplama katılmıyor");
             });
         });

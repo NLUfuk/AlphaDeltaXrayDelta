@@ -253,10 +253,19 @@ public sealed class ReportService(
 
         // Forecast accuracy only means something where BOTH numbers exist: a won ticket whose actual
         // was never entered would otherwise report a perfect 1.0 and flatter the average.
+        //
+        // Accuracy is how close the estimate landed, so it is capped at 100% and a miss costs the same
+        // in either direction: 1 - (total absolute error / total estimated). Dividing actual by estimate
+        // instead reported 110% for a 10% overrun — a worse forecast scoring above a perfect one.
+        // Floored at 0 so an overrun past double the quote reads "0% isabet", not a negative percentage.
         var estimated = won.Where(r => r.ActualValue is not null && r.EstimatedValue is > 0).ToList();
-        decimal? accuracy = estimated.Count > 0
-            ? Math.Round(estimated.Sum(r => r.ActualValue!.Value) / estimated.Sum(r => r.EstimatedValue!.Value), 4)
-            : null;
+        decimal? accuracy = null;
+        if (estimated.Count > 0)
+        {
+            var quoted = estimated.Sum(r => r.EstimatedValue!.Value);
+            var error = estimated.Sum(r => Math.Abs(r.ActualValue!.Value - r.EstimatedValue!.Value));
+            accuracy = Math.Round(Math.Max(0m, 1m - error / quoted), 4);
+        }
 
         var byMonth = won.Concat(lost)
             .GroupBy(r => new DateOnly(r.OutcomeAt.Year, r.OutcomeAt.Month, 1))

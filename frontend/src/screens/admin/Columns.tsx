@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { useCompanies } from '../../lib/admin'
-import { useAuth } from '../../lib/auth'
+import { useActiveCompany } from '../../lib/company'
 import { STATUS_CATEGORIES } from '../../lib/messages'
 import {
   useColumns, useCreateColumn, useDeleteColumn, useReorderColumns, useUpdateColumn, type StatusColumn,
@@ -12,10 +11,9 @@ import { Alert, Button, Card, Field, Icon, Input, Select } from '../../ui/primit
 // recolors it, reorders the board, or removes an empty one. The first change forks this company's
 // board off the shared defaults (handled server-side).
 export default function Columns() {
-  const { user } = useAuth()
-  const { data: companies } = useCompanies()
-  const [companyId, setCompanyId] = useState<string | undefined>(user?.companies[0]?.companyId)
-  const cid = companyId ?? companies?.[0]?.id
+  // The navbar switcher is the only company control in the app — a second one here used to default to
+  // a different company than the navbar showed, so an admin edited the board they were not looking at.
+  const cid = useActiveCompany()
   const { data: columns, isLoading } = useColumns(cid)
   const create = useCreateColumn(cid)
   const update = useUpdateColumn(cid)
@@ -55,11 +53,6 @@ export default function Columns() {
           <h1 className="text-lg font-semibold text-ink">Kanban sütunları</h1>
           <p className="text-sm text-muted">Sütunları istediğiniz sıraya zincir gibi ekleyin ve düzenleyin.</p>
         </div>
-        {companies && companies.length > 1 && (
-          <Select value={cid} onChange={(e) => setCompanyId(e.target.value)}>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
-        )}
       </header>
 
       {error && <Alert>{error}</Alert>}

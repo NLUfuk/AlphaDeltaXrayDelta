@@ -193,14 +193,28 @@ public sealed class TicketQueryService(
 
     /// <summary>The status catalog for dropdowns and the customer cancel/complete actions. With a
     /// companyId it returns that company's effective set (its own columns if customized, else global);
-    /// without one, the global defaults. Any authenticated caller may read.</summary>
+    /// without one, the global defaults. Each entry carries its legal targets so a picker can offer
+    /// only reachable statuses. Any authenticated caller may read.</summary>
     public async Task<IReadOnlyList<StatusDto>> ListStatusesAsync(Guid? companyId = null, CancellationToken ct = default)
     {
         var set = companyId is { } cid
             ? await StatusSet.EffectiveAsync(db, cid, ct)
             : await db.TicketStatuses.IgnoreQueryFilters()
                 .Where(s => s.CompanyId == null && s.DeletedAt == null).OrderBy(s => s.Order).ToListAsync(ct);
-        return set.Select(s => new StatusDto(s.Id, s.Name, s.Category, s.Color, s.Order, s.IsTerminal)).ToList();
+
+        // Edges within this set only. A company's own columns are cloned with their own edges
+        // (StatusManagementService), so restricting both ends to the effective set keeps a customized
+        // company from picking up stale global targets.
+        var ids = set.Select(s => s.Id).ToList();
+        var edges = await db.StatusTransitions.IgnoreQueryFilters()
+            .Where(t => t.DeletedAt == null && ids.Contains(t.FromStatusId) && ids.Contains(t.ToStatusId))
+            .Select(t => new { t.FromStatusId, t.ToStatusId })
+            .ToListAsync(ct);
+        var targets = edges.GroupBy(e => e.FromStatusId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<Guid>)g.Select(e => e.ToStatusId).ToList());
+
+        return set.Select(s => new StatusDto(s.Id, s.Name, s.Category, s.Color, s.Order, s.IsTerminal,
+            targets.GetValueOrDefault(s.Id, []))).ToList();
     }
 
     // ---- helpers ----

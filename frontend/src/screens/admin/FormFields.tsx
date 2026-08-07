@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { useCompanies } from '../../lib/admin'
-import { useAuth } from '../../lib/auth'
+import { useActiveCompany } from '../../lib/company'
 import { errorText } from '../../lib/messages'
 import {
   FIELD_TYPES, useCreateField, useDeleteField, useFormFields, useUpdateField, type FormField,
@@ -10,10 +9,8 @@ import { Alert, Button, Card, Field, Icon, Input, Loading, Select, Textarea } fr
 // Configurable public-form fields (spec §4.6): a company admin adds extra fields (text / number / select)
 // that appear on the public request form and are captured on the ticket. Backend gates on company admin.
 export default function FormFields() {
-  const { user } = useAuth()
-  const { data: companies } = useCompanies()
-  const [companyId, setCompanyId] = useState<string | undefined>(user?.companies[0]?.companyId)
-  const cid = companyId ?? companies?.[0]?.id
+  // Scoped by the navbar switcher, like every other company screen (see Columns).
+  const cid = useActiveCompany()
   const { data: fields, isLoading } = useFormFields(cid)
   const create = useCreateField(cid)
   const update = useUpdateField(cid)
@@ -39,13 +36,6 @@ export default function FormFields() {
     <div className="mx-auto max-w-3xl space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-ink">Form alanları</h1>
-        {(companies?.length ?? 0) > 1 && (
-          <Select
-            value={cid} onChange={(e) => setCompanyId(e.target.value)}
-          >
-            {companies?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
-        )}
       </header>
       <p className="text-sm text-muted">Bu alanlar müşterinin talep formunda görünür ve talebe kaydedilir.</p>
 
