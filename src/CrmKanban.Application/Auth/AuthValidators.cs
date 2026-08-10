@@ -42,18 +42,34 @@ public sealed class VerifyCodeRequestValidator : AbstractValidator<VerifyCodeReq
     public VerifyCodeRequestValidator()
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
-        RuleFor(x => x.Code).NotEmpty().Matches("^[0-9]{6}$").WithMessage("The code is 6 digits.");
+        RuleFor(x => x.Code).NotEmpty().Matches("^[0-9]{6}$").WithMessage("Kod 6 haneli olmalı.");
     }
 }
 
+/// <summary>
+/// The one definition of "strong enough" for every place a password is set: staff invite acceptance,
+/// password reset, self-service customer sign-up, and change-password. The frontend mirrors these four
+/// rules (frontend/src/lib/messages.ts <c>passwordProblem</c>) so the user is told BEFORE submitting;
+/// this stays the authority — a client that skips the hint still gets rejected here.
+/// </summary>
 internal static class PasswordRules
 {
+    /// <summary>
+    /// The special-character set, spelled out rather than written as "not a letter or a digit".
+    /// `[^A-Za-z0-9]` would have counted Turkish letters (ş, ğ, ı, ö, ç, ü) as special — so "Parolaş1"
+    /// would silently satisfy a rule the user was told required a special character. An explicit set of
+    /// ASCII punctuation and symbols means the hint and the check agree. Space is deliberately not in it.
+    /// Must stay identical to the frontend mirror in frontend/src/lib/messages.ts.
+    /// </summary>
+    private const string SpecialCharacters = @"[!@#$%^&*()\-_=+\[\]{};:'"",.<>/?\\|`~]";
+
     public static IRuleBuilderOptions<T, string> StrongPassword<T>(this IRuleBuilder<T, string> rule) =>
-        rule.NotEmpty()
-            .MinimumLength(8).WithMessage("Password must be at least 8 characters.")
-            .Matches("[A-Z]").WithMessage("Password must contain an uppercase letter.")
-            .Matches("[a-z]").WithMessage("Password must contain a lowercase letter.")
-            .Matches("[0-9]").WithMessage("Password must contain a digit.");
+        rule.NotEmpty().WithMessage("Parola gerekli.")
+            .MinimumLength(8).WithMessage("Parola en az 8 karakter olmalı.")
+            .Matches("[A-Z]").WithMessage("Parola en az bir büyük harf içermeli.")
+            .Matches("[a-z]").WithMessage("Parola en az bir küçük harf içermeli.")
+            .Matches("[0-9]").WithMessage("Parola en az bir rakam içermeli.")
+            .Matches(SpecialCharacters).WithMessage(@"Parola en az bir özel karakter içermeli (örn. ! @ # $ % & * ? _ -).");
 }
 
 public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRequest>
@@ -62,7 +78,7 @@ public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePas
     {
         RuleFor(x => x.CurrentPassword).NotEmpty();
         RuleFor(x => x.NewPassword).StrongPassword().NotEqual(x => x.CurrentPassword)
-            .WithMessage("New password must differ from the current one.");
+            .WithMessage("Yeni parola mevcut parolayla aynı olamaz.");
     }
 }
 

@@ -243,8 +243,11 @@ public sealed class AuthService(
         var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("user.not_found", "User not found.");
 
+        // Not a 401 and not the login code: the caller IS authenticated, they just mistyped the password
+        // they are re-confirming. A 401 here sent the SPA into its token-refresh-and-retry path and, if
+        // that refresh happened to fail, logged the user out over a typo. 400 says what actually happened.
         if (user.PasswordHash is null || !passwordHasher.Verify(user, user.PasswordHash, request.CurrentPassword))
-            throw new UnauthorizedException("auth.invalid_credentials", "Current password is incorrect.");
+            throw new BadRequestException("auth.wrong_password", "Current password is incorrect.");
 
         user.SetPasswordHash(passwordHasher.Hash(user, request.NewPassword));
         await RevokeAllAsync(userId, clock.UtcNow, ct); // force other sessions to re-authenticate
@@ -263,7 +266,7 @@ public sealed class AuthService(
         if (user.IsSuperAdmin)
             throw new ConflictException("auth.superadmin_delete", "A super admin account cannot be self-deleted.");
         if (user.PasswordHash is null || !passwordHasher.Verify(user, user.PasswordHash, request.Password))
-            throw new UnauthorizedException("auth.invalid_credentials", "Password is incorrect.");
+            throw new BadRequestException("auth.wrong_password", "Password is incorrect.");
 
         user.Anonymize();
         await RevokeAllAsync(userId, clock.UtcNow, ct);

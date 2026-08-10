@@ -89,11 +89,40 @@ api.interceptors.response.use(
 
 /** The shared error envelope { code, message, details } (spec §4.3). One place turns any failure into it. */
 export type ApiError = { code: string; message: string; details?: unknown }
+/** Per-field reasons a validation failure carries (`validation.failed`). Rendered by `errorText`. */
+export type ApiFieldError = { field: string; error: string }
+
+// Not every failure reaches us as our envelope. The rate limiter rejects with a bare 429, the JWT
+// middleware with a bare 401, a proxy or a crashed worker with an HTML 502 — all bodiless, or at least
+// code-less. Those used to fall into the same bucket as "the request never left the browser" and the
+// user was told "Sunucuya ulaşılamadı" while the server was answering perfectly well. The status line
+// is the only thing left to read at that point, so read it.
+const BY_STATUS: Record<number, ApiError> = {
+  400: { code: 'validation.failed', message: 'Gönderilen bilgiler geçersiz.' },
+  401: { code: 'auth.required', message: 'Oturumunuz sona ermiş. Lütfen tekrar giriş yapın.' },
+  403: { code: 'forbidden', message: 'Bu işlem için yetkiniz yok.' },
+  404: { code: 'not_found', message: 'Aradığınız kayıt bulunamadı.' },
+  409: { code: 'conflict', message: 'Bu işlem mevcut kayıtla çakışıyor.' },
+  413: { code: 'attachment.too_large', message: 'Dosya boyutu izin verilen sınırın dışında.' },
+  429: { code: 'rate.limited', message: 'Çok fazla deneme yaptınız. Bir dakika bekleyip tekrar deneyin.' },
+}
 
 export function toApiError(error: unknown): ApiError {
-  if (axios.isAxiosError(error) && error.response?.data && typeof error.response.data === 'object') {
-    const d = error.response.data as Partial<ApiError>
+  if (!axios.isAxiosError(error)) return { code: 'network.error', message: 'Sunucuya ulaşılamadı.' }
+
+  const response = error.response
+  // No response at all — DNS, offline, CORS, connection refused. The only true "server unreachable".
+  if (!response) return { code: 'network.error', message: 'Sunucuya ulaşılamadı.' }
+
+  if (response.data && typeof response.data === 'object') {
+    const d = response.data as Partial<ApiError>
     if (d.code) return { code: d.code, message: d.message ?? d.code, details: d.details }
   }
-  return { code: 'network.error', message: 'Sunucuya ulaşılamadı.' }
+
+  return (
+    BY_STATUS[response.status] ??
+    (response.status >= 500
+      ? { code: 'server.error', message: 'Sunucuda bir hata oluştu. Lütfen daha sonra tekrar deneyin.' }
+      : { code: 'unknown.error', message: 'Beklenmeyen bir hata oluştu.' })
+  )
 }

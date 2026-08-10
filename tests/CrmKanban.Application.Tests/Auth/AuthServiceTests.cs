@@ -147,7 +147,10 @@ public class AuthServiceTests
     {
         var (svc, _, _) = Build(out var user);
         var act = () => svc.DeleteOwnAccountAsync(user.Id, new DeleteAccountRequest("wrong"));
-        await act.Should().ThrowAsync<UnauthorizedException>().Where(e => e.Code == "auth.invalid_credentials");
+        // Not `auth.invalid_credentials` / 401: the caller is authenticated and merely mistyped the
+        // password they are re-confirming. A 401 sent the SPA into refresh-and-retry and could log them
+        // out over a typo; the distinct code also lets the UI say "mevcut parolanız hatalı".
+        await act.Should().ThrowAsync<BadRequestException>().Where(e => e.Code == "auth.wrong_password");
     }
 
     [Fact]

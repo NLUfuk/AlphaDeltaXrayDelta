@@ -92,7 +92,48 @@ public class SmokeTests(ApiFactory factory) : IClassFixture<ApiFactory>
         (await list.Content.ReadFromJsonAsync<CompanyResponse[]>())!.Should().NotContain(c => c.Id == company.Id);
     }
 
+    /// <summary>
+    /// The reported bug, over real HTTP: accepting an emailed invite with a password that breaks the
+    /// strength rules answered 400 with a body the SPA could not read, so the user was told "sunucuya
+    /// ulaşılamadı" instead of what was actually wrong with their password. Asserted here rather than at
+    /// the validator, because the failure was in the PIPELINE (which 400 shape comes back), not the rule.
+    /// </summary>
+    [Fact]
+    public async Task A_weak_invite_password_is_400_with_a_readable_turkish_reason()
+    {
+        var res = await _client.PostAsJsonAsync("/api/invitations/accept",
+            new { token = "irrelevant-the-password-is-checked-first", newPassword = "abcdefgh" });
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await res.Content.ReadFromJsonAsync<ValidationEnvelope>();
+        body!.Code.Should().Be("validation.failed", "the SPA keys its message off `code`; a body without one reads as 'no server'");
+        body.Details.Should().NotBeNull().And.NotBeEmpty("the reason must travel — a bare code is what forced the user to guess");
+        var reasons = body.Details!.Select(d => d.Error).ToList();
+        reasons.Should().Contain("Parola en az bir büyük harf içermeli.");
+        reasons.Should().Contain("Parola en az bir rakam içermeli.");
+    }
+
+    /// <summary>
+    /// [ApiController]'s built-in ProblemDetails 400 bypasses our exception middleware entirely, so a
+    /// malformed request used to come back with no `code` at all — the other half of the same symptom.
+    /// A missing required field takes that path (model binding fails before any filter runs).
+    /// </summary>
+    [Fact]
+    public async Task A_malformed_request_still_answers_in_the_shared_error_envelope()
+    {
+        var res = await _client.PostAsJsonAsync("/api/invitations/accept", new { token = (string?)null, newPassword = (string?)null });
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await res.Content.ReadFromJsonAsync<ValidationEnvelope>();
+        body!.Code.Should().Be("validation.failed");
+        body.Details.Should().NotBeNullOrEmpty();
+        // ModelState's own text is English serializer detail; it must not reach a user.
+        body.Details!.Should().OnlyContain(d => !d.Error.Contains("field is required"));
+    }
+
     private sealed record ErrorEnvelope(string Code, string Message, string? Details);
+    private sealed record ValidationEnvelope(string Code, string Message, FieldError[]? Details);
+    private sealed record FieldError(string Field, string Error);
     private sealed record LoginResponse(string AccessToken, string RefreshToken);
     private sealed record CompanyResponse(Guid Id, string Name, string Slug);
 }
