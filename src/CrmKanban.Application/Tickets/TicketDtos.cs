@@ -3,8 +3,10 @@ using CrmKanban.Domain.Enums;
 
 namespace CrmKanban.Application.Tickets;
 
+/// <summary>Priority is nullable so "the caller did not choose" is distinguishable from "the caller
+/// chose Normal" — only the first falls back to the ticket.default_priority setting (spec §13).</summary>
 public sealed record CreateTicketRequest(
-    Guid CompanyId, string Title, string Body, Priority Priority = Priority.Normal);
+    Guid CompanyId, string Title, string Body, Priority? Priority = null);
 
 /// <summary>A logged-in customer opening a request to a company they picked from the portal (spec §18.5).
 /// No priority/category — those are staff-set; the customer only chooses the company and writes.</summary>

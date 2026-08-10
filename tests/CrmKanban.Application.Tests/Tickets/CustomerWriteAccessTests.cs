@@ -74,9 +74,9 @@ public class CustomerWriteAccessTests
         var db = new CrmDbContext(options, user);
         var authz = new TicketAuthorizationService(user, new FakePermissionService(), db);
         var attachments = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(),
-            Options.Create(new Application.Files.FileOptions()));
+            new Application.Settings.SettingsService(db, user), Options.Create(new Application.Files.FileOptions()));
         var comments = new CommentService(db, authz, attachments, new FixedClock());
-        var commands = new TicketCommandService(db, authz, user, new FixedClock(), Options.Create(new TicketOptions()));
+        var commands = new TicketCommandService(db, authz, user, new FixedClock(), new Application.Settings.SettingsService(db, user));
         return (comments, commands);
     }
 

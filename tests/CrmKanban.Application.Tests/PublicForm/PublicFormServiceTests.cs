@@ -96,9 +96,9 @@ public class PublicFormServiceTests
         // The public form never calls authz, but AttachmentService needs one; a real instance over the
         // anonymous context is enough (no attachment paths are exercised in these tests).
         var authz = new TicketAuthorizationService(new Anonymous(), new FakePermissionService(), db);
-        var attachments = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(),
-            Options.Create(new Application.Files.FileOptions()));
         var settings = new Application.Settings.SettingsService(db, new Anonymous());
+        var attachments = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(),
+            settings, Options.Create(new Application.Files.FileOptions()));
         var formFields = new Application.Forms.FormFieldService(db, new Anonymous());
         return new PublicFormService(db, new FakeCaptcha(captchaOk), attachments, formFields, new FixedClock(),
             settings, caller ?? new Anonymous(), new IntakeTrustService(db, new FixedClock()),

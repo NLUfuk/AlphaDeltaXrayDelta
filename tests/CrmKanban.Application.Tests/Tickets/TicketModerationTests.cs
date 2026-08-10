@@ -73,7 +73,7 @@ public class TicketModerationTests
         var user = new SuperAdmin();
         var db = new CrmDbContext(options, user);
         var authz = new TicketAuthorizationService(user, new Perms(), db);
-        return new TicketCommandService(db, authz, user, new FixedClock(), Options.Create(new TicketOptions()));
+        return new TicketCommandService(db, authz, user, new FixedClock(), new Application.Settings.SettingsService(db, user));
     }
 
     private sealed class FakeStorage : IFileStorage

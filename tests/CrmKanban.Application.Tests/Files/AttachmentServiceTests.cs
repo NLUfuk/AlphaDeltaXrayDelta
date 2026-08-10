@@ -55,10 +55,16 @@ public class AttachmentServiceTests
 
     private static readonly Application.Files.FileOptions Opt = new(); // 10MB, 5 files, image/pdf/office
 
+    // No Settings rows seeded here on purpose: these tests assert the FALLBACK path, i.e. that an empty
+    // or unreachable settings store still enforces the shipped limits. DbSettingsDriveFileLimitsTests
+    // covers the other half — a seeded row overriding them.
+    private static Application.Settings.SettingsService Settings(CrmDbContext db) =>
+        new(db, new FakeUser(Guid.NewGuid(), true));
+
     private static AttachmentService ServiceFor(CrmDbContext db, ICurrentUserService user)
     {
         var authz = new TicketAuthorizationService(user, new FakePermissionService(), db);
-        return new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(), Options.Create(Opt));
+        return new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(), Settings(db), Options.Create(Opt));
     }
 
     private static CrmDbContext NewDb(ICurrentUserService user) =>
@@ -71,7 +77,7 @@ public class AttachmentServiceTests
         using var db = NewDb(new FakeUser(Guid.NewGuid(), true));
         var storage = new FakeFileStorage();
         var authz = new TicketAuthorizationService(new FakeUser(Guid.NewGuid(), true), new FakePermissionService(), db);
-        var svc = new AttachmentService(db, storage, authz, new FixedClock(), Options.Create(Opt));
+        var svc = new AttachmentService(db, storage, authz, new FixedClock(), Settings(db), Options.Create(Opt));
 
         var pdf = "%PDF-1.7\nhello"u8.ToArray();
         var descriptor = await svc.StorePublicUploadAsync("public/x", "teklif.pdf", "application/pdf", new MemoryStream(pdf));
@@ -88,7 +94,7 @@ public class AttachmentServiceTests
         using var db = NewDb(new FakeUser(Guid.NewGuid(), true));
         var svc = new AttachmentService(db, new FakeFileStorage(),
             new TicketAuthorizationService(new FakeUser(Guid.NewGuid(), true), new FakePermissionService(), db),
-            new FixedClock(), Options.Create(Opt));
+            new FixedClock(), Settings(db), Options.Create(Opt));
 
         // SVG carries script — an image to the user, an XSS vector in a browser. Not on the allow-list.
         var svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"u8.ToArray();
@@ -98,41 +104,41 @@ public class AttachmentServiceTests
     }
 
     [Fact]
-    public void Disallowed_content_type_is_rejected()
+    public async Task Disallowed_content_type_is_rejected()
     {
         using var db = NewDb(new FakeUser(Guid.NewGuid(), true));
         var svc = ServiceFor(db, new FakeUser(Guid.NewGuid(), true));
 
-        var act = () => svc.CreateUploadUrl("public/x", new UploadUrlRequest("evil.exe", "application/x-msdownload", 1000));
+        var act = () => svc.CreateUploadUrlAsync("public/x", new UploadUrlRequest("evil.exe", "application/x-msdownload", 1000));
 
-        act.Should().Throw<BadRequestException>().Which.Code.Should().Be("attachment.type_not_allowed");
+        (await act.Should().ThrowAsync<BadRequestException>()).Which.Code.Should().Be("attachment.type_not_allowed");
     }
 
     [Fact]
-    public void Oversize_file_is_rejected()
+    public async Task Oversize_file_is_rejected()
     {
         using var db = NewDb(new FakeUser(Guid.NewGuid(), true));
         var svc = ServiceFor(db, new FakeUser(Guid.NewGuid(), true));
 
-        var act = () => svc.CreateUploadUrl("public/x", new UploadUrlRequest("big.pdf", "application/pdf", Opt.MaxSizeBytes + 1));
+        var act = () => svc.CreateUploadUrlAsync("public/x", new UploadUrlRequest("big.pdf", "application/pdf", Opt.MaxSizeBytes + 1));
 
-        act.Should().Throw<BadRequestException>().Which.Code.Should().Be("attachment.too_large");
+        (await act.Should().ThrowAsync<BadRequestException>()).Which.Code.Should().Be("attachment.too_large");
     }
 
     [Fact]
-    public void Allowed_file_gets_a_presigned_put_url_and_a_scoped_key()
+    public async Task Allowed_file_gets_a_presigned_put_url_and_a_scoped_key()
     {
         using var db = NewDb(new FakeUser(Guid.NewGuid(), true));
         var svc = ServiceFor(db, new FakeUser(Guid.NewGuid(), true));
 
-        var result = svc.CreateUploadUrl("public/acme", new UploadUrlRequest("shot.png", "image/png", 2048));
+        var result = await svc.CreateUploadUrlAsync("public/acme", new UploadUrlRequest("shot.png", "image/png", 2048));
 
         result.Key.Should().StartWith("public/acme/");
         result.Url.Should().Contain(result.Key);
     }
 
     [Fact]
-    public void Linking_more_than_the_limit_is_rejected()
+    public async Task Linking_more_than_the_limit_is_rejected()
     {
         using var db = NewDb(new FakeUser(Guid.NewGuid(), true));
         var svc = ServiceFor(db, new FakeUser(Guid.NewGuid(), true));
@@ -140,9 +146,9 @@ public class AttachmentServiceTests
         var files = Enumerable.Range(0, Opt.MaxPerAttachTarget + 1)
             .Select(i => new AttachmentDescriptor($"k{i}", $"f{i}.png", "image/png", 10)).ToList();
 
-        var act = () => svc.BuildAttachments(Guid.NewGuid(), Guid.NewGuid(), null, files, Guid.NewGuid());
+        var act = () => svc.BuildAttachmentsAsync(Guid.NewGuid(), Guid.NewGuid(), null, files, Guid.NewGuid());
 
-        act.Should().Throw<BadRequestException>().Which.Code.Should().Be("attachment.too_many");
+        (await act.Should().ThrowAsync<BadRequestException>()).Which.Code.Should().Be("attachment.too_many");
     }
 
     [Fact]
@@ -186,7 +192,7 @@ public class AttachmentServiceTests
         var storage = new FakeFileStorage();
         var db = new CrmDbContext(options, new FakeUser(openerId, false));
         var authz = new TicketAuthorizationService(new FakeUser(openerId, false), new FakePermissionService(), db);
-        var svc = new AttachmentService(db, storage, authz, new FixedClock(), Options.Create(Opt));
+        var svc = new AttachmentService(db, storage, authz, new FixedClock(), Settings(db), Options.Create(Opt));
 
         var pdf = "%PDF-1.7 body"u8.ToArray();
         var dto = await svc.StoreTicketUploadAsync(ticket.Id, "teklif.pdf", "application/pdf", new MemoryStream(pdf));
@@ -214,7 +220,7 @@ public class AttachmentServiceTests
 
         var db = new CrmDbContext(options, new FakeUser(openerId, false));
         var authz = new TicketAuthorizationService(new FakeUser(openerId, false), new FakePermissionService(), db);
-        var svc = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(), Options.Create(Opt));
+        var svc = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(), Settings(db), Options.Create(Opt));
 
         // Empty content-type (as some browsers report) must not sink a valid .pdf.
         var dto = await svc.StoreTicketUploadAsync(ticket.Id, "teklif.pdf", "", new MemoryStream("%PDF-1.7"u8.ToArray()));

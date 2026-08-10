@@ -177,7 +177,7 @@ public class TicketValueVisibilityTests
         var db = new CrmDbContext(options, staff);
         var perms = new Perms(PermissionKeys.TicketView, PermissionKeys.TicketEdit); // edit, but not value
         var authz = new TicketAuthorizationService(staff, perms, db);
-        var commands = new TicketCommandService(db, authz, staff, new FixedClock(), Options.Create(new TicketOptions()));
+        var commands = new TicketCommandService(db, authz, staff, new FixedClock(), new Application.Settings.SettingsService(db, staff));
 
         var act = () => commands.SetValueAsync(ticketId, new SetTicketValueRequest(1m, null));
 
@@ -196,7 +196,7 @@ public class TicketValueVisibilityTests
         var db = new CrmDbContext(options, staff);
         var perms = new Perms(PermissionKeys.TicketView, PermissionKeys.TicketValue);
         var authz = new TicketAuthorizationService(staff, perms, db);
-        var commands = new TicketCommandService(db, authz, staff, new FixedClock(), Options.Create(new TicketOptions()));
+        var commands = new TicketCommandService(db, authz, staff, new FixedClock(), new Application.Settings.SettingsService(db, staff));
 
         await commands.SetValueAsync(ticketId, new SetTicketValueRequest(200_000m, 180_000m));
 
@@ -216,7 +216,7 @@ public class TicketValueVisibilityTests
         var staff = new Staff(staffId, companyId);
         var db = new CrmDbContext(options, staff);
         var authz = new TicketAuthorizationService(staff, new Perms(PermissionKeys.TicketView, PermissionKeys.TicketValue), db);
-        var commands = new TicketCommandService(db, authz, staff, new FixedClock(), Options.Create(new TicketOptions()));
+        var commands = new TicketCommandService(db, authz, staff, new FixedClock(), new Application.Settings.SettingsService(db, staff));
 
         await commands.SetValueAsync(ticketId, new SetTicketValueRequest(100m, null));
         await commands.SetValueAsync(ticketId, new SetTicketValueRequest(100m, 90m));

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { errorText } from '../lib/messages'
 import { GROUP_LABELS, SETTING_LABELS, useSettings, useUpdateSetting } from '../lib/settings'
-import { Button, Card, Input, LoadError, Loading } from '../ui/primitives'
+import { Alert, Button, Card, Input, LoadError, Loading } from '../ui/primitives'
 
 // Super-admin settings (spec §13), Odoo-style: left group sidebar + a top save bar that persists all
 // dirty rows at once. Backend enforces the SuperAdmin gate (403 → error below). Text lives in the catalog.
@@ -9,6 +10,9 @@ export default function Settings() {
   const update = useUpdateSetting()
   const [group, setGroup] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
+  // The server rejects a value its type cannot hold (a unit typed into a number, CSV into a JSON list).
+  // Without this the rejection was silent: the box kept the text and the save just did nothing.
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const groups = useMemo(() => [...new Set(data?.map((s) => s.group) ?? [])], [data])
   const active = group ?? groups[0] ?? ''
@@ -19,8 +23,20 @@ export default function Settings() {
   if (error) return <LoadError error={error} what="Ayarlar" />
 
   async function save() {
-    await Promise.all(dirty.map((s) => update.mutateAsync({ key: s.key, value: edits[s.key] })))
-    setEdits({})
+    setSaveError(null)
+    try {
+      // Sequential, not Promise.all: on a rejection the rows before it are already persisted, and the
+      // edits kept below are then exactly the ones still unsaved.
+      for (const s of dirty) {
+        await update.mutateAsync({ key: s.key, value: edits[s.key] })
+        setEdits((prev) => {
+          const { [s.key]: _saved, ...rest } = prev
+          return rest
+        })
+      }
+    } catch (err) {
+      setSaveError(errorText(err))
+    }
   }
 
   return (
@@ -30,8 +46,12 @@ export default function Settings() {
         <Button disabled={dirty.length === 0 || update.isPending} onClick={save}>
           Kaydet{dirty.length > 0 ? ` (${dirty.length})` : ''}
         </Button>
-        {dirty.length > 0 && <Button variant="secondary" onClick={() => setEdits({})}>Vazgeç</Button>}
+        {dirty.length > 0 && <Button variant="secondary" onClick={() => { setEdits({}); setSaveError(null) }}>Vazgeç</Button>}
       </div>
+
+      {saveError && (
+        <Alert>{saveError}</Alert>
+      )}
 
       <div className="flex gap-4">
         <nav className="w-48 shrink-0">

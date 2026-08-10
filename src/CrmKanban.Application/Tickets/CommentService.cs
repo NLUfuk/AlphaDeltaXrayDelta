@@ -27,7 +27,7 @@ public sealed class CommentService(IAppDbContext db, TicketAuthorizationService 
 
         if (request.Attachments is { Count: > 0 } files)
         {
-            foreach (var a in attachments.BuildAttachments(ticket.CompanyId, ticketId, comment.Id, files, actor.UserId))
+            foreach (var a in await attachments.BuildAttachmentsAsync(ticket.CompanyId, ticketId, comment.Id, files, actor.UserId, ct))
                 db.Attachments.Add(a);
         }
 
