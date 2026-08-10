@@ -10,6 +10,8 @@ publish/
 # Framework-dependent publish output — carries a filled-in appsettings.Production.json (real
 # connection string, SMTP key, S3 keys). Never commit it.
 publish-fd/
+# Scratch publish output used to build incremental deploy zips (Faz 4.1). Build artifact, not source.
+publish-new/
 *.dll
 *.exe
 *.pdb
