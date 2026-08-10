@@ -108,7 +108,8 @@ public sealed class PublicFormService(
         IReadOnlyList<AttachmentDescriptor>? files, CancellationToken ct)
     {
         var status = await InitialStatusAsync(company.Id, ct);
-        var ticket = new Ticket(company.Id, company.AllocateTicketNumber(), openedById, status.Id, title, body);
+        var ticket = new Ticket(company.Id, company.AllocateTicketNumber(), openedById, status.Id, title, body,
+            await settings.DefaultTicketPriorityAsync(ct));
         ticket.SetCustomFields(await BuildCustomFieldsJsonAsync(company.Id, customFields, ct));
         if (pendingApproval)
             ticket.MarkPendingApproval();
@@ -117,7 +118,7 @@ public sealed class PublicFormService(
 
         if (files is { Count: > 0 })
         {
-            foreach (var a in attachments.BuildPublicAttachments(company.Id, ticket.Id, files, openedById))
+            foreach (var a in await attachments.BuildPublicAttachmentsAsync(company.Id, ticket.Id, files, openedById, ct))
                 db.Attachments.Add(a);
         }
         return ticket;

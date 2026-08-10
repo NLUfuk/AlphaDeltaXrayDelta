@@ -21,15 +21,32 @@ public sealed class AttachmentService(
     IFileStorage storage,
     TicketAuthorizationService authz,
     IClock clock,
+    Settings.SettingsService settings,
     IOptions<FileOptions> options)
 {
     private readonly FileOptions _opt = options.Value;
     private TimeSpan Expiry => TimeSpan.FromMinutes(_opt.PresignExpiryMinutes);
 
-    /// <summary>Validate one file and hand back a presigned PUT under <paramref name="keyPrefix"/>.</summary>
-    public UploadUrlResult CreateUploadUrl(string keyPrefix, UploadUrlRequest request)
+    /// <summary>The size/count/type limits in force, read from the DB Settings store (spec §13) so a
+    /// super admin's edit takes effect on the next upload. <see cref="FileOptions"/> supplies the
+    /// fallback for each — a missing or malformed row must not block uploads. Resolved once per
+    /// operation rather than per file, so a batch is validated against one consistent set of limits.</summary>
+    private sealed record FileLimits(long MaxSizeBytes, int MaxPerTarget, string[] AllowedContentTypes);
+
+    private async Task<FileLimits> LimitsAsync(CancellationToken ct)
     {
-        ValidateFile(request.ContentType, request.Size);
+        var maxMb = await settings.GetIntAsync("file.max_size_mb", (int)(_opt.MaxSizeBytes / (1024 * 1024)), ct);
+        return new FileLimits(
+            (long)maxMb * 1024 * 1024,
+            await settings.GetIntAsync("file.max_per_comment", _opt.MaxPerAttachTarget, ct),
+            await settings.GetStringArrayAsync("file.allowed_types", _opt.AllowedContentTypes, ct));
+    }
+
+    /// <summary>Validate one file and hand back a presigned PUT under <paramref name="keyPrefix"/>.</summary>
+    public async Task<UploadUrlResult> CreateUploadUrlAsync(
+        string keyPrefix, UploadUrlRequest request, CancellationToken ct = default)
+    {
+        ValidateFile(await LimitsAsync(ct), request.ContentType, request.Size);
         var key = $"{keyPrefix.Trim('/')}/{Guid.NewGuid():N}/{Sanitize(request.FileName)}";
         var url = storage.PresignPut(key, request.ContentType, Expiry);
         return new UploadUrlResult(key, url, clock.UtcNow.Add(Expiry));
@@ -48,13 +65,14 @@ public sealed class AttachmentService(
             ?? throw new NotFoundException("ticket.not_found", "Ticket not found.");
         var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
 
-        using var buffer = await BufferCappedAsync(content, ct);
+        var limits = await LimitsAsync(ct);
+        using var buffer = await BufferCappedAsync(content, limits.MaxSizeBytes, ct);
         var size = buffer.Length;
         // Browsers don't always report a usable MIME (empty/octet-stream, common for Office files), so
         // fall back to one derived from the extension before validating — don't reject a valid file on a
         // missing header.
-        var contentType = ResolveContentType(fileName, declaredContentType);
-        ValidateFile(contentType, size); // type + real (server-measured) size
+        var contentType = ResolveContentType(limits, fileName, declaredContentType);
+        ValidateFile(limits, contentType, size); // type + real (server-measured) size
 
         var key = $"{ticket.CompanyId:N}/{ticket.Id:N}/{Guid.NewGuid():N}/{Sanitize(fileName)}";
         buffer.Position = 0;
@@ -78,10 +96,11 @@ public sealed class AttachmentService(
     public async Task<AttachmentDescriptor> StorePublicUploadAsync(
         string keyPrefix, string fileName, string declaredContentType, Stream content, CancellationToken ct = default)
     {
-        using var buffer = await BufferCappedAsync(content, ct);
+        var maxSize = (await LimitsAsync(ct)).MaxSizeBytes;
+        using var buffer = await BufferCappedAsync(content, maxSize, ct);
         var size = buffer.Length;
         var head = buffer.GetBuffer().AsSpan(0, (int)Math.Min(size, 4096));
-        PublicFileValidator.Validate(fileName, declaredContentType, head, size, _opt.MaxSizeBytes);
+        PublicFileValidator.Validate(fileName, declaredContentType, head, size, maxSize);
 
         var storedContentType = PublicFileValidator.CanonicalContentType(fileName);
         var key = $"{keyPrefix.Trim('/')}/{Guid.NewGuid():N}/{Sanitize(fileName)}";
@@ -91,16 +110,16 @@ public sealed class AttachmentService(
     }
 
     /// <summary>Re-validate a batch a client claims to have uploaded, then materialize the rows.</summary>
-    public IReadOnlyList<Attachment> BuildAttachments(
+    public async Task<IReadOnlyList<Attachment>> BuildAttachmentsAsync(
         Guid companyId, Guid ticketId, Guid? commentId,
-        IReadOnlyCollection<AttachmentDescriptor> files, Guid uploadedById)
+        IReadOnlyCollection<AttachmentDescriptor> files, Guid uploadedById, CancellationToken ct = default)
     {
-        if (files.Count > _opt.MaxPerAttachTarget)
-            throw new BadRequestException("attachment.too_many", $"At most {_opt.MaxPerAttachTarget} files are allowed.");
+        var limits = await LimitsAsync(ct);
+        EnsureCount(limits, files.Count);
 
         return files.Select(f =>
         {
-            ValidateFile(f.ContentType, f.Size);
+            ValidateFile(limits, f.ContentType, f.Size);
             return new Attachment(companyId, ticketId, commentId, f.Key, f.FileName, f.ContentType, f.Size, uploadedById);
         }).ToList();
     }
@@ -108,15 +127,16 @@ public sealed class AttachmentService(
     /// <summary>Materialize public-form attachments (spec §10). Defense-in-depth: the bytes were already
     /// inspected at upload; here we re-check count and that each object carries an allowed public
     /// content-type before linking it to the ticket.</summary>
-    public IReadOnlyList<Attachment> BuildPublicAttachments(
-        Guid companyId, Guid ticketId, IReadOnlyCollection<AttachmentDescriptor> files, Guid uploadedById)
+    public async Task<IReadOnlyList<Attachment>> BuildPublicAttachmentsAsync(
+        Guid companyId, Guid ticketId, IReadOnlyCollection<AttachmentDescriptor> files, Guid uploadedById,
+        CancellationToken ct = default)
     {
-        if (files.Count > _opt.MaxPerAttachTarget)
-            throw new BadRequestException("attachment.too_many", $"At most {_opt.MaxPerAttachTarget} files are allowed.");
+        var limits = await LimitsAsync(ct);
+        EnsureCount(limits, files.Count);
 
         return files.Select(f =>
         {
-            if (f.Size <= 0 || f.Size > _opt.MaxSizeBytes)
+            if (f.Size <= 0 || f.Size > limits.MaxSizeBytes)
                 throw new BadRequestException("attachment.too_large", "File size is out of range.");
             if (!PublicFileValidator.AllowedContentTypes.Contains(f.ContentType))
                 throw new BadRequestException("attachment.type_not_allowed", "Only PDF, TXT, DOC and DOCX files are accepted.");
@@ -159,10 +179,10 @@ public sealed class AttachmentService(
 
     /// <summary>Buffer a stream into memory, reading one byte past the size limit so an oversize file is
     /// detected (the client's declared size is never trusted). Shared by the public and staff paths.</summary>
-    private async Task<MemoryStream> BufferCappedAsync(Stream content, CancellationToken ct)
+    private static async Task<MemoryStream> BufferCappedAsync(Stream content, long maxSizeBytes, CancellationToken ct)
     {
         var buffer = new MemoryStream();
-        var cap = _opt.MaxSizeBytes + 1;
+        var cap = maxSizeBytes + 1;
         var chunk = new byte[81920];
         int read;
         while (buffer.Length < cap && (read = await content.ReadAsync(chunk.AsMemory(), ct)) > 0)
@@ -185,21 +205,27 @@ public sealed class AttachmentService(
         [".xlsx"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     };
 
-    private string ResolveContentType(string fileName, string declaredContentType)
+    private static string ResolveContentType(FileLimits limits, string fileName, string declaredContentType)
     {
         if (!string.IsNullOrWhiteSpace(declaredContentType)
             && !declaredContentType.Equals("application/octet-stream", StringComparison.OrdinalIgnoreCase)
-            && _opt.AllowedContentTypes.Contains(declaredContentType, StringComparer.OrdinalIgnoreCase))
+            && limits.AllowedContentTypes.Contains(declaredContentType, StringComparer.OrdinalIgnoreCase))
             return declaredContentType;
         var ext = System.IO.Path.GetExtension(fileName);
         return ContentTypeByExtension.TryGetValue(ext, out var mapped) ? mapped : declaredContentType;
     }
 
-    private void ValidateFile(string contentType, long size)
+    private static void EnsureCount(FileLimits limits, int count)
     {
-        if (size <= 0 || size > _opt.MaxSizeBytes)
-            throw new BadRequestException("attachment.too_large", $"File size must be between 1 byte and {_opt.MaxSizeBytes} bytes.");
-        if (!_opt.AllowedContentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
+        if (count > limits.MaxPerTarget)
+            throw new BadRequestException("attachment.too_many", $"At most {limits.MaxPerTarget} files are allowed.");
+    }
+
+    private static void ValidateFile(FileLimits limits, string contentType, long size)
+    {
+        if (size <= 0 || size > limits.MaxSizeBytes)
+            throw new BadRequestException("attachment.too_large", $"File size must be between 1 byte and {limits.MaxSizeBytes} bytes.");
+        if (!limits.AllowedContentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
             throw new BadRequestException("attachment.type_not_allowed", $"Content type '{contentType}' is not allowed.");
     }
 

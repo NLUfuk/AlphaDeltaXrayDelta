@@ -17,21 +17,16 @@ public static class DefaultSettings
         // Ticket
         Make("ticket.reopen_window_days", "7", "int", "ticket"),
         Make("ticket.default_priority", "Normal", "string", "ticket"),
-        // Notification
-        Make("notification.debounce_seconds", "60", "int", "notification"),
-        // File
+        // File. The list must stay in step with FileOptions.AllowedContentTypes, which is the fallback
+        // when the row is missing — a narrower row silently rejects file types the app otherwise accepts.
         Make("file.max_size_mb", "10", "int", "file"),
         Make("file.max_per_comment", "5", "int", "file"),
         Make("file.allowed_types",
-            "[\"image/png\",\"image/jpeg\",\"image/gif\",\"application/pdf\",\"application/msword\",\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"]",
+            "[\"image/png\",\"image/jpeg\",\"image/gif\",\"image/webp\",\"application/pdf\",\"application/msword\"," +
+            "\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"," +
+            "\"application/vnd.ms-excel\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\"]",
             "json", "file"),
         // Form
-        Make("form.captcha_enabled", "false", "bool", "form"),
-        // NOT here: `form.rate_limit_per_minute`. It was seeded and shown in the settings UI, but the
-        // limiter reads a constant in Program.cs — the super admin edited a number that changed nothing.
-        // Fixing it by honouring the row would be worse: a rate limit is abuse protection, i.e. infra,
-        // and §13 keeps infra out of the runtime-editable store precisely so nobody can widen it to
-        // 100000 from a web form. It stays in code; RetiredKeys below removes the stale row.
         Make("form.kvkk_text",
             "Bu form aracılığıyla ilettiğiniz kişisel verileriniz, talebinizin değerlendirilmesi amacıyla 6698 sayılı KVKK kapsamında işlenmektedir.",
             "html", "form"),
@@ -45,17 +40,34 @@ public static class DefaultSettings
         Make("finance.currency", "TRY", "string", "finance"),
         // System
         Make("system.timezone", "Europe/Istanbul", "string", "system"),
-        Make("system.language", "tr", "string", "system"),
-        // KVKK
-        Make("kvkk.retention_days", "365", "int", "kvkk"),
     ];
 
     /// <summary>
     /// Keys that were once seeded and must now be REMOVED from existing databases. Dropping a key from
     /// <see cref="All"/> is not enough: seeding only fills missing keys, so an old row would survive and
     /// keep showing an editable control that drives nothing.
+    /// <para>A setting whose feature does not exist is worse than no setting: the super admin changes it,
+    /// nothing happens, and the whole screen loses credibility. Each key below is retired rather than
+    /// wired because wiring it means building the missing feature, not reading a row — see PROGRESS
+    /// (teknik borç) for the feature each one is waiting on. They come back with their feature.</para>
     /// </summary>
-    public static readonly string[] RetiredKeys = ["form.rate_limit_per_minute"];
+    public static readonly string[] RetiredKeys =
+    [
+        // The limiter reads a constant in Program.cs. Honouring the row would be worse than removing it:
+        // a rate limit is abuse protection, i.e. infra, and §13 keeps infra out of the runtime-editable
+        // store precisely so nobody can widen it to 100000 from a web form.
+        "form.rate_limit_per_minute",
+        // Debounce is per-tick coalescing of identical (recipient, ticket, event) in NotificationService,
+        // not a configurable time window. A real window needs a "recently sent" lookup per recipient.
+        "notification.debounce_seconds",
+        // No CAPTCHA provider is wired in v1 and the validator fails closed, so turning this on from the
+        // web form would take every public intake form down. It returns when a provider does.
+        "form.captcha_enabled",
+        // No retention purge job exists; the number described a policy nothing enforced.
+        "kvkk.retention_days",
+        // The UI is Turkish-only (no i18n resources, FluentValidation culture pinned to "tr").
+        "system.language",
+    ];
 
     private static Setting Make(string key, string value, string type, string group) =>
         new(key, value, type, group, id: DeterministicId(key));

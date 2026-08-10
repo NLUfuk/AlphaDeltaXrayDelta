@@ -5,7 +5,6 @@ using CrmKanban.Domain.Entities;
 using CrmKanban.Domain.Enums;
 using CrmKanban.Domain.Tickets;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using System.Globalization;
 
 namespace CrmKanban.Application.Tickets;
@@ -20,9 +19,11 @@ public sealed class TicketCommandService(
     TicketAuthorizationService authz,
     ICurrentUserService currentUser,
     IClock clock,
-    IOptions<TicketOptions> options)
+    Settings.SettingsService settings)
 {
-    private readonly TicketOptions _opt = options.Value;
+    /// <summary>Fallback for the reopen window when the DB row is missing or unusable. Same number the
+    /// seed ships, so a wiped Settings table degrades to documented behaviour instead of failing.</summary>
+    private const int DefaultReopenWindowDays = 7;
 
     public async Task<Guid> CreateAsync(CreateTicketRequest request, CancellationToken ct = default)
     {
@@ -39,7 +40,7 @@ public sealed class TicketCommandService(
 
         var initialStatus = await InitialStatusAsync(request.CompanyId, ct);
         var ticket = new Ticket(request.CompanyId, company.AllocateTicketNumber(), userId,
-            initialStatus.Id, request.Title, request.Body, request.Priority);
+            initialStatus.Id, request.Title, request.Body, request.Priority ?? await settings.DefaultTicketPriorityAsync(ct));
 
         db.Tickets.Add(ticket);
         db.TicketEvents.Add(new TicketEvent(request.CompanyId, ticket.Id, userId, TicketEventType.Created, null, ticket.Number));
@@ -71,7 +72,7 @@ public sealed class TicketCommandService(
 
         var initialStatus = await InitialStatusAsync(request.CompanyId, ct);
         var ticket = new Ticket(request.CompanyId, company.AllocateTicketNumber(), userId,
-            initialStatus.Id, request.Title, request.Body);
+            initialStatus.Id, request.Title, request.Body, await settings.DefaultTicketPriorityAsync(ct));
         db.Tickets.Add(ticket);
         db.TicketEvents.Add(new TicketEvent(request.CompanyId, ticket.Id, userId, TicketEventType.Created, null, ticket.Number));
         await db.SaveChangesAsync(ct);
@@ -143,7 +144,8 @@ public sealed class TicketCommandService(
 
         var from = await StatusAsync(ticket.StatusId, ct);
         var to = await StatusAsync(request.TargetStatusId, ct);
-        ticket.Reopen(from, to, clock.UtcNow, _opt.ReopenWindowDays);
+        ticket.Reopen(from, to, clock.UtcNow,
+            await settings.GetIntAsync("ticket.reopen_window_days", DefaultReopenWindowDays, ct));
         db.TicketEvents.Add(Event(ticket, actor.UserId, TicketEventType.Reopened, from.Name, to.Name));
         await db.SaveChangesAsync(ct);
     }
