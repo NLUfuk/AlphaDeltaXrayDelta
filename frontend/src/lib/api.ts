@@ -107,22 +107,34 @@ const BY_STATUS: Record<number, ApiError> = {
   429: { code: 'rate.limited', message: 'Çok fazla deneme yaptınız. Bir dakika bekleyip tekrar deneyin.' },
 }
 
+const NETWORK_ERROR: ApiError = { code: 'network.error', message: 'Sunucuya ulaşılamadı.' }
+
 export function toApiError(error: unknown): ApiError {
-  if (!axios.isAxiosError(error)) return { code: 'network.error', message: 'Sunucuya ulaşılamadı.' }
+  if (axios.isAxiosError(error)) {
+    const response = error.response
+    // No response at all — DNS, offline, CORS, connection refused. The only true "server unreachable".
+    if (!response) return NETWORK_ERROR
 
-  const response = error.response
-  // No response at all — DNS, offline, CORS, connection refused. The only true "server unreachable".
-  if (!response) return { code: 'network.error', message: 'Sunucuya ulaşılamadı.' }
+    if (response.data && typeof response.data === 'object') {
+      const d = response.data as Partial<ApiError>
+      if (d.code) return { code: d.code, message: d.message ?? d.code, details: d.details }
+    }
 
-  if (response.data && typeof response.data === 'object') {
-    const d = response.data as Partial<ApiError>
-    if (d.code) return { code: d.code, message: d.message ?? d.code, details: d.details }
+    return (
+      BY_STATUS[response.status] ??
+      (response.status >= 500
+        ? { code: 'server.error', message: 'Sunucuda bir hata oluştu. Lütfen daha sonra tekrar deneyin.' }
+        : { code: 'unknown.error', message: 'Beklenmeyen bir hata oluştu.' })
+    )
   }
 
-  return (
-    BY_STATUS[response.status] ??
-    (response.status >= 500
-      ? { code: 'server.error', message: 'Sunucuda bir hata oluştu. Lütfen daha sonra tekrar deneyin.' }
-      : { code: 'unknown.error', message: 'Beklenmeyen bir hata oluştu.' })
-  )
+  // Already an envelope. THIS is what made a healthy server look unreachable: the response interceptor
+  // below rejects with `toApiError(...)`, so by the time a screen calls `errorText(err)` the value is an
+  // ApiError, never an AxiosError. Converting it a second time failed `isAxiosError` and fell straight
+  // through to "Sunucuya ulaşılamadı" — discarding a perfectly good `{code:"invite.invalid"}` the server
+  // had actually sent. Idempotence is the fix: converting an already-converted error returns it unchanged.
+  if (error !== null && typeof error === 'object' && typeof (error as ApiError).code === 'string')
+    return error as ApiError
+
+  return NETWORK_ERROR
 }
