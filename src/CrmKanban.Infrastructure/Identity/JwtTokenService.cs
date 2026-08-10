@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using CrmKanban.Application.Abstractions;
+using CrmKanban.Application.Auth;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -56,11 +57,10 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
         return Base64UrlEncoder.Encode(bytes.ToArray());
     }
 
-    public string HashRefreshToken(string rawValue)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawValue));
-        return Convert.ToHexStringLower(hash);
-    }
+    // Same algorithm and same hex encoding as every other stored token — and now literally the same code
+    // (teknik borç #15). It has to stay byte-identical: refresh rotation looks rows up BY this hash, so a
+    // drift between the two copies would silently stop matching and log everyone out on their next refresh.
+    public string HashRefreshToken(string rawValue) => TokenHasher.Hash(rawValue);
 
     private SymmetricSecurityKey SigningKey()
     {

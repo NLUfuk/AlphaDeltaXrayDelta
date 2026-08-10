@@ -35,7 +35,7 @@ public sealed class UserService(
         db.Users.Add(user);
 
         var raw = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-        var invitation = new Invitation(user.Id, HashToken(raw), now.AddDays(_auth.InviteTokenDays), actorId);
+        var invitation = new Invitation(user.Id, TokenHasher.Hash(raw), now.AddDays(_auth.InviteTokenDays), actorId);
         db.Invitations.Add(invitation);
         db.AuditLogs.Add(new AuditLog(actorId, "admin.create", email));
         await db.SaveChangesAsync(ct);
@@ -90,11 +90,5 @@ public sealed class UserService(
         if (!currentUser.IsSuperAdmin)
             throw new ForbiddenException("user.forbidden", "This action is super-admin only.");
         return userId;
-    }
-
-    private static string HashToken(string raw)
-    {
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw));
-        return Convert.ToHexStringLower(bytes);
     }
 }

@@ -33,6 +33,25 @@ try
             o.JsonSerializerOptions.Converters.Add(new CrmKanban.Api.UtcDateTimeConverter());
             o.JsonSerializerOptions.Converters.Add(new CrmKanban.Api.NullableUtcDateTimeConverter());
         });
+    // [ApiController] answers a model-binding failure (missing field, malformed JSON, a Guid that isn't
+    // one) with its own ProblemDetails 400 — before any filter or middleware of ours runs. That body has
+    // no `code`, so the SPA's envelope parser fell through to its "no response at all" branch and told
+    // the user "Sunucuya ulaşılamadı" for what was really "you left a field blank". Same envelope as
+    // ExceptionHandlingMiddleware, same shape as a FluentValidation failure, so the client has one
+    // format to understand and one code to key off.
+    builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o =>
+        o.InvalidModelStateResponseFactory = context => new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(new
+        {
+            code = "validation.failed",
+            message = "Gönderilen bilgiler geçersiz.",
+            // Deliberately NOT forwarding ModelState's own text: it is English and half of it is
+            // serializer internals ("The JSON value could not be converted to System.Guid. Path: $.userId").
+            // The SPA renders `details` to the user, so the field name is all that travels.
+            details = context.ModelState
+                .Where(e => e.Value?.Errors.Count > 0)
+                .Select(e => new { field = e.Key, error = "Geçersiz veya eksik değer." }),
+        }));
+
     builder.Services.AddOpenApi();
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);

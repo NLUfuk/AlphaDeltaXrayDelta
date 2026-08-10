@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { errorText } from '../lib/messages'
+import { errorText, PASSWORD_HINT, passwordProblem } from '../lib/messages'
 import { useAuth } from '../lib/auth'
 import { useChangePassword, useDeleteAccount } from '../lib/account'
 import { Alert, Badge, Button, Card, Field, Icon, Input } from '../ui/primitives'
@@ -46,7 +46,10 @@ function ChangePasswordCard() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null); setDone(false)
-    if (f.newPassword.length < 8) return setError('Yeni parola en az 8 karakter olmalı.')
+    // Was length-only, so an 8-character all-lowercase password passed here and was rejected by the
+    // server's full rule set — as an unexplained 400. One shared check, same rules as the backend.
+    const problem = passwordProblem(f.newPassword)
+    if (problem) return setError(problem)
     if (f.newPassword !== f.confirm) return setError('Yeni parolalar eşleşmiyor.')
     try {
       await change.mutateAsync({ currentPassword: f.currentPassword, newPassword: f.newPassword })
@@ -63,7 +66,10 @@ function ChangePasswordCard() {
         {error && <Alert>{error}</Alert>}
         {done && <div className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Parolanız güncellendi. Diğer oturumlar kapatıldı.</div>}
         <Field label="Mevcut parola"><Input type="password" value={f.currentPassword} onChange={(e) => setF({ ...f, currentPassword: e.target.value })} required /></Field>
-        <Field label="Yeni parola"><Input type="password" value={f.newPassword} onChange={(e) => setF({ ...f, newPassword: e.target.value })} required /></Field>
+        <Field label="Yeni parola">
+          <Input type="password" value={f.newPassword} onChange={(e) => setF({ ...f, newPassword: e.target.value })} required autoComplete="new-password" />
+          <span className="text-xs text-muted">{PASSWORD_HINT}</span>
+        </Field>
         <Field label="Yeni parola (tekrar)"><Input type="password" value={f.confirm} onChange={(e) => setF({ ...f, confirm: e.target.value })} required /></Field>
         <Button type="submit" disabled={change.isPending}><Icon name="lock-reset" className="mr-1" />{change.isPending ? 'Kaydediliyor…' : 'Parolayı güncelle'}</Button>
       </form>

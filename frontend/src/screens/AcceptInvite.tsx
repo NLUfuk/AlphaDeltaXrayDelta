@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
-import { errorText } from '../lib/messages'
+import { errorText, PASSWORD_HINT, passwordProblem } from '../lib/messages'
 import { Alert, Button, Field, Icon, Input } from '../ui/primitives'
 
 // Account activation (spec §9). Reached from the emailed link (?token=...) — for both a first-time
@@ -18,6 +18,10 @@ export default function AcceptInvite() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    // Check the rules here rather than posting and reading the 400 back: the user gets the same
+    // sentence the server would send, without a round trip. The server still enforces them.
+    const problem = passwordProblem(password)
+    if (problem) return setError(problem)
     if (password !== confirm) return setError('Parolalar eşleşmiyor.')
     setError(null)
     setBusy(true)
@@ -49,10 +53,11 @@ export default function AcceptInvite() {
             <p className="text-sm text-muted">Hesabınızı etkinleştirmek için bir parola belirleyin.</p>
             {error && <Alert>{error}</Alert>}
             <Field label="Parola">
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus minLength={8} />
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus minLength={8} autoComplete="new-password" />
+              <span className="text-xs text-muted">{PASSWORD_HINT}</span>
             </Field>
             <Field label="Parola (tekrar)">
-              <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} />
+              <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} autoComplete="new-password" />
             </Field>
             <Button type="submit" className="w-full" disabled={busy}>
               {busy ? 'Kaydediliyor…' : 'Hesabımı etkinleştir'}

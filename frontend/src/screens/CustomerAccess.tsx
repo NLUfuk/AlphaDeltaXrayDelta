@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
-import { errorText } from '../lib/messages'
+import { errorText, PASSWORD_HINT, passwordProblem } from '../lib/messages'
 import { useCustomerFormSubmit, useCustomerRegister, useFormConfig, useVerifyCode, type PublicField } from '../lib/public'
 import { Alert, Button, Field, Icon, Input, Loading, Select, Textarea } from '../ui/primitives'
 
@@ -48,6 +48,8 @@ export default function CustomerAccess() {
 
   const onSignup = (e: React.FormEvent) => {
     e.preventDefault()
+    const problem = passwordProblem(form.password)
+    if (problem) return setError(problem)
     return run(async () => {
       await register.mutateAsync(form)
       setStep('code')
@@ -109,7 +111,8 @@ export default function CustomerAccess() {
               <Field label="E-posta"><Input type="email" value={form.email} onChange={set('email')} required /></Field>
               <Field label="Parola">
                 <Input type="password" value={form.password} onChange={set('password')} required minLength={8}
-                  placeholder="En az 8 karakter, büyük/küçük harf ve rakam" />
+                  autoComplete="new-password" />
+                <span className="text-xs text-muted">{PASSWORD_HINT}</span>
               </Field>
               <label className="flex items-start gap-2 text-xs text-muted">
                 <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
