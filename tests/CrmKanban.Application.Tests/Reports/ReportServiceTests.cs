@@ -42,7 +42,6 @@ public class ReportServiceTests
     private static readonly Guid OpenStatus = Guid.NewGuid();
     private static readonly Guid AnsweredStatus = Guid.NewGuid();
     private static readonly Guid ClosedStatus = Guid.NewGuid();
-    private static readonly Guid Staff1 = Guid.NewGuid();
 
     private sealed class FixedClock : IClock { public DateTime UtcNow => new(2026, 8, 6, 9, 0, 0, DateTimeKind.Utc); }
 
@@ -58,6 +57,10 @@ public class ReportServiceTests
         db.TicketStatuses.Add(new TicketStatus("Closed", StatusCategory.Closed, "#222", 3, true, null, ClosedStatus));
         await db.SaveChangesAsync();
     }
+
+    /// <summary>A staff account whose own Id is what the tickets are assigned to — the report resolves
+    /// the display name through that id, so the User row has to exist for the name to appear.</summary>
+    private static User NewStaff(string first, string last) => new($"{first.ToLowerInvariant()}@x.com", first, last);
 
     private static Ticket NewTicket(Guid company, string number, Guid status, Guid? assignee = null)
     {
@@ -157,9 +160,11 @@ public class ReportServiceTests
         var superAdmin = new FakeUser(true, Guid.NewGuid());
         await using var db = new CrmDbContext(options, superAdmin);
         await SeedStatusesAsync(db);
-        db.Tickets.Add(NewTicket(CompanyA, "A-1", OpenStatus, Staff1));
-        db.Tickets.Add(NewTicket(CompanyA, "A-2", AnsweredStatus, Staff1));
-        db.Tickets.Add(NewTicket(CompanyA, "A-3", ClosedStatus, Staff1)); // terminal → not load
+        var staff = NewStaff("Ayşe", "Yılmaz");
+        db.Users.Add(staff);
+        db.Tickets.Add(NewTicket(CompanyA, "A-1", OpenStatus, staff.Id));
+        db.Tickets.Add(NewTicket(CompanyA, "A-2", AnsweredStatus, staff.Id));
+        db.Tickets.Add(NewTicket(CompanyA, "A-3", ClosedStatus, staff.Id)); // terminal → not load
         await db.SaveChangesAsync();
 
         var report = await Service(db, superAdmin).GlobalReportAsync(null, null);
@@ -167,7 +172,41 @@ public class ReportServiceTests
         report.ByStatusCategory.Should().ContainEquivalentOf(new StatusCategoryCount(StatusCategory.Open, 1));
         report.ByStatusCategory.Should().ContainEquivalentOf(new StatusCategoryCount(StatusCategory.Closed, 1));
         report.StaffLoad.Should().ContainSingle()
-            .Which.Should().BeEquivalentTo(new StaffLoadItem(Staff1, 2));
+            .Which.Should().BeEquivalentTo(new StaffLoadItem(staff.Id, "Ayşe Yılmaz", 2));
+    }
+
+    /// <summary>
+    /// The load list used to print the first 8 hex digits of the assignee GUID because the name was
+    /// never in the payload. Three cases have to survive the join that fixes it: an unassigned pile
+    /// (null id, and by far the biggest bar in practice), a live assignee, and an assignee whose
+    /// account was deleted — whose open tickets are still real work and must not vanish or go blank.
+    /// The totals guard the join itself: a plain inner join would drop every unassigned ticket.
+    /// </summary>
+    [Fact]
+    public async Task Staff_load_names_the_assignee_and_keeps_unassigned_and_deleted_accounts()
+    {
+        var options = Store();
+        var superAdmin = new FakeUser(true, Guid.NewGuid());
+        var ghost = Guid.NewGuid(); // assigned, but no User row (KVKK deletion)
+        await using var db = new CrmDbContext(options, superAdmin);
+        await SeedStatusesAsync(db);
+        var staff = NewStaff("Ayşe", "Yılmaz");
+        db.Users.Add(staff);
+        db.Tickets.Add(NewTicket(CompanyA, "A-1", OpenStatus, staff.Id));
+        db.Tickets.Add(NewTicket(CompanyA, "A-2", OpenStatus, ghost));
+        db.Tickets.Add(NewTicket(CompanyA, "A-3", OpenStatus)); // unassigned
+        db.Tickets.Add(NewTicket(CompanyA, "A-4", AnsweredStatus)); // unassigned
+        await db.SaveChangesAsync();
+
+        var report = await Service(db, superAdmin).GlobalReportAsync(null, null);
+
+        report.TotalTickets.Should().Be(4, "the assignee join must never drop a ticket from the totals");
+        report.StaffLoad.Should().BeEquivalentTo(new[]
+        {
+            new StaffLoadItem(null, null, 2),
+            new StaffLoadItem(staff.Id, "Ayşe Yılmaz", 1),
+            new StaffLoadItem(ghost, "(silinmiş kullanıcı)", 1),
+        });
     }
 
     [Fact]

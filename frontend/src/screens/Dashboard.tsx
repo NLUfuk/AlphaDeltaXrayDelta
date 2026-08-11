@@ -17,7 +17,7 @@ export default function Dashboard() {
   // Open = not in a terminal category (Closed=4 / Cancelled=5).
   const openCount = r.byStatusCategory.filter((c) => c.category !== 4 && c.category !== 5).reduce((n, c) => n + c.count, 0)
   const statusRows = r.byStatusCategory.map((c) => ({ label: statusCategory(c.category).label, value: c.count, color: statusCategory(c.category).color }))
-  const staffRows = r.staffLoad.map((s) => ({ label: s.assignedToId ? s.assignedToId.slice(0, 8) : 'Atanmamış', value: s.openCount, color: '#714b67' }))
+  const staffRows = r.staffLoad.map((s) => ({ label: s.assignedToName ?? 'Atanmamış', value: s.openCount, color: '#714b67' }))
 
   return (
     <div className="space-y-5">

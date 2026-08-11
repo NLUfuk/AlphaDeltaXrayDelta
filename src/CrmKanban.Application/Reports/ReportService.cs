@@ -26,7 +26,7 @@ public sealed class ReportService(
     private const string DefaultCurrency = "TRY";
     private sealed record Row(
         DateTime CreatedAt, DateTime? FirstResponseAt, DateTime? ResolvedAt, DateTime? ClosedAt,
-        StatusCategory Category, Guid? AssignedToId,
+        StatusCategory Category, Guid? AssignedToId, string? AssignedToName,
         decimal? EstimatedValue, decimal? ActualValue,
         Guid CompanyId, Guid OpenedById, string? OpenedByName, string? OpenedByEmail,
         bool OpenedByIsSuperAdmin)
@@ -123,12 +123,21 @@ public sealed class ReportService(
         // LEFT join on the opener, not inner: an inner join would silently drop a ticket whose opener
         // row is gone (KVKK account deletion), and it would drop it from the TOTALS too — the headline
         // "toplam talep" would quietly shrink because of something that happened to a user record.
+        // The assignee is joined the same way and for the same reason as the opener: "Personel yükü"
+        // showed the first 8 hex digits of a GUID because the name simply was not in the payload, and
+        // the SPA cannot look it up itself — the global report spans companies whose member lists the
+        // caller may not be able to enumerate. LEFT join: an unassigned ticket (the biggest bar) and a
+        // deleted staff account must both survive into the counts.
         var joined = from t in tickets
                      join s in db.TicketStatuses.IgnoreQueryFilters() on t.StatusId equals s.Id
                      join uj in db.Users.IgnoreQueryFilters() on t.OpenedById equals uj.Id into us
                      from u in us.DefaultIfEmpty()
+                     join aj in db.Users.IgnoreQueryFilters() on t.AssignedToId equals aj.Id into asg
+                     from a in asg.DefaultIfEmpty()
                      select new Row(t.CreatedAt, t.FirstResponseAt, t.ResolvedAt, t.ClosedAt,
-                         s.Category, t.AssignedToId, t.EstimatedValue, t.ActualValue,
+                         s.Category, t.AssignedToId,
+                         a == null ? null : a.FirstName + " " + a.LastName,
+                         t.EstimatedValue, t.ActualValue,
                          t.CompanyId, t.OpenedById,
                          u == null ? null : u.FirstName + " " + u.LastName,
                          u == null ? null : u.Email,
@@ -213,7 +222,14 @@ public sealed class ReportService(
         // Open = not in a terminal category (Closed/Cancelled).
         var staffLoad = rows.Where(r => r.Category is not (StatusCategory.Closed or StatusCategory.Cancelled))
             .GroupBy(r => r.AssignedToId)
-            .Select(g => new StaffLoadItem(g.Key, g.Count()))
+            // Name resolution mirrors the customer breakdown: a live account shows its name, an account
+            // that was deleted is named as such rather than left blank — its open tickets are still real
+            // work sitting on someone's plate. Unassigned (null id) is labelled by the UI.
+            .Select(g => new StaffLoadItem(
+                g.Key,
+                g.Key is null ? null
+                    : g.First().AssignedToName?.Trim() is { Length: > 0 } n ? n : "(silinmiş kullanıcı)",
+                g.Count()))
             .OrderByDescending(s => s.OpenCount).ToList();
 
         var opened = rows.GroupBy(r => DateOnly.FromDateTime(r.CreatedAt))
