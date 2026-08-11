@@ -113,7 +113,9 @@ export function useTicket(id: string) {
 export function useCreateTicket(companyId: string | undefined) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (v: { title: string; body: string; priority: number; targetStatusId?: string }) => {
+    // `priority` omitted → the server applies the ticket.default_priority setting (it distinguishes
+    // "not chosen" from "chose Normal"; JSON.stringify drops the undefined key, so nothing is sent).
+    mutationFn: async (v: { title: string; body: string; priority?: number; targetStatusId?: string }) => {
       const { data } = await api.post<{ id: string }>('/tickets', {
         companyId, title: v.title, body: v.body, priority: v.priority,
       })

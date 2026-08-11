@@ -68,7 +68,7 @@ export default function Kanban() {
     clearDrag()
   }
 
-  async function quickCreate(column: KanbanColumn, values: { title: string; body: string; priority: number }) {
+  async function quickCreate(column: KanbanColumn, values: { title: string; body: string; priority?: number }) {
     setCreateError(null)
     try {
       // The backend always starts a ticket in the pool column; only a card added elsewhere is moved.
@@ -282,13 +282,20 @@ function QuickCreate({
   onCancel,
 }: {
   busy: boolean
-  onCreate: (values: { title: string; body: string; priority: number }) => void
+  onCreate: (values: { title: string; body: string; priority?: number }) => void
   onCancel: () => void
 }) {
-  const [values, setValues] = useState({ title: '', body: '', priority: 1 })
+  // Priority starts EMPTY, not at Normal: an empty box sends no priority at all, which is what lets the
+  // server apply the `ticket.default_priority` setting. Hardcoding 1 here meant staff-opened tickets
+  // always said "Normal" no matter what the super admin had configured (borç #60).
+  const [values, setValues] = useState<{ title: string; body: string; priority: number | '' }>(
+    { title: '', body: '', priority: '' })
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); onCreate(values) }}
+      onSubmit={(e) => {
+        e.preventDefault()
+        onCreate({ ...values, priority: values.priority === '' ? undefined : values.priority })
+      }}
       className="space-y-2 rounded-md border border-primary/40 bg-surface p-2 shadow-card"
     >
       <Input autoFocus required placeholder="Başlık" value={values.title}
@@ -300,8 +307,10 @@ function QuickCreate({
       <div className="flex items-center gap-2">
         <Select
           className="flex-1 py-1.5"
-          value={values.priority} onChange={(e) => setValues({ ...values, priority: Number(e.target.value) })}
+          value={values.priority}
+          onChange={(e) => setValues({ ...values, priority: e.target.value === '' ? '' : Number(e.target.value) })}
         >
+          <option value="">Öncelik: varsayılan</option>
           {PRIORITIES.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
         </Select>
         <Button type="submit" disabled={busy} className="px-3 py-1.5">{busy ? '…' : 'Ekle'}</Button>

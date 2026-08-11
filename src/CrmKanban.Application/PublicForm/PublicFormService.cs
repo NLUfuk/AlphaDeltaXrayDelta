@@ -37,12 +37,13 @@ public sealed class PublicFormService(
     public async Task<PublicFormConfig> GetConfigAsync(string slug, CancellationToken ct = default)
     {
         var company = await OpenCompanyBySlugAsync(slug, ct);
+        var brand = await settings.GetBrandAsync(ct); // same triple GET /api/public/brand returns
         return new PublicFormConfig(
             company.Name,
             await settings.GetValueAsync("form.kvkk_text", ct) ?? "",
-            await settings.GetValueAsync("brand.system_name", ct) ?? "",
-            await settings.GetValueAsync("brand.primary_color", ct) ?? "#2563eb",
-            await settings.GetValueAsync("brand.logo_url", ct) is { Length: > 0 } logo ? logo : null,
+            brand.SystemName,
+            brand.PrimaryColor,
+            brand.LogoUrl,
             await formFields.ListActiveAsync(company.Id, ct));
     }
 

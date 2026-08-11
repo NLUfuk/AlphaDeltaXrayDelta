@@ -89,5 +89,8 @@ public static class DependencyInjection
         ["UserId"] = "Kullanıcı",
         ["PermissionKey"] = "Yetki",
         ["KvkkConsent"] = "KVKK onayı",
+        ["Phone"] = "Telefon",
+        ["Website"] = "Web sitesi",
+        ["Address"] = "Adres",
     };
 }

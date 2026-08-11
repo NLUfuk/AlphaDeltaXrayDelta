@@ -24,3 +24,18 @@ public sealed class SettingsController(SettingsService settings) : ControllerBas
         return NoContent();
     }
 }
+
+/// <summary>
+/// The three branding values every visitor may see (name, accent colour, logo). Separate controller
+/// because it is anonymous: the sign-in screen renders before there is a session, and the app shell
+/// must not need <c>settings.manage</c> just to print the system's own name. The public form has
+/// returned the same triple since Faz 4 — this only drops the company-slug requirement.
+/// </summary>
+[ApiController]
+[AllowAnonymous]
+[Route("api/public/brand")]
+public sealed class BrandController(SettingsService settings) : ControllerBase
+{
+    [HttpGet]
+    public async Task<ActionResult<BrandDto>> Get(CancellationToken ct) => Ok(await settings.GetBrandAsync(ct));
+}

@@ -42,6 +42,7 @@ public sealed class CompanyService(IAppDbContext db, ICurrentUserService current
             throw new ConflictException("company.slug_taken", "This slug is already in use.");
 
         var company = new Company(request.Name, slug, ownerId);
+        company.UpdateInfo(request.Name, request.Phone, request.Email, request.Website, request.Address);
         db.Companies.Add(company);
         db.Memberships.Add(new Membership(ownerId, company.Id, RoleType.Admin));
         db.AuditLogs.Add(new AuditLog(userId, "company.create", $"{company.Name} ({slug}) owner {ownerId}"));
@@ -63,6 +64,24 @@ public sealed class CompanyService(IAppDbContext db, ICurrentUserService current
             q = q.Where(c => companyIds.Contains(c.Id));
         }
         return await q.OrderBy(c => c.Name).Select(c => ToDto(c)).ToListAsync(ct);
+    }
+
+    /// <summary>Edits the name + contact card. Same gate as archive: an Admin OF THIS COMPANY or a super
+    /// admin — the company row is tenant data, so a member of another company must not reach it (the
+    /// lookup runs with IgnoreQueryFilters to give a 404/403 instead of a confusing empty result).</summary>
+    public async Task<CompanyDto> UpdateAsync(Guid companyId, UpdateCompanyRequest request, CancellationToken ct = default)
+    {
+        var userId = RequireUserId();
+        var company = await db.Companies.IgnoreQueryFilters().FirstOrDefaultAsync(c => c.Id == companyId && c.DeletedAt == null, ct)
+            ?? throw new NotFoundException("company.not_found", "Company not found.");
+
+        if (!currentUser.IsSuperAdmin && !await IsAdminOfAsync(userId, companyId, ct))
+            throw new ForbiddenException("company.update_forbidden", "Only an admin of this company or a super admin can edit it.");
+
+        company.UpdateInfo(request.Name, request.Phone, request.Email, request.Website, request.Address);
+        db.AuditLogs.Add(new AuditLog(userId, "company.update", $"{company.Name} ({companyId})"));
+        await db.SaveChangesAsync(ct);
+        return ToDto(company);
     }
 
     public async Task ArchiveAsync(Guid companyId, CancellationToken ct = default)
@@ -155,5 +174,6 @@ public sealed class CompanyService(IAppDbContext db, ICurrentUserService current
         currentUser.UserId ?? throw new UnauthorizedException("auth.required", "Authentication required.");
 
     private static CompanyDto ToDto(Company c) =>
-        new(c.Id, c.Name, c.Slug, c.OwnerAdminId, c.IsActive, c.IsArchived, c.TicketNumberPrefix);
+        new(c.Id, c.Name, c.Slug, c.OwnerAdminId, c.IsActive, c.IsArchived, c.TicketNumberPrefix,
+            c.Phone, c.Email, c.Website, c.Address);
 }

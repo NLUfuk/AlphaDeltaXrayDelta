@@ -37,6 +37,14 @@ public sealed class SettingsService(IAppDbContext db, ICurrentUserService curren
             .ToListAsync(ct);
     }
 
+    /// <summary>The public brand triple (spec §13 "marka"). No auth gate — see <see cref="BrandDto"/>.
+    /// The fallbacks live here rather than at each caller so the sign-in screen, the app shell and the
+    /// public form can never disagree about what an empty logo or a missing name means.</summary>
+    public async Task<BrandDto> GetBrandAsync(CancellationToken ct = default) =>
+        new(await GetValueAsync("brand.system_name", ct) is { Length: > 0 } name ? name : "Kanby",
+            await GetValueAsync("brand.primary_color", ct) is { Length: > 0 } color ? color : "#1f3bb3",
+            await GetValueAsync("brand.logo_url", ct) is { Length: > 0 } logo ? logo : null);
+
     /// <summary>The stored value for a key, or null if the key is not configured.</summary>
     public async Task<string?> GetValueAsync(string key, CancellationToken ct = default) =>
         (await SnapshotAsync(ct)).GetValueOrDefault(key);

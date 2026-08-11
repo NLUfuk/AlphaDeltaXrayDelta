@@ -27,6 +27,11 @@ public sealed class CompaniesController(CompanyService companies, CustomerInvite
     public async Task<ActionResult<CompanyDto>> Create(CreateCompanyRequest request, CancellationToken ct) =>
         Ok(await companies.CreateAsync(request, ct));
 
+    /// <summary>Edit name + contact card. The slug is not editable — customer links point at it.</summary>
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<CompanyDto>> Update(Guid id, UpdateCompanyRequest request, CancellationToken ct) =>
+        Ok(await companies.UpdateAsync(id, request, ct));
+
     [HttpPost("{id:guid}/archive")]
     public async Task<IActionResult> Archive(Guid id, CancellationToken ct)
     {

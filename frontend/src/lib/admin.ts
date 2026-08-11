@@ -14,7 +14,14 @@ export type UserRow = {
   companies: UserCompany[]
   customerOf: string[]
 }
-export type Company = { id: string; name: string; slug: string; ownerAdminId: string; isActive: boolean; isArchived: boolean; ticketNumberPrefix: string }
+export type Company = {
+  id: string; name: string; slug: string; ownerAdminId: string
+  isActive: boolean; isArchived: boolean; ticketNumberPrefix: string
+  /** Contact card — all optional; a company works with nothing but a name and a slug. */
+  phone: string | null; email: string | null; website: string | null; address: string | null
+}
+/** What the create/edit forms send. The slug is create-only: customers hold /c/{slug} links. */
+export type CompanyInfo = { name: string; phone?: string; email?: string; website?: string; address?: string }
 export type Member = { userId: string; email: string; name: string; role: number }
 export type PermissionInfo = {
   key: string; group: string; label: string; groupLabel: string
@@ -66,8 +73,16 @@ export function useCompanies() {
 export function useCreateCompany() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (v: { name: string; slug: string; ownerAdminId?: string }) =>
+    mutationFn: async (v: CompanyInfo & { slug: string; ownerAdminId?: string }) =>
       (await api.post<Company>('/companies', v)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['companies'] }),
+  })
+}
+/** Name + contact card. The slug is not editable — see CompanyInfo. */
+export function useUpdateCompany() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (v: CompanyInfo & { id: string }) => (await api.put<Company>(`/companies/${v.id}`, v)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['companies'] }),
   })
 }

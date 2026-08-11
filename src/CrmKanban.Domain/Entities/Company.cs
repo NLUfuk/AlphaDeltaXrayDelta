@@ -26,6 +26,14 @@ public sealed class Company : Entity
     public bool IsActive { get; private set; }
     public DateTime? ArchivedAt { get; private set; }
 
+    // Contact card (spec §6 "firma bilgileri"). All optional: a company is usable the moment it has a
+    // name and a slug, and every existing row predates these columns. Empty string is normalised to
+    // null on the way in so "not filled in" has exactly one representation.
+    public string? Phone { get; private set; }
+    public string? Email { get; private set; }
+    public string? Website { get; private set; }
+    public string? Address { get; private set; }
+
     /// <summary>Human-readable ticket number prefix (spec §11/§18.16, e.g. "ACME" → ACME-1042).</summary>
     public string TicketNumberPrefix { get; private set; } = null!;
     public int NextTicketNumber { get; private set; }
@@ -44,7 +52,19 @@ public sealed class Company : Entity
         return number;
     }
 
-    public void Rename(string name) => Name = name.Trim();
+    /// <summary>Name + contact card. The slug is deliberately NOT editable: it is the public form URL
+    /// customers already hold, and its uniqueness index is global — renaming it would break live links.</summary>
+    public void UpdateInfo(string name, string? phone, string? email, string? website, string? address)
+    {
+        Name = name.Trim();
+        Phone = Normalize(phone);
+        Email = Normalize(email)?.ToLowerInvariant();
+        Website = Normalize(website);
+        Address = Normalize(address);
+    }
+
+    private static string? Normalize(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     public void Archive(DateTime now)
     {
