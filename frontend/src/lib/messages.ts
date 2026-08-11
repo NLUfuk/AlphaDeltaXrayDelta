@@ -61,6 +61,7 @@ const ERRORS: Record<string, string> = {
   'company.delete_forbidden': 'Yalnızca şirketin sahibi olan yönetici veya süper admin silebilir.',
   'company.delete_name_mismatch': 'Şirket adını birebir yazmanız gerekiyor.',
   'company.archive_forbidden': 'Yalnızca şirketin sahibi olan yönetici veya süper admin arşivleyebilir.',
+  'company.update_forbidden': 'Şirket bilgilerini yalnızca o şirketin yöneticisi veya süper admin düzenleyebilir.',
   'company.archived': 'Bu şirket arşivlenmiş; üzerinde işlem yapılamaz.',
   'company.members_forbidden': 'Bu şirketin üyesi değilsiniz.',
   'company.member_remove_forbidden': 'Üye çıkarma yetkisi yalnızca şirket sahibi yönetici veya süper adminde.',

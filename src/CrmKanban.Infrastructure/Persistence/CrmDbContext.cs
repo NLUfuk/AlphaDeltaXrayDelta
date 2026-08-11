@@ -53,6 +53,10 @@ public sealed class CrmDbContext(DbContextOptions<CrmDbContext> options, ICurren
             e.HasIndex(x => x.Slug).IsUnique();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.Slug).HasMaxLength(120).IsRequired();
+            e.Property(x => x.Phone).HasMaxLength(40);
+            e.Property(x => x.Email).HasMaxLength(256);
+            e.Property(x => x.Website).HasMaxLength(300);
+            e.Property(x => x.Address).HasMaxLength(500);
             e.HasQueryFilter(x => x.DeletedAt == null && (IsSuperAdmin || CompanyScope.Contains(x.Id)));
         });
 

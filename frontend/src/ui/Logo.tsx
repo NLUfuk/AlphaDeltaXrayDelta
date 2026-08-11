@@ -5,6 +5,8 @@
 // The graph strokes use currentColor rather than the source's navy #0F2540 — navy on a dark
 // background is invisible. Only the accent node keeps its literal amber: it is the one mark that
 // must stay the same colour in both themes to still read as the logo.
+import { useBrand } from '../lib/brand'
+
 const ACCENT = '#F59E0B'
 
 export function LogoMark({ className = '' }: { className?: string }) {
@@ -24,13 +26,21 @@ export function LogoMark({ className = '' }: { className?: string }) {
   )
 }
 
-/** Full lockup: mark + "Kanby" + the slogan. `compact` drops the slogan for tight spots (sidebar). */
+/**
+ * Full lockup: mark + system name + the slogan. `compact` drops the slogan for tight spots (sidebar).
+ *
+ * The name comes from the `brand.system_name` setting, not from a literal — an operator who renames the
+ * system in Ayarlar sees it here, in the tab title and on the sign-in screen. The MARK stays inline:
+ * `brand.logo_url` is an <img>, which cannot follow the dark theme, and it already drives the surfaces
+ * customers see (public form, müşteri giriş sayfası).
+ */
 export function Logo({ compact = false, className = '' }: { compact?: boolean; className?: string }) {
+  const { systemName } = useBrand()
   return (
     <span className={`flex items-center gap-2.5 ${className}`}>
       <LogoMark className="h-8 w-8 shrink-0 text-ink" />
       <span className="min-w-0">
-        <span className="block text-lg font-extrabold leading-none tracking-tight text-ink">Kanby</span>
+        <span className="block truncate text-lg font-extrabold leading-none tracking-tight text-ink">{systemName}</span>
         {!compact && (
           <span className="mt-1 block text-[10px] font-medium uppercase leading-none tracking-[0.28em] text-muted">
             Connect · Convert

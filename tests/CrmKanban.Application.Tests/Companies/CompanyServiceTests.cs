@@ -245,6 +245,63 @@ public class CompanyServiceTests
     }
 
     [Fact]
+    public async Task An_admin_of_the_company_edits_the_contact_card_but_never_the_slug()
+    {
+        var options = Store();
+        var adminId = await SeedAdminAsync(options, canCreate: true);
+        var admin = new FakeUser(false, adminId);
+
+        await using var db = new CrmDbContext(options, admin);
+        var svc = Service(db, admin);
+        var created = await svc.CreateAsync(new CreateCompanyRequest("Acme", "acme", Phone: " 0212 555 00 00 "));
+        created.Phone.Should().Be("0212 555 00 00", "contact values are trimmed on the way in");
+
+        var updated = await svc.UpdateAsync(created.Id, new UpdateCompanyRequest(
+            "Acme A.Ş.", Phone: "0850 111 22 33", Email: "  Info@ACME.com ", Website: "www.acme.com", Address: "   "));
+
+        updated.Name.Should().Be("Acme A.Ş.");
+        updated.Email.Should().Be("info@acme.com", "the address is normalised like every other email in the system");
+        updated.Address.Should().BeNull("blank means 'not filled in', not an empty string");
+        updated.Slug.Should().Be("acme", "customers already hold /c/{slug} links — editing must not break them");
+    }
+
+    [Fact]
+    public async Task Only_an_admin_of_that_company_can_edit_it()
+    {
+        var options = Store();
+        var ownerId = await SeedAdminAsync(options, canCreate: true);
+        var owner = new FakeUser(false, ownerId);
+
+        Guid companyId;
+        var staffId = Guid.NewGuid();
+        await using (var db = new CrmDbContext(options, owner))
+        {
+            companyId = (await Service(db, owner).CreateAsync(new CreateCompanyRequest("Acme", "acme"))).Id;
+            db.Memberships.Add(new Membership(staffId, companyId, RoleType.Personel));
+            await db.SaveChangesAsync();
+        }
+
+        // Personel of the company: a member, but not an admin.
+        var staff = new FakeUser(false, staffId);
+        await using (var db = new CrmDbContext(options, staff))
+        {
+            var act = () => Service(db, staff).UpdateAsync(companyId, new UpdateCompanyRequest("Ele geçirildi"));
+            await act.Should().ThrowAsync<ForbiddenException>();
+        }
+
+        // An admin of ANOTHER company must not reach this tenant's row either.
+        var stranger = new FakeUser(false, Guid.NewGuid());
+        await using (var db = new CrmDbContext(options, stranger))
+        {
+            var act = () => Service(db, stranger).UpdateAsync(companyId, new UpdateCompanyRequest("Ele geçirildi"));
+            await act.Should().ThrowAsync<ForbiddenException>();
+        }
+
+        await using (var read = new CrmDbContext(options, owner))
+            (await read.Companies.IgnoreQueryFilters().SingleAsync(c => c.Id == companyId)).Name.Should().Be("Acme");
+    }
+
+    [Fact]
     public async Task A_stranger_cannot_remove_members()
     {
         var options = Store();
