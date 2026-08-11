@@ -94,7 +94,9 @@ public sealed record RevenueTrendPoint(DateOnly Month, decimal Won, decimal Lost
 
 public sealed record StatusCategoryCount(StatusCategory Category, int Count);
 
-/// <summary>Currently-open tickets per assignee (null = unassigned).</summary>
-public sealed record StaffLoadItem(Guid? AssignedToId, int OpenCount);
+/// <summary>Currently-open tickets per assignee (null id = unassigned). The name travels with the id:
+/// the client cannot resolve it on its own — the global report spans every company, including ones
+/// whose member list the caller has no endpoint for.</summary>
+public sealed record StaffLoadItem(Guid? AssignedToId, string? AssignedToName, int OpenCount);
 
 public sealed record TrendPoint(DateOnly Date, int Opened, int Closed);

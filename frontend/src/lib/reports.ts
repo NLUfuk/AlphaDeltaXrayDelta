@@ -7,7 +7,8 @@ export type TicketReport = {
   byStatusCategory: { category: number; count: number }[]
   avgFirstResponseHours: number | null
   avgResolutionHours: number | null
-  staffLoad: { assignedToId: string | null; openCount: number }[]
+  /** `assignedToName` is null only when `assignedToId` is (unassigned) — the server resolves it. */
+  staffLoad: { assignedToId: string | null; assignedToName: string | null; openCount: number }[]
   trend: { date: string; opened: number; closed: number }[]
   /** Null when the caller lacks ticket.value — the figures are withheld server-side, not hidden here. */
   revenue: RevenueSummary | null
