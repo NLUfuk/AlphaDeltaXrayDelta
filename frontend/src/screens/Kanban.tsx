@@ -164,6 +164,10 @@ export default function Kanban() {
           const open = expanded === col.statusId
           const preview = col.tickets.slice(0, 3)
           const hidden = col.tickets.length - preview.length
+          // The drop signal belongs on the card area, not the whole box. Ringing the entire <section>
+          // lit up its header and its existing cards along with it, which testers read as "the board
+          // is dragging all of them, not the one I picked up". Inset ring = no layout shift.
+          const bodyClass = `space-y-2 p-2 ${active ? 'bg-primary/5 ring-2 ring-inset ring-primary/40' : ''}`
           return (
             <section
               key={col.statusId}
@@ -174,7 +178,7 @@ export default function Kanban() {
               onDrop={() => drop(col.statusId)}
               className={`flex flex-col overflow-hidden rounded-xl border bg-canvas transition-colors ${
                 open ? 'col-span-full' : ''
-              } ${active ? 'border-primary ring-2 ring-primary/20' : 'border-line'}`}
+              } ${active ? 'border-primary' : 'border-line'}`}
             >
               <div className="h-1" style={{ backgroundColor: color }} />
               <div className="border-b border-line bg-surface px-3 py-2.5">
@@ -203,7 +207,7 @@ export default function Kanban() {
               </div>
 
               {open ? (
-                <div className="space-y-2 p-2">
+                <div className={bodyClass}>
                   {composeIn === col.statusId && (
                     <QuickCreate
                       busy={create.isPending}
@@ -230,7 +234,7 @@ export default function Kanban() {
                   )}
                 </div>
               ) : (
-                <div className="space-y-2 p-2">
+                <div className={bodyClass}>
                   {preview.map((t) => (
                     <TicketCard
                       key={t.id}
