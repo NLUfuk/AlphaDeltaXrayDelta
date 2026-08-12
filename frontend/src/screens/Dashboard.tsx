@@ -34,8 +34,17 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Tile label="Toplam ticket" value={r.totalTickets} accent="#2a78d6" icon="ticket-outline" />
         <Tile label="Açık ticket" value={openCount} accent="#eda100" icon="folder-open-outline" />
-        <Tile label="Ort. ilk yanıt (saat)" value={r.avgFirstResponseHours ?? '—'} accent="#1baf7a" icon="timer-outline" />
-        <Tile label="Ort. çözüm (saat)" value={r.avgResolutionHours ?? '—'} accent="#4a3aa7" icon="check-circle-outline" />
+        {/* Each average carries the number of tickets it was taken over: the two are computed on
+            different sets (yanıtlanan vs. çözülen), so an unlabelled "19,3 sa ilk yanıt" next to
+            "0,4 sa çözüm" reads as a broken report rather than as two unrelated samples. */}
+        <Tile
+          label="Ort. ilk yanıt (saat)" value={r.avgFirstResponseHours ?? '—'}
+          sub={`${r.firstResponseCount} yanıtlanan talep`} accent="#1baf7a" icon="timer-outline"
+        />
+        <Tile
+          label="Ort. çözüm (saat)" value={r.avgResolutionHours ?? '—'}
+          sub={`${r.resolutionCount} çözülen talep`} accent="#4a3aa7" icon="check-circle-outline"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -105,7 +114,9 @@ function CustomerTable({ rows, currency }: { rows: CustomerBreakdownItem[]; curr
   )
 }
 
-function Tile({ label, value, accent, icon }: { label: string; value: number | string; accent: string; icon: string }) {
+function Tile({ label, value, sub, accent, icon }: {
+  label: string; value: number | string; sub?: string; accent: string; icon: string
+}) {
   return (
     <Card className="flex items-center gap-3 p-4">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl" style={{ backgroundColor: `${accent}1a`, color: accent }}>
@@ -114,6 +125,7 @@ function Tile({ label, value, accent, icon }: { label: string; value: number | s
       <div>
         <div className="text-2xl font-semibold text-ink tabular-nums">{value}</div>
         <div className="text-xs text-muted">{label}</div>
+        {sub && <div className="text-[11px] text-muted/80">{sub}</div>}
       </div>
     </Card>
   )

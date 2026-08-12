@@ -234,6 +234,53 @@ public class ReportServiceTests
     }
 
     /// <summary>
+    /// The two averages have different denominators — answered-but-open tickets count in the first
+    /// and not the second — so the counts travel with them. Without those, a fast-resolved ticket and
+    /// a slowly-answered one produce "ort. çözüm 0,4 sa" under "ort. ilk yanıt 19 sa", and the reader
+    /// concludes the report is broken instead of that it is two samples.
+    /// </summary>
+    [Fact]
+    public async Task Averages_report_the_sample_they_were_taken_over()
+    {
+        var options = Store();
+        var superAdmin = new FakeUser(true, Guid.NewGuid());
+        await using var db = new CrmDbContext(options, superAdmin);
+        await SeedStatusesAsync(db);
+
+        var open = await db.TicketStatuses.FirstAsync(s => s.Id == OpenStatus);
+        var answered = await db.TicketStatuses.FirstAsync(s => s.Id == AnsweredStatus);
+        var closed = await db.TicketStatuses.FirstAsync(s => s.Id == ClosedStatus);
+        var actor = StatusChangeActor.Staff(RoleType.Personel, [PermissionKeys.TicketStatusChange]);
+        var edges = new[]
+        {
+            new StatusTransition(OpenStatus, AnsweredStatus, PermissionKeys.TicketStatusChange),
+            new StatusTransition(OpenStatus, ClosedStatus, PermissionKeys.TicketStatusChange),
+        };
+        var t0 = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var slow = NewTicket(CompanyA, "A-1", OpenStatus);            // answered late, never resolved
+        slow.CreatedAt = t0;
+        slow.ChangeStatus(open, answered, edges, actor, t0.AddHours(20));
+
+        var quick = NewTicket(CompanyA, "A-2", OpenStatus);           // closed straight away
+        quick.CreatedAt = t0;
+        quick.ChangeStatus(open, closed, edges, actor, t0.AddHours(2));
+
+        // A-3 is untouched: it belongs to neither sample and must not drag either average down.
+        db.Tickets.AddRange(slow, quick, NewTicket(CompanyA, "A-3", OpenStatus));
+        await db.SaveChangesAsync();
+
+        var report = await Service(db, superAdmin).GlobalReportAsync(null, null);
+
+        report.ResolutionCount.Should().Be(1);
+        report.AvgResolutionHours.Should().Be(2);
+        // Both the answered one and the closed one: closing counts as the first response (Ticket.ApplyStatus),
+        // which is what keeps a resolved ticket from being absent from the first-response sample.
+        report.FirstResponseCount.Should().Be(2);
+        report.AvgFirstResponseHours.Should().Be(11);
+    }
+
+    /// <summary>
     /// The PDF export replaced the CSV in Faz 41. This is the smoke test: rendering is a third-party
     /// library doing layout, so the thing worth asserting is that the pipeline produces a real PDF at
     /// all — the composition itself fails loudly (QuestPDF throws on an impossible layout), which is

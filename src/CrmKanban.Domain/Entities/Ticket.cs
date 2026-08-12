@@ -168,6 +168,12 @@ public sealed class Ticket : Entity
                 FirstResponseAt = now;
                 break;
             case StatusCategory.Closed:
+                // Resolving IS a response. A ticket taken straight from "Yeni" to "Tamamlandı" never
+                // passes an Answered status, so it used to end up resolved with FirstResponseAt still
+                // null — and the report then averaged "ilk yanıt" and "çözüm" over two DIFFERENT sets
+                // of tickets, which is how a 0.42-hour average resolution came to sit next to a
+                // 19-hour average first response. Stamped only if empty: a real earlier reply wins.
+                FirstResponseAt ??= now;
                 ResolvedAt ??= now;
                 ClosedAt = now;
                 break;

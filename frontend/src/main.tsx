@@ -28,36 +28,48 @@ import Revenue from './screens/Revenue'
 import Templates from './screens/admin/Templates'
 import FormFields from './screens/admin/FormFields'
 import Account from './screens/Account'
+import NotFound from './screens/NotFound'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 })
 
 // SPA data router. Protected screens hang off Shell; more Faz 7 slices plug into its children.
+//
+// Everything sits under one PATHLESS root whose only job is `errorElement`: without it React Router
+// falls back to its built-in developer screen ("Hey developer 👋 … ErrorBoundary") for any error
+// thrown below, and the `*` child does the same for an address that matches nothing. A route without
+// an `element` renders <Outlet/>, so the wrapper adds no markup.
 const router = createBrowserRouter([
-  { path: '/login', element: <Login /> },
-  { path: '/register', element: <Register /> },
-  { path: '/forgot-password', element: <ForgotPassword /> },
-  { path: '/invite', element: <AcceptInvite /> },
-  { path: '/form/:slug', element: <PublicForm /> },
-  { path: '/c/:slug', element: <CustomerAccess /> },
   {
-    path: '/',
-    element: <Shell />,
+    errorElement: <NotFound />,
     children: [
-      { index: true, element: <Home /> },
-      { path: 'account', element: <Account /> },
-      { path: 'tickets/:id', element: <TicketDetail /> },
-      { path: 'moderation', element: <Moderation /> },
-      { path: 'revenue', element: <Revenue /> },
-      { path: 'admin/columns', element: <Columns /> },
-      { path: 'admin/form-fields', element: <FormFields /> },
-      { path: 'reports', element: <Dashboard /> },
-      { path: 'settings', element: <Settings /> },
-      { path: 'admin/templates', element: <Templates /> },
-      { path: 'admin/users', element: <AdminUsers /> },
-      { path: 'admin/companies', element: <Companies /> },
-      { path: 'admin/permissions', element: <Permissions /> },
+      { path: '/login', element: <Login /> },
+      { path: '/register', element: <Register /> },
+      { path: '/forgot-password', element: <ForgotPassword /> },
+      { path: '/invite', element: <AcceptInvite /> },
+      { path: '/form/:slug', element: <PublicForm /> },
+      { path: '/c/:slug', element: <CustomerAccess /> },
+      {
+        path: '/',
+        element: <Shell />,
+        children: [
+          { index: true, element: <Home /> },
+          { path: 'account', element: <Account /> },
+          { path: 'tickets/:id', element: <TicketDetail /> },
+          { path: 'moderation', element: <Moderation /> },
+          { path: 'revenue', element: <Revenue /> },
+          { path: 'admin/columns', element: <Columns /> },
+          { path: 'admin/form-fields', element: <FormFields /> },
+          { path: 'reports', element: <Dashboard /> },
+          { path: 'settings', element: <Settings /> },
+          { path: 'admin/templates', element: <Templates /> },
+          { path: 'admin/users', element: <AdminUsers /> },
+          { path: 'admin/companies', element: <Companies /> },
+          { path: 'admin/permissions', element: <Permissions /> },
+        ],
+      },
+      { path: '*', element: <NotFound /> },
     ],
   },
 ])

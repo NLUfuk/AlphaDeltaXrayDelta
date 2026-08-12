@@ -7,6 +7,10 @@ export type TicketReport = {
   byStatusCategory: { category: number; count: number }[]
   avgFirstResponseHours: number | null
   avgResolutionHours: number | null
+  /** Denominators of the two averages above — different sets (answered vs. resolved), so neither
+   *  number means anything on screen without the count it was taken over. */
+  firstResponseCount: number
+  resolutionCount: number
   /** `assignedToName` is null only when `assignedToId` is (unassigned) — the server resolves it. */
   staffLoad: { assignedToId: string | null; assignedToName: string | null; openCount: number }[]
   trend: { date: string; opened: number; closed: number }[]

@@ -57,6 +57,45 @@ public class TicketBehaviorTests
         ticket.ClosedAt.Should().Be(Now);
     }
 
+    /// <summary>
+    /// A ticket taken straight to a closing status was left with no FirstResponseAt at all, so the
+    /// report's two averages ran over different ticket sets and could contradict each other (average
+    /// resolution below average first response). Resolving is a response; it is stamped as one.
+    /// </summary>
+    [Fact]
+    public void Closing_without_an_answered_stop_still_stamps_first_response()
+    {
+        var open = Status("New", StatusCategory.Open);
+        var closed = Status("Closed", StatusCategory.Closed, terminal: true);
+        var ticket = NewTicket(open);
+        var edges = new[] { new StatusTransition(open.Id, closed.Id, "ticket.status.change") };
+
+        ticket.ChangeStatus(open, closed, edges, Staff(), Now.AddHours(2));
+
+        ticket.FirstResponseAt.Should().Be(Now.AddHours(2));
+        ticket.FirstResponseAt.Should().Be(ticket.ResolvedAt, "closing is the response when there was no earlier one");
+    }
+
+    [Fact]
+    public void Closing_after_an_answer_keeps_the_earlier_first_response()
+    {
+        var open = Status("New", StatusCategory.Open);
+        var answered = Status("Answered", StatusCategory.Answered);
+        var closed = Status("Closed", StatusCategory.Closed, terminal: true);
+        var ticket = NewTicket(open);
+        var edges = new[]
+        {
+            new StatusTransition(open.Id, answered.Id, "ticket.status.change"),
+            new StatusTransition(answered.Id, closed.Id, "ticket.status.change"),
+        };
+
+        ticket.ChangeStatus(open, answered, edges, Staff(), Now.AddHours(1));
+        ticket.ChangeStatus(answered, closed, edges, Staff(), Now.AddHours(5));
+
+        ticket.FirstResponseAt.Should().Be(Now.AddHours(1), "the real first reply is never overwritten by the close");
+        ticket.ResolvedAt.Should().Be(Now.AddHours(5));
+    }
+
     [Fact]
     public void Stale_from_status_is_rejected()
     {

@@ -139,6 +139,13 @@ export default function Kanban() {
 
       {isLoading && <Loading />}
       {createError && <Alert>{createError}</Alert>}
+
+      {/* First-run guidance. Only when the board is genuinely empty — with a filter on, "hiç kart yok"
+          means the filter matched nothing, and telling that person how to start would be nonsense. */}
+      {columns && columns.length > 0 && columns.every((c) => c.tickets.length === 0)
+        && !filters.search && !filters.assignedToId && filters.priority === undefined && (
+        <EmptyBoard onNew={() => { const first = columns[0]?.statusId; if (first) openCompose(first) }} />
+      )}
       {/* A rejected move (permission, or a graph the client read before an admin changed it) left the
           card snapping back with no explanation. */}
       {changeStatus.isError && <Alert>{errorText(changeStatus.error)}</Alert>}
@@ -251,6 +258,26 @@ export default function Kanban() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/// What to do with an empty board. The columns are already drawn above it, so this is the missing
+/// half: where tickets come FROM. Three real actions, no tour and no dismiss state to persist — the
+/// card disappears the moment the first ticket exists, which is exactly when it stops being useful.
+function EmptyBoard({ onNew }: { onNew: () => void }) {
+  return (
+    <div className="rounded-xl border border-dashed border-line bg-surface p-5">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <Icon name="rocket-launch-outline" className="text-primary" />Pano boş — buradan başlayın
+      </h2>
+      <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-muted">
+        <li>Yukarıdaki <b>müşteri bağlantısını</b> kopyalayıp müşterinize gönderin; açtığı talepler bu havuza düşer.</li>
+        <li><b>+ Yeni</b> ile kendiniz talep açın (ya da bir sütunun <b>+</b> düğmesiyle doğrudan o aşamaya).</li>
+        <li><b>Sütunları yönet</b>'ten aşamaları kendi sürecinize göre adlandırın.</li>
+      </ol>
+      <p className="mt-3 text-xs text-muted">Kartı bir sütundan diğerine sürüklemek talebin statüsünü değiştirir.</p>
+      <Button onClick={onNew} className="mt-3 gap-1.5"><Icon name="plus" />İlk talebi aç</Button>
     </div>
   )
 }
