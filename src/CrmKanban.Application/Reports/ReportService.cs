@@ -244,6 +244,7 @@ public sealed class ReportService(
         return new TicketReport(companyId, from, to, rows.Count, byCategory,
             firstResponse.Count > 0 ? Math.Round(firstResponse.Average(), 2) : null,
             resolution.Count > 0 ? Math.Round(resolution.Average(), 2) : null,
+            firstResponse.Count, resolution.Count,
             staffLoad, trend, revenue, customers);
     }
 

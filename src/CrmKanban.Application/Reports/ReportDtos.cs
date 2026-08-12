@@ -14,6 +14,14 @@ public sealed record TicketReport(
     IReadOnlyList<StatusCategoryCount> ByStatusCategory,
     double? AvgFirstResponseHours,
     double? AvgResolutionHours,
+
+    /// <summary>How many tickets each average above was computed over. Shipped with the averages
+    /// because they have DIFFERENT denominators — a ticket that has been answered but not resolved
+    /// counts in the first and not the second — so the two figures are not comparable without their
+    /// sample sizes, and a reader who compares them anyway concludes the report is broken.</summary>
+    int FirstResponseCount,
+    int ResolutionCount,
+
     IReadOnlyList<StaffLoadItem> StaffLoad,
     IReadOnlyList<TrendPoint> Trend,
     RevenueSummary? Revenue,

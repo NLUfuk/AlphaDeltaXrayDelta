@@ -47,10 +47,12 @@ export default function Revenue() {
         <Tile label="Kazanılan" value={money(v.wonTotal)} sub={`${v.wonCount} talep`} accent="#1baf7a" icon="trending-up" />
         <Tile label="Kaybedilen" value={money(v.lostTotal)} sub={`${v.lostCount} talep`} accent="#d64550" icon="trending-down" />
         <Tile label="Açık hat" value={money(v.openTotal)} sub={`${v.openCount} talep`} accent="#eda100" icon="progress-clock" />
+        {/* Sample size before the rate reads: "%100" over a single decided ticket is arithmetically
+            true and tells a manager nothing, and without the denominator it looks like a claim. */}
         <Tile
           label="Kazanma oranı"
           value={percent(v.winRateByCount)}
-          sub={`tutarca ${percent(v.winRateByValue)}`}
+          sub={`${v.wonCount + v.lostCount} talep üzerinden · tutarca ${percent(v.winRateByValue)}`}
           accent="#2a78d6"
           icon="percent-outline"
         />

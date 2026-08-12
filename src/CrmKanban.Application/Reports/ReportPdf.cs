@@ -112,8 +112,11 @@ public static class ReportPdf
                 Tile(row, "Toplam talep", r.TotalTickets.ToString(Tr), null);
                 foreach (var s in r.ByStatusCategory)
                     Tile(row, CategoryLabel(s.Category), s.Count.ToString(Tr), null);
-                Tile(row, "Ort. ilk yanıt", Hours(r.AvgFirstResponseHours), "saat");
-                Tile(row, "Ort. çözüm", Hours(r.AvgResolutionHours), "saat");
+                // The sample size rides along with each average: they are counted over different
+                // ticket sets (answered vs. resolved), so side by side without their denominators
+                // they invite the reading "çözüm ilk yanıttan hızlı, bu rapor bozuk".
+                Tile(row, "Ort. ilk yanıt", Hours(r.AvgFirstResponseHours), $"saat · {r.FirstResponseCount} talep");
+                Tile(row, "Ort. çözüm", Hours(r.AvgResolutionHours), $"saat · {r.ResolutionCount} talep");
             });
         });
 
@@ -127,7 +130,9 @@ public static class ReportPdf
                 Tile(row, "Kazanılan", Money(m.WonTotal, m.Currency), $"{m.WonCount} talep", Won);
                 Tile(row, "Kaybedilen", Money(m.LostTotal, m.Currency), $"{m.LostCount} talep", Lost);
                 Tile(row, "Açık hat", Money(m.OpenTotal, m.Currency), $"{m.OpenCount} talep", Accent);
-                Tile(row, "Kazanma oranı", Percent(m.WinRateByCount), $"tutarca {Percent(m.WinRateByValue)}");
+                // "%100" over one decided ticket is true and useless; the sample size says which it is.
+                Tile(row, "Kazanma oranı", Percent(m.WinRateByCount),
+                    $"{m.WonCount + m.LostCount} talep · tutarca {Percent(m.WinRateByValue)}");
                 Tile(row, "Tahmin isabeti", Percent(m.ForecastAccuracy is { } f ? (double)f : null), "%100 = tam isabet");
                 Tile(row, "Tutarsız talep", m.UnpricedCount.ToString(Tr), "toplama katılmıyor");
             });
