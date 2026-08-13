@@ -4,6 +4,10 @@ import { downloadReportPdf, useReport, type CustomerBreakdownItem } from '../lib
 import { Button, Card, Icon, LoadError, Loading } from '../ui/primitives'
 import { BarList, TrendChart } from '../ui/charts'
 
+// The tiles were printing the raw double ("190.86") while the customer table two panels down printed
+// "405,7" — same page, two number systems. Everything user-facing goes through tr-TR.
+const hours = (v: number | null) => (v === null ? '—' : v.toLocaleString('tr-TR', { maximumFractionDigits: 1 }))
+
 // Report dashboard (spec §15), StarAdmin-inspired: stat tiles + charts. Scope follows the navbar's
 // company pick, including for a super admin, whose "Tüm şirketler" pick is the global report.
 // Metrics branch on status category, never the display name (§4.3).
@@ -38,11 +42,11 @@ export default function Dashboard() {
             different sets (yanıtlanan vs. çözülen), so an unlabelled "19,3 sa ilk yanıt" next to
             "0,4 sa çözüm" reads as a broken report rather than as two unrelated samples. */}
         <Tile
-          label="Ort. ilk yanıt (saat)" value={r.avgFirstResponseHours ?? '—'}
+          label="Ort. ilk yanıt (saat)" value={hours(r.avgFirstResponseHours)}
           sub={`${r.firstResponseCount} yanıtlanan talep`} accent="#1baf7a" icon="timer-outline"
         />
         <Tile
-          label="Ort. çözüm (saat)" value={r.avgResolutionHours ?? '—'}
+          label="Ort. çözüm (saat)" value={hours(r.avgResolutionHours)}
           sub={`${r.resolutionCount} çözülen talep`} accent="#4a3aa7" icon="check-circle-outline"
         />
       </div>

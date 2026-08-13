@@ -93,7 +93,12 @@ export default function TicketDetail() {
       <Card className="p-5">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-muted">{ticket.number}</span>
-          <Badge label={cat.label} color={cat.color} />
+          {/* The company's own column name, not the category behind it: the board says "İşlemde" and
+              this badge used to say "Beklemede" for the same ticket — on the customer screen the
+              progress bar and this badge disagreed in the same viewport. The category stays the
+              engine (transition graph, report grouping); it is not a word to show anyone. Falls back
+              to the category label only while the status list is still loading. */}
+          <Badge label={current?.name ?? cat.label} color={cat.color} />
           <Badge label={p.label} color={p.color} />
         </div>
         <h1 className="mt-2 text-lg font-semibold text-ink">{ticket.title}</h1>

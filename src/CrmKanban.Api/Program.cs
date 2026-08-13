@@ -178,8 +178,22 @@ try
     // ASP.NET serves it and falls back to index.html for client routes. In Docker nginx does this and
     // wwwroot is empty, so these are no-ops there. HTTPS redirect only when not already forwarded https
     // (behind a TLS-terminating proxy the X-Forwarded-Proto is already https → no redirect loop).
+    // index.html must be revalidated on every visit. Without an explicit Cache-Control the host sends
+    // only ETag/Last-Modified, browsers fall back to heuristic caching, and a returning user keeps
+    // running the PREVIOUS SPA bundle after a deploy (seen twice on 2026-08-13). The hashed assets
+    // under /assets are content-addressed, so they stay freely cacheable — only the entry document
+    // needs the round-trip, and a 304 makes that round-trip cheap. The same options go to the SPA
+    // fallback below: that endpoint serves index.html too and does NOT inherit this middleware's.
+    var spaFiles = new StaticFileOptions
+    {
+        OnPrepareResponse = ctx =>
+        {
+            if (ctx.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase))
+                ctx.Context.Response.Headers.CacheControl = "no-cache, must-revalidate";
+        },
+    };
     app.UseDefaultFiles();
-    app.UseStaticFiles();
+    app.UseStaticFiles(spaFiles);
     app.UseHttpsRedirection();
     app.UseAuthentication();
     app.UseAuthorization();
@@ -190,7 +204,7 @@ try
     // trust chain above stays verifiable in prod — it is what the rate limiter partitions on.
     app.MapGet("/health", (HttpContext ctx) =>
         Results.Ok(new { status = "ok", ip = ctx.Connection.RemoteIpAddress?.ToString() })).AllowAnonymous();
-    app.MapFallbackToFile("index.html"); // SPA client-side routes (404 if no wwwroot, e.g. Docker API)
+    app.MapFallbackToFile("index.html", spaFiles); // SPA client-side routes (404 if no wwwroot, e.g. Docker API)
 
     app.Run();
 }

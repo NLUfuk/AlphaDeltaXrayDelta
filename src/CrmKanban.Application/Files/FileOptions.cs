@@ -18,6 +18,10 @@ public sealed class FileOptions
     [
         "image/png", "image/jpeg", "image/gif", "image/webp",
         "application/pdf",
+        // text/plain was missing while both upload screens offered ".txt" in their file picker and said
+        // so in their help text: the customer path (PublicFileValidator) accepted it, the ticket path
+        // rejected it. The two doors have to agree — the picker is the promise, this list is the gate.
+        "text/plain",
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.ms-excel",

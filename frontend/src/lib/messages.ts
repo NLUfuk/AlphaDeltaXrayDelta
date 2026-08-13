@@ -106,7 +106,10 @@ const ERRORS: Record<string, string> = {
   'formfield.invalid_option': 'Seçilen değer bu alanın seçenekleri arasında değil.',
 
   // --- attachments & comments ---
-  'attachment.type_not_allowed': 'Yalnız PDF, TXT, DOC ve DOCX dosyaları kabul edilir.',
+  // Deliberately does not list the accepted types: the ticket path reads them from the DB settings row
+  // (Ayarlar > Dosya), so any list written here is a guess that goes stale the moment an admin edits
+  // that row — it already had, and told the user "TXT kabul edilir" while rejecting their .txt.
+  'attachment.type_not_allowed': 'Bu dosya türü kabul edilmiyor. İzinli türleri yöneticiniz Ayarlar > Dosya bölümünden belirler.',
   'attachment.type_mismatch': 'Dosya türü uzantısıyla uyuşmuyor.',
   'attachment.content_mismatch': 'Dosya içeriği geçerli bir belge değil.',
   'attachment.too_large': 'Dosya boyutu izin verilen sınırın dışında.',

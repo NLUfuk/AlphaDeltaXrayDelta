@@ -79,6 +79,7 @@ export default function Revenue() {
               { label: 'Kaybedilen', value: Math.round(v.lostTotal), color: '#d64550' },
               { label: 'Açık hat', value: Math.round(v.openTotal), color: OPEN },
             ]}
+            format={money}
           />
           <dl className="mt-4 space-y-1.5 border-t border-line pt-3 text-sm">
             <Row label="Karara bağlanan toplam" value={money(decided)} />

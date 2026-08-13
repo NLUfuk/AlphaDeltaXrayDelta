@@ -38,7 +38,9 @@ export default function CustomerTickets() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted">{t.number}</span>
                   <div className="flex gap-2">
-                    <Badge label={cat.label} color={t.statusColor || cat.color} />
+                    {/* The company's column name, like everywhere else. The row already carried
+                        statusName next to the statusColor it was using. */}
+                    <Badge label={t.statusName || cat.label} color={t.statusColor || cat.color} />
                     <Badge label={p.label} color={p.color} />
                   </div>
                 </div>

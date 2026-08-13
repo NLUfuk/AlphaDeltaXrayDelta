@@ -5,18 +5,24 @@
 const SERIES = { opened: '#2a78d6', closed: '#eb6834' } // validated categorical pair (blue, orange)
 
 /** Labeled horizontal bars for magnitude-by-category (status distribution, staff load). */
-export function BarList({ rows }: { rows: { label: string; value: number; color: string }[] }) {
+/** `format` exists because the two callers count different things: Dashboard shows ticket counts (bare
+ *  integers), Revenue shows money that has to carry its currency. The value column is sized by its
+ *  content (`shrink-0`, no fixed width) — a fixed `w-8` clipped six-digit amounts out of the card. */
+export function BarList({ rows, format = String }: {
+  rows: { label: string; value: number; color: string }[]
+  format?: (value: number) => string
+}) {
   const max = Math.max(1, ...rows.map((r) => r.value))
   if (rows.length === 0) return <p className="text-sm text-muted">Veri yok.</p>
   return (
     <div className="space-y-2">
       {rows.map((r) => (
-        <div key={r.label} className="flex items-center gap-2 text-sm">
+        <div key={r.label} className="flex items-center gap-3 text-sm">
           <span className="w-36 shrink-0 truncate text-muted">{r.label}</span>
-          <div className="h-4 flex-1 overflow-hidden rounded bg-canvas">
-            <div className="h-full rounded" style={{ width: `${(r.value / max) * 100}%`, backgroundColor: r.color }} title={String(r.value)} />
+          <div className="h-4 min-w-8 flex-1 overflow-hidden rounded bg-canvas">
+            <div className="h-full rounded" style={{ width: `${(r.value / max) * 100}%`, backgroundColor: r.color }} title={format(r.value)} />
           </div>
-          <span className="w-8 text-right tabular-nums text-muted">{r.value}</span>
+          <span className="shrink-0 text-right tabular-nums text-muted">{format(r.value)}</span>
         </div>
       ))}
     </div>
