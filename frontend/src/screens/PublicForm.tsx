@@ -30,8 +30,9 @@ export default function PublicForm() {
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
 
+  // Takes both element types: "Açıklama" is a textarea, the rest are inputs.
   function set(k: keyof typeof form) {
-    return (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value })
   }
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -96,13 +97,18 @@ export default function PublicForm() {
       ) : (
         <form onSubmit={submit} className="mt-4 space-y-3 rounded-xl border border-line bg-surface p-6">
           {error && <Alert>{error}</Alert>}
+          {/* The built-in fields are all required, but only the custom ones below were marked with a
+              "*" — so the form looked like the company's extra questions mattered more than the
+              customer's own name. Same marker, same meaning, everywhere. */}
           <div className="flex gap-3">
-            <Field label="Ad"><Input value={form.firstName} onChange={set('firstName')} required /></Field>
-            <Field label="Soyad"><Input value={form.lastName} onChange={set('lastName')} required /></Field>
+            <Field label="Ad *"><Input value={form.firstName} onChange={set('firstName')} required /></Field>
+            <Field label="Soyad *"><Input value={form.lastName} onChange={set('lastName')} required /></Field>
           </div>
-          <Field label="E-posta"><Input type="email" value={form.email} onChange={set('email')} required /></Field>
-          <Field label="Konu"><Input value={form.title} onChange={set('title')} required /></Field>
-          <Field label="Açıklama"><Input value={form.body} onChange={set('body')} required /></Field>
+          <Field label="E-posta *"><Input type="email" value={form.email} onChange={set('email')} required /></Field>
+          <Field label="Konu *"><Input value={form.title} onChange={set('title')} required /></Field>
+          {/* This is the request itself. It was a one-line Input while an optional custom "Ek açıklama"
+              got a full Textarea — the customer typed their problem into a box that showed one line. */}
+          <Field label="Açıklama *"><Textarea rows={4} value={form.body} onChange={set('body')} required /></Field>
 
           {cfg?.fields?.map((f) => {
             const val = customFields[f.id] ?? ''

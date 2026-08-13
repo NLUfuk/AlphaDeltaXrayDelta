@@ -22,7 +22,7 @@ public static class DefaultSettings
         Make("file.max_size_mb", "10", "int", "file"),
         Make("file.max_per_comment", "5", "int", "file"),
         Make("file.allowed_types",
-            "[\"image/png\",\"image/jpeg\",\"image/gif\",\"image/webp\",\"application/pdf\",\"application/msword\"," +
+            "[\"image/png\",\"image/jpeg\",\"image/gif\",\"image/webp\",\"application/pdf\",\"text/plain\",\"application/msword\"," +
             "\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"," +
             "\"application/vnd.ms-excel\",\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\"]",
             "json", "file"),

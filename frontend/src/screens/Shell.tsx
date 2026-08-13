@@ -104,8 +104,11 @@ export default function Shell() {
 
   return (
     <div className="min-h-screen">
+      {/* Sticky, and above the sidebar's z-30: this strip is the only sign that the screen belongs to
+          someone else and the only way back. It used to scroll away while the navbar stayed put, so on
+          a long list an admin could act as a customer with nothing on screen saying so. */}
       {impersonating && (
-        <div className="flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-sm text-white">
+        <div className="sticky top-0 z-40 flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-sm text-white">
           <Icon name="account-eye-outline" />
           <span><b>{user.name}</b> kimliğiyle görüntülüyorsunuz.</span>
           <button onClick={() => stopImpersonation()} className="font-semibold underline underline-offset-2">
