@@ -1,7 +1,12 @@
+import { STATUS_CATEGORIES } from '../lib/messages'
 import { useReportCompany } from '../lib/company'
 import { useReport } from '../lib/reports'
 import { Card, Icon, LoadError, Loading } from '../ui/primitives'
 import { BarList, RevenueChart } from '../ui/charts'
+
+// "Açık hat" is the open (undecided) pipeline, so it borrows the 'open' status-category blue instead of
+// an amber that read as a third traffic-light next to won-green and lost-red.
+const OPEN = STATUS_CATEGORIES[0].color
 
 // Revenue tab (Faz 39). The board is an opportunity pipeline, so won/lost is a projection of the
 // status category — Closed = won, Cancelled = lost — not a second field someone has to keep in sync.
@@ -46,7 +51,7 @@ export default function Revenue() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Tile label="Kazanılan" value={money(v.wonTotal)} sub={`${v.wonCount} talep`} accent="#1baf7a" icon="trending-up" />
         <Tile label="Kaybedilen" value={money(v.lostTotal)} sub={`${v.lostCount} talep`} accent="#d64550" icon="trending-down" />
-        <Tile label="Açık hat" value={money(v.openTotal)} sub={`${v.openCount} talep`} accent="#eda100" icon="progress-clock" />
+        <Tile label="Açık hat" value={money(v.openTotal)} sub={`${v.openCount} talep`} accent={OPEN} icon="progress-clock" />
         {/* Sample size before the rate reads: "%100" over a single decided ticket is arithmetically
             true and tells a manager nothing, and without the denominator it looks like a claim. */}
         <Tile
@@ -72,7 +77,7 @@ export default function Revenue() {
             rows={[
               { label: 'Kazanılan', value: Math.round(v.wonTotal), color: '#1baf7a' },
               { label: 'Kaybedilen', value: Math.round(v.lostTotal), color: '#d64550' },
-              { label: 'Açık hat', value: Math.round(v.openTotal), color: '#eda100' },
+              { label: 'Açık hat', value: Math.round(v.openTotal), color: OPEN },
             ]}
           />
           <dl className="mt-4 space-y-1.5 border-t border-line pt-3 text-sm">
