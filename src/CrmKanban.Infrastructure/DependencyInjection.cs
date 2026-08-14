@@ -83,7 +83,9 @@ public static class DependencyInjection
         }
 
         services.Configure<Captcha.CaptchaOptions>(config.GetSection(Captcha.CaptchaOptions.SectionName));
-        services.AddSingleton<ICaptchaValidator, Captcha.CaptchaValidator>();
+        // Typed client: the gate calls Turnstile's siteverify. Short timeout — a hanging provider must
+        // not hold the public form open; the validator fails closed on timeout.
+        services.AddHttpClient<ICaptchaValidator, Captcha.CaptchaValidator>(c => c.Timeout = TimeSpan.FromSeconds(5));
 
         // Notifications: email sender (log in dev, SMTP in prod) + background pipeline worker (spec §14)
         services.Configure<CrmKanban.Application.Notifications.NotificationOptions>(config.GetSection("Notifications"));

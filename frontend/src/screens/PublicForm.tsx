@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
@@ -6,10 +6,63 @@ import { errorText } from '../lib/messages'
 import { Alert, Button, Field, Icon, Input, Loading, Select, Textarea } from '../ui/primitives'
 
 type PublicField = { id: string; label: string; type: number; required: boolean; options: string[] }
-type FormConfig = { companyName: string; kvkkText: string; brandName: string; primaryColor: string; logoUrl: string | null; fields: PublicField[] }
+type FormConfig = { companyName: string; kvkkText: string; brandName: string; primaryColor: string; logoUrl: string | null; fields: PublicField[]; captchaSiteKey: string | null }
 type Descriptor = { key: string; fileName: string; contentType: string; size: number }
 
 const ACCEPT = '.png,.jpg,.jpeg,.webp,.pdf,.txt,.doc,.docx'
+const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (el: HTMLElement, opts: Record<string, unknown>) => string
+      remove: (id: string) => void
+    }
+  }
+}
+
+// Cloudflare Turnstile, explicit render. The site key comes from the server's form config, so
+// rotating it is a config change, not a rebuild; the widget is drawn only when the gate is on.
+// The server verifies the token anyway — this component is convenience, never the check itself.
+function Turnstile({ siteKey, onToken }: { siteKey: string; onToken: (token: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let widgetId: string | undefined
+    let cancelled = false
+
+    const load = window.turnstile
+      ? Promise.resolve()
+      : new Promise<void>((resolve, reject) => {
+          const existing = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SRC}"]`)
+          const script = existing ?? Object.assign(document.createElement('script'), { src: TURNSTILE_SRC, async: true, defer: true })
+          script.addEventListener('load', () => resolve())
+          script.addEventListener('error', () => reject(new Error('turnstile-load-failed')))
+          if (!existing) document.head.appendChild(script)
+        })
+
+    load
+      .then(() => {
+        if (cancelled || !ref.current || !window.turnstile) return
+        widgetId = window.turnstile.render(ref.current, {
+          sitekey: siteKey,
+          language: 'tr',
+          theme: 'auto',
+          callback: (token: string) => onToken(token),
+          'expired-callback': () => onToken(''),
+          'error-callback': () => onToken(''),
+        })
+      })
+      .catch(() => onToken('')) // script blocked → no token → the submit button stays disabled
+
+    return () => {
+      cancelled = true
+      if (widgetId && window.turnstile) window.turnstile.remove(widgetId)
+    }
+  }, [siteKey, onToken])
+
+  return <div ref={ref} className="flex justify-center" />
+}
 
 // Anonymous public ticket form (spec §10). Branding + KVKK text come from the config endpoint. Files
 // are uploaded through the API, which inspects the bytes (pdf/txt/doc/docx only) before storing —
@@ -24,6 +77,9 @@ export default function PublicForm() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', title: '', body: '' })
   const [customFields, setCustomFields] = useState<Record<string, string>>({})
   const [consent, setConsent] = useState(false)
+  // Turnstile tokens are single-use: a rejected submit must get a fresh widget, hence the nonce.
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaNonce, setCaptchaNonce] = useState(0)
   const [files, setFiles] = useState<Descriptor[]>([])
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ ticketNumber: string; newAccount: boolean; pendingApproval: boolean } | null>(null)
@@ -61,7 +117,7 @@ export default function PublicForm() {
     setError(null)
     setBusy(true)
     try {
-      const { data } = await api.post(`/public/form/${slug}`, { ...form, kvkkConsent: consent, attachments: files, customFields })
+      const { data } = await api.post(`/public/form/${slug}`, { ...form, kvkkConsent: consent, captchaToken, attachments: files, customFields })
       setResult({
         ticketNumber: data.ticketNumber,
         newAccount: !!data.newAccount,
@@ -69,6 +125,8 @@ export default function PublicForm() {
       })
     } catch (err) {
       setError(errorText(err))
+      setCaptchaToken('')
+      setCaptchaNonce((n) => n + 1) // the token is spent whether or not the server accepted it
     } finally {
       setBusy(false)
     }
@@ -157,7 +215,11 @@ export default function PublicForm() {
             <span>{cfg?.kvkkText}</span>
           </label>
 
-          <Button type="submit" className="w-full" disabled={busy || uploading || !consent} style={{ backgroundColor: accent }}>
+          {cfg?.captchaSiteKey && (
+            <Turnstile key={captchaNonce} siteKey={cfg.captchaSiteKey} onToken={setCaptchaToken} />
+          )}
+
+          <Button type="submit" className="w-full" disabled={busy || uploading || !consent || (!!cfg?.captchaSiteKey && !captchaToken)} style={{ backgroundColor: accent }}>
             {busy ? 'Gönderiliyor…' : 'Talep oluştur'}
           </Button>
         </form>
