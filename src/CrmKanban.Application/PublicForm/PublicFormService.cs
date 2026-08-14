@@ -44,7 +44,8 @@ public sealed class PublicFormService(
             brand.SystemName,
             brand.PrimaryColor,
             brand.LogoUrl,
-            await formFields.ListActiveAsync(company.Id, ct));
+            await formFields.ListActiveAsync(company.Id, ct),
+            captcha.SiteKey);
     }
 
     public async Task<PublicFormResult> SubmitAsync(string slug, PublicFormSubmitRequest request, CancellationToken ct = default)

@@ -38,6 +38,7 @@ public class PublicFormServiceTests
 
     private sealed class FakeCaptcha(bool result) : ICaptchaValidator
     {
+        public string? SiteKey => null;
         public Task<bool> ValidateAsync(string? token, CancellationToken ct = default) => Task.FromResult(result);
     }
 

@@ -41,11 +41,13 @@ public sealed record CustomerFormSubmitRequest(
 public sealed record PublicFormResult(string TicketNumber, bool NewAccount, bool PendingApproval);
 
 /// <summary>What the anonymous form needs to render (spec §10, §13, §16): the company name plus the
-/// super-admin-editable KVKK text and branding, read from the DB Settings store.</summary>
+/// super-admin-editable KVKK text and branding, read from the DB Settings store.
+/// <see cref="CaptchaSiteKey"/> is null when the bot gate is off — the form then renders no widget.</summary>
 public sealed record PublicFormConfig(
     string CompanyName,
     string KvkkText,
     string BrandName,
     string PrimaryColor,
     string? LogoUrl,
-    IReadOnlyList<PublicFormFieldDto> Fields);
+    IReadOnlyList<PublicFormFieldDto> Fields,
+    string? CaptchaSiteKey);

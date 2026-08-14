@@ -7,5 +7,10 @@ namespace CrmKanban.Application.Abstractions;
 /// </summary>
 public interface ICaptchaValidator
 {
+    /// <summary>The provider's PUBLIC site key when the gate is on, else null. The anonymous form
+    /// config endpoint hands it to the SPA so the widget is keyed at runtime — rotating the key is a
+    /// server config change, not a frontend rebuild. Never the secret key.</summary>
+    string? SiteKey { get; }
+
     Task<bool> ValidateAsync(string? token, CancellationToken ct = default);
 }
