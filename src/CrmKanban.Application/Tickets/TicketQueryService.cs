@@ -64,6 +64,24 @@ public sealed class TicketQueryService(
             throw new ForbiddenException("ticket.view_forbidden", "You cannot view this company's tickets.");
     }
 
+    /// <summary>Whether the caller sees the whole company pipeline here, or just their own workspace
+    /// (<see cref="TicketWorkspace"/>). Super admin always does.</summary>
+    private async Task<bool> SeesAllAsync(Guid companyId, CancellationToken ct) =>
+        currentUser.IsSuperAdmin ||
+        await permissions.HasPermissionAsync(RequireUserId(), companyId, PermissionKeys.TicketViewAll, ct);
+
+    /// <summary>The companies where the caller sees everything. Used by the list paths, which can span
+    /// memberships — someone may lead one company's pipeline and be a single contributor in another.</summary>
+    private async Task<HashSet<Guid>> SeeAllCompaniesAsync(CancellationToken ct)
+    {
+        var userId = RequireUserId();
+        var allowed = new HashSet<Guid>();
+        foreach (var companyId in currentUser.CompanyIds)
+            if (await permissions.HasPermissionAsync(userId, companyId, PermissionKeys.TicketViewAll, ct))
+                allowed.Add(companyId);
+        return allowed;
+    }
+
     public async Task<PagedResult<TicketListItem>> ListAsync(TicketListQuery query, CancellationToken ct = default)
     {
         // Staff: the tenant filter limits to their companies, and `ticket.view` narrows that to the ones
@@ -77,6 +95,10 @@ public sealed class TicketQueryService(
             {
                 var allowed = await ViewableCompaniesAsync(ct);
                 baseQuery = baseQuery.Where(t => allowed.Contains(t.CompanyId));
+                // Then narrow to the caller's workspace in the companies where they are not entitled to
+                // the whole pipeline. In SQL, not after the fact: the rows never leave the database, so
+                // paging counts and the total are right too.
+                baseQuery = baseQuery.Where(TicketWorkspace.Filter(RequireUserId(), await SeeAllCompaniesAsync(ct)));
             }
         }
         else
@@ -111,7 +133,7 @@ public sealed class TicketQueryService(
         // the single gate that also lets a customer (no company scope) reach their own ticket.
         var ticket = await db.Tickets.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == ticketId && t.DeletedAt == null, ct)
             ?? throw new NotFoundException("ticket.not_found", "Ticket not found.");
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         // Staff read the detail only with ticket.view; the opener reaches their own ticket regardless
         // (a customer holds no permissions, and locking them out of their own request would be absurd).
         if (actor.IsStaff && ticket.OpenedById != actor.UserId)
@@ -162,8 +184,13 @@ public sealed class TicketQueryService(
 
         var statuses = await StatusSet.EffectiveAsync(db, companyId, ct);
 
-        var tickets = await ApplyFilters(
-                db.Tickets.Where(t => t.CompanyId == companyId && t.ApprovalState == TicketApprovalState.Approved), query)
+        // The board is the clearest place the workspace boundary shows: without ticket.view.all the
+        // columns hold the caller's own work, not the company's whole pipeline.
+        var board = db.Tickets.Where(t => t.CompanyId == companyId && t.ApprovalState == TicketApprovalState.Approved);
+        if (!await SeesAllAsync(companyId, ct))
+            board = board.Where(TicketWorkspace.Filter(RequireUserId(), new HashSet<Guid>()));
+
+        var tickets = await ApplyFilters(board, query)
             .OrderByDescending(t => t.CreatedAt).ToListAsync(ct);
 
         var byStatus = tickets.ToLookup(t => t.StatusId);
@@ -180,6 +207,12 @@ public sealed class TicketQueryService(
         if (!IsStaff)
             throw new ForbiddenException("moderation.forbidden", "The moderation queue is staff-only.");
         await EnsureCanViewAsync(companyId, ct);
+        // Triage is company-wide work by definition: these tickets are unassigned and were opened by an
+        // outsider, so no one's workspace contains them. Filtering the queue by workspace would show
+        // everyone an empty list; requiring the company-wide key says what is actually true.
+        if (!await SeesAllAsync(companyId, ct))
+            throw new ForbiddenException("moderation.forbidden",
+                "Reviewing incoming requests requires permission to see the whole company's tickets.");
 
         // companyId comes from the caller, so the tenant filter on db.Tickets — not this predicate — is
         // what actually scopes the read. Statuses are resolved separately (see LoadStatusesAsync).

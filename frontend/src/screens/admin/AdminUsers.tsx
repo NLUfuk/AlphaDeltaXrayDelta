@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { errorText } from '../../lib/messages'
 import { useAuth } from '../../lib/auth'
 import { useAnonymizeUser, useCreateAdmin, useUsers, type UserRow } from '../../lib/admin'
-import { Alert, Button, Card, Field, Icon, Input, LoadError, Select } from '../../ui/primitives'
+import { Alert, Button, Card, Field, Icon, IconAction, Input, LoadError, Modal, Select } from '../../ui/primitives'
 
 // One vocabulary for "what kind of account is this" — the table, the filter and the badges all read it.
 type Kind = 'super' | 'admin' | 'staff' | 'customer'
@@ -68,6 +68,7 @@ export default function AdminUsers() {
   const [invited, setInvited] = useState<{ email: string; link: string } | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
 
   const filtered = useMemo(() => (users ?? []).filter((u) => {
     if (statusFilter === 'active' && !u.isActive) return false
@@ -112,49 +113,71 @@ export default function AdminUsers() {
           <h1 className="text-lg font-semibold text-ink">Kullanıcılar</h1>
           <span className="text-sm text-muted">{users?.length ?? 0} hesap{isFetching && ' · yükleniyor…'}</span>
         </div>
-        <Button onClick={() => setShowCreate(!showCreate)} className="gap-1.5">
+        <Button onClick={() => setShowCreate(true)} className="gap-1.5">
           <Icon name="account-plus-outline" />Yeni admin
         </Button>
       </header>
 
       {err && <Alert>{err}</Alert>}
 
-      {showCreate && (
-        <Card className="space-y-3 p-4">
-          <h2 className="text-sm font-semibold text-muted">Yeni admin hesabı</h2>
-          <p className="text-xs text-muted">
-            Admin hesabını yalnız süper admin açar; davet e-postası gönderilir, admin parolasını belirleyip
-            kendi şirketini oluşturur.
-          </p>
-          <form onSubmit={submit} className="space-y-3">
-            <div className="flex gap-3">
-              <Field label="Ad"><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required /></Field>
-              <Field label="Soyad"><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required /></Field>
-            </div>
-            <Field label="E-posta"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></Field>
+      {/* Creating an admin is a rare, one-off act; it used to push the list a screenful down whenever
+          it was open, and stayed open after a successful create. As a dialog it costs the list nothing. */}
+      <Modal
+        open={showCreate}
+        onClose={() => { setShowCreate(false); setInvited(null) }}
+        title="Yeni admin hesabı"
+      >
+        <p className="mb-3 text-xs text-muted">
+          Admin hesabını yalnız süper admin açar; davet e-postası gönderilir, admin parolasını belirleyip
+          kendi şirketini oluşturur.
+        </p>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="flex gap-3">
+            <Field label="Ad"><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required /></Field>
+            <Field label="Soyad"><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required /></Field>
+          </div>
+          <Field label="E-posta"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></Field>
+          <div className="flex justify-end">
             <Button type="submit" disabled={create.isPending}>{create.isPending ? 'Oluşturuluyor…' : 'Oluştur ve davet gönder'}</Button>
-          </form>
-          {invited && <InviteResult email={invited.email} link={invited.link} />}
-        </Card>
-      )}
+          </div>
+        </form>
+        {/* The dialog stays open after a successful create on purpose: the invite link is the whole
+            point of the operation and closing over it would throw it away. */}
+        {invited && <div className="mt-3"><InviteResult email={invited.email} link={invited.link} /></div>}
+      </Modal>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="w-64">
           <Input placeholder="Ara (ad / e-posta)…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Select
-          value={kindFilter} onChange={(e) => setKindFilter(e.target.value as '' | Kind)}
+        {/* Same shape as the board: search is the filter people actually use, the other two are behind
+            a toggle that says when it is holding something back. */}
+        <button
+          onClick={() => setShowFilters((s) => !s)}
+          aria-expanded={showFilters}
+          className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors ${
+            kindFilter || statusFilter ? 'border-primary bg-primary/5 text-primary' : 'border-line text-muted hover:text-ink'
+          }`}
         >
-          <option value="">Tür: tümü</option>
-          {(Object.keys(KINDS) as Kind[]).map((k) => <option key={k} value={k}>{KINDS[k].label}</option>)}
-        </Select>
-        <Select
-          value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'pending')}
-        >
-          <option value="">Durum: tümü</option>
-          <option value="active">Aktif</option>
-          <option value="pending">Davet bekliyor</option>
-        </Select>
+          <Icon name="filter-variant" />Filtrele{(kindFilter || statusFilter) && ' (açık)'}
+        </button>
+        {showFilters && (
+          <>
+            <Select
+              value={kindFilter} onChange={(e) => setKindFilter(e.target.value as '' | Kind)}
+            >
+              <option value="">Tür: tümü</option>
+              {(Object.keys(KINDS) as Kind[]).map((k) => <option key={k} value={k}>{KINDS[k].label}</option>)}
+            </Select>
+            <Select
+              value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'pending')}
+            >
+              <option value="">Durum: tümü</option>
+              <option value="active">Aktif</option>
+              <option value="pending">Davet bekliyor</option>
+            </Select>
+          </>
+        )}
         {(search || kindFilter || statusFilter) && (
           <button onClick={() => { setSearch(''); setKindFilter(''); setStatusFilter('') }} className="text-sm text-muted hover:text-ink">
             Temizle
@@ -269,39 +292,40 @@ function UserTableRow({
               ? u.customerOf.join(' / ')
               : 'henüz talep yok'}
       </td>
+      {/* Two labelled buttons per row turned the last column into the widest one in the table and
+          pushed the data columns together. Same actions, as icons — and the erase confirmation is a
+          dialog instead of a panel that grew the row and shifted every row under it. */}
       <td className="px-4 py-2.5 text-right whitespace-nowrap">
-        {/* Erasure is irreversible, so it takes a second click — inline, not a browser dialog. */}
-        {confirming ? (
-          <span className="inline-flex items-center gap-2">
-            <span className="text-xs text-muted">Kişisel bilgiler maskelenir, talep geçmişi kalır.</span>
-            <Button variant="danger" onClick={() => { setConfirming(false); onErase(u) }} className="gap-1 px-2.5 py-1 text-xs">
-              <Icon name="check" />Onayla
-            </Button>
-            <Button variant="secondary" onClick={() => setConfirming(false)} className="px-2.5 py-1 text-xs">
-              Vazgeç
-            </Button>
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-2">
-            {actionable && u.isActive && (
-              <Button
-                variant="secondary" onClick={() => onStepInto(u.id)} className="gap-1 px-2.5 py-1 text-xs"
-                title="Bu kullanıcının gördüğü ekrana geç"
-              >
-                <Icon name="account-switch-outline" />Kimliğine gir
-              </Button>
-            )}
-            {actionable && (
-              <Button
-                variant="secondary" onClick={() => setConfirming(true)}
-                className="gap-1 border-danger/40 px-2.5 py-1 text-xs text-danger hover:bg-danger/5"
-                title="KVKK: kişisel bilgileri maskele ve hesabı kapat"
-              >
-                <Icon name="account-remove-outline" />Hesabı sil
-              </Button>
-            )}
-          </span>
-        )}
+        <span className="inline-flex items-center justify-end gap-1">
+          {actionable && u.isActive && (
+            <IconAction
+              icon="account-switch-outline"
+              label="Kimliğine gir — bu kullanıcının gördüğü ekrana geç"
+              onClick={() => onStepInto(u.id)}
+            />
+          )}
+          {actionable && (
+            <IconAction
+              icon="account-remove-outline"
+              label="Hesabı sil (KVKK: kişisel bilgileri maskele)"
+              onClick={() => setConfirming(true)}
+              danger
+            />
+          )}
+        </span>
+
+        <Modal open={confirming} onClose={() => setConfirming(false)} title={`${u.name} hesabı silinsin mi?`}>
+          <div className="space-y-3 text-left">
+            <p className="text-sm text-ink">
+              <b>{u.email}</b> hesabının kişisel bilgileri maskelenir ve hesap kapatılır.
+              Talep geçmişi ve denetim izi veritabanında kalır.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setConfirming(false)}>Vazgeç</Button>
+              <Button variant="danger" onClick={() => { setConfirming(false); onErase(u) }}>Hesabı sil</Button>
+            </div>
+          </div>
+        </Modal>
       </td>
     </tr>
   )

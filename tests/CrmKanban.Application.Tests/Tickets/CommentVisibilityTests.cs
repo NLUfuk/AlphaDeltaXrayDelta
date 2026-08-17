@@ -31,7 +31,7 @@ public class CommentVisibilityTests
     private sealed class FakePermissionService : IPermissionService
     {
         private static readonly IReadOnlySet<string> Held =
-            new HashSet<string>([Domain.Authorization.PermissionKeys.TicketView], StringComparer.Ordinal);
+            new HashSet<string>([Domain.Authorization.PermissionKeys.TicketView, Domain.Authorization.PermissionKeys.TicketViewAll], StringComparer.Ordinal);
         public Task<IReadOnlySet<string>> GetPermissionsAsync(Guid userId, Guid companyId, CancellationToken ct = default) =>
             Task.FromResult(Held);
         public Task<bool> HasPermissionAsync(Guid userId, Guid companyId, string permissionKey, CancellationToken ct = default) =>

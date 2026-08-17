@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type {
   ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes,
 } from 'react'
@@ -141,6 +142,92 @@ export function Switch({
                    transition-transform peer-checked:translate-x-5"
       />
     </label>
+  )
+}
+
+/**
+ * Dialog. Built on the native `<dialog showModal()>` rather than a hand-rolled overlay, so Esc to
+ * close, the focus trap, inertness of the page behind it and the top-layer stacking (no z-index
+ * arithmetic against the sticky navbar) all come from the browser instead of from code we would have
+ * to maintain. What is left to write is the frame and the backdrop click.
+ *
+ * <p>It exists because screens were growing by stacking every secondary action inline — a create form
+ * living permanently inside a kanban column, an invite form inside a company card — until the primary
+ * content was a minority of the page. Anything that is a detour from what the screen is for belongs
+ * in here.</p>
+ */
+export function Modal({
+  open, onClose, title, children, width = 'max-w-lg',
+}: {
+  open: boolean
+  onClose: () => void
+  title: string
+  children: ReactNode
+  width?: string
+}) {
+  const ref = useRef<HTMLDialogElement>(null)
+
+  useEffect(() => {
+    const dialog = ref.current
+    if (!dialog) return
+    // showModal() throws if it is already open, and close() on a closed dialog is a no-op that still
+    // fires nothing — so both directions are guarded rather than called blindly on every render.
+    if (open && !dialog.open) dialog.showModal()
+    else if (!open && dialog.open) dialog.close()
+  }, [open])
+
+  return (
+    <dialog
+      ref={ref}
+      // Fires for Esc and for the form's method="dialog" alike, so the parent's state cannot drift
+      // out of sync with what is actually on screen.
+      onClose={onClose}
+      // The dialog element itself is the full-viewport box; the visible card is the div inside it.
+      // A click that lands on the element and not on the card is therefore a backdrop click.
+      onClick={(e) => { if (e.target === ref.current) onClose() }}
+      className={`w-[calc(100%-2rem)] ${width} rounded-xl border border-line bg-surface p-0 text-ink shadow-lg backdrop:bg-black/40`}
+    >
+      <div className="flex items-center justify-between border-b border-line px-5 py-3">
+        <h2 className="text-sm font-semibold text-ink">{title}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Kapat"
+          className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-canvas hover:text-ink"
+        >
+          <Icon name="close" className="text-lg" />
+        </button>
+      </div>
+      <div className="p-5">{children}</div>
+    </dialog>
+  )
+}
+
+/**
+ * A row action as a labelled icon button. Rows that carry three or four actions rendered as full
+ * buttons stop reading as data and start reading as a toolbar with a record attached — that is what
+ * the company list and the user table both looked like. The label is not dropped, it moves to the
+ * accessible name and the tooltip, so nothing is hidden from a screen reader or from a hover.
+ */
+export function IconAction({ icon, label, onClick, danger = false, disabled = false }: {
+  icon: string
+  label: string
+  onClick: () => void
+  danger?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={`grid h-9 w-9 place-items-center rounded-lg transition-colors disabled:opacity-40 ${
+        danger ? 'text-muted hover:bg-danger/10 hover:text-danger' : 'text-muted hover:bg-canvas hover:text-ink'
+      }`}
+    >
+      <Icon name={icon} className="text-lg" />
+    </button>
   )
 }
 

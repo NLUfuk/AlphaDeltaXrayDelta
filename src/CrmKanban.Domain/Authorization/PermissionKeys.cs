@@ -7,6 +7,15 @@ namespace CrmKanban.Domain.Authorization;
 public static class PermissionKeys
 {
     public const string TicketView = "ticket.view";
+
+    /// <summary>See the WHOLE company's tickets rather than just your own work. Without it a staff
+    /// member still holds ticket.view, but "the tickets" means the ones assigned to them plus the ones
+    /// they opened — their workspace. Split out because membership in a company was being read as a
+    /// licence to read every request in it: an accountant added to the company could page through
+    /// sales, legal and HR tickets in full. Reading the pipeline is a different job from working in it,
+    /// so it is a different key (compare TicketValue, split from TicketView for the same reason).</summary>
+    public const string TicketViewAll = "ticket.view.all";
+
     public const string TicketEdit = "ticket.edit";
     public const string TicketDelete = "ticket.delete";
     public const string TicketAssign = "ticket.assign";
@@ -33,7 +42,7 @@ public static class PermissionKeys
     /// <summary>Every defined permission key — used by idempotent seed.</summary>
     public static readonly IReadOnlyList<string> All =
     [
-        TicketView, TicketEdit, TicketDelete, TicketAssign, TicketStatusChange, TicketValue,
+        TicketView, TicketViewAll, TicketEdit, TicketDelete, TicketAssign, TicketStatusChange, TicketValue,
         CommentInternal, ReportCompany, ReportGlobal, SettingsManage, StatusManage,
         UserInvite, PermissionAssign,
     ];

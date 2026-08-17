@@ -1,9 +1,11 @@
+using CrmKanban.Api.Auth;
 using CrmKanban.Application.Auth;
 using CrmKanban.Application.Files;
 using CrmKanban.Application.PublicForm;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 
 namespace CrmKanban.Api.Controllers;
 
@@ -17,7 +19,10 @@ namespace CrmKanban.Api.Controllers;
 [Route("api/public/form/{slug}")]
 // [AllowAnonymous] sits on each action, not the controller: a controller-level one would override the
 // [Authorize] on the customer-ticket action (ASP0026) and silently open it to anonymous callers.
-public sealed class PublicFormController(PublicFormService publicForm, AuthService auth) : ControllerBase
+public sealed class PublicFormController(
+    PublicFormService publicForm,
+    AuthService auth,
+    IOptions<AuthOptions> authOptions) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet]
@@ -39,11 +44,14 @@ public sealed class PublicFormController(PublicFormService publicForm, AuthServi
         return NoContent();
     }
 
-    /// <summary>Types the emailed code back: activates the account and returns a session.</summary>
+    /// <summary>Types the emailed code back: activates the account and returns a session. Issued exactly
+    /// like a login — refresh token to the httpOnly cookie, access token to the body (see
+    /// <see cref="SessionCookie"/>), so this path cannot become the one that still leaks a refresh token.</summary>
     [AllowAnonymous]
     [HttpPost("verify")]
-    public async Task<ActionResult<AuthResult>> Verify(string slug, VerifyCodeRequest request, CancellationToken ct) =>
-        Ok(await auth.VerifyCodeAsync(slug, request, ct));
+    public async Task<ActionResult<SessionResponse>> Verify(string slug, VerifyCodeRequest request, CancellationToken ct) =>
+        Ok(SessionCookie.Issue(HttpContext, await auth.VerifyCodeAsync(slug, request, ct),
+            TimeSpan.FromDays(authOptions.Value.RefreshTokenDays)));
 
     /// <summary>A signed-in customer sends a request to this company — the first one also creates the
     /// relationship the portal scopes to. Authenticated, unlike the rest of this controller.</summary>

@@ -89,10 +89,16 @@ export default function Templates() {
             <Input value={view.subject} onChange={(e) => setDraft({ ...view, subject: e.target.value })} />
           </div>
 
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-medium text-ink">Gövde (HTML)</span>
-              <span className="flex flex-wrap items-center gap-1">
+          {/* Raw HTML is what this screen used to open with, and it is the wrong first thing to show:
+              the person editing a template wants to read the mail, not its markup. The editor is one
+              click away and unchanged — nothing was taken out, only reordered by how often it is
+              needed. <details> does the disclosure natively; no open/closed state to hold. */}
+          <details className="rounded-md border border-line">
+            <summary className="cursor-pointer list-none px-3 py-2 text-sm text-muted marker:content-none hover:text-ink">
+              <Icon name="code-tags" className="mr-1.5" />Gövdeyi düzenle (HTML)
+            </summary>
+            <div className="border-t border-line p-3">
+              <div className="mb-1 flex flex-wrap items-center gap-1">
                 <span className="text-xs text-muted">Ekle:</span>
                 {tokensFor(activeKey).map((token) => (
                   <button
@@ -104,17 +110,18 @@ export default function Templates() {
                     {`{{${token}}}`}
                   </button>
                 ))}
-              </span>
+              </div>
+              <Textarea
+                ref={bodyRef}
+                rows={12}
+                value={view.body}
+                onChange={(e) => setDraft({ ...view, body: e.target.value })}
+              />
+              <p className="mt-1 text-xs text-muted">
+                Yalnız yukarıdaki yer tutucular doldurulur; başka bir <code>{'{{ad}}'}</code> e-postada olduğu gibi görünür.
+              </p>
             </div>
-            <Textarea
-              ref={bodyRef}
-              value={view.body}
-              onChange={(e) => setDraft({ ...view, body: e.target.value })}
-            />
-            <p className="mt-1 text-xs text-muted">
-              Yalnız yukarıdaki yer tutucular doldurulur; başka bir <code>{'{{ad}}'}</code> e-postada olduğu gibi görünür.
-            </p>
-          </div>
+          </details>
 
           <div>
             <div className="text-sm font-medium text-ink">Önizleme (örnek verilerle)</div>
@@ -127,7 +134,7 @@ export default function Templates() {
               <iframe
                 title="E-posta önizleme"
                 sandbox=""
-                className="h-64 w-full bg-white"
+                className="h-96 w-full bg-white"
                 srcDoc={`<body style="font-family:Manrope,Arial,sans-serif;font-size:14px;color:#1f2937;padding:16px">${renderPreview(view.body)}</body>`}
               />
             </div>

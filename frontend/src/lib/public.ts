@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from './api'
+import { api, type Session } from './api'
 import type { User } from './auth'
 
 // Portal (anonymous + logged-in customer) endpoints, separate from the staff-scoped ticket hooks.
@@ -55,11 +55,12 @@ export function useCustomerRegister(slug: string) {
   })
 }
 
-/** Types the emailed 6-digit code back; the response is a normal session (see auth.adoptSession). */
+/** Types the emailed 6-digit code back; the response is a normal session (see auth.adoptSession) —
+ *  access token only, the refresh token arrives as an httpOnly cookie on the same response. */
 export function useVerifyCode(slug: string) {
   return useMutation({
     mutationFn: async (v: { email: string; code: string }) =>
-      (await api.post<{ accessToken: string; refreshToken: string; user: User }>(`/public/form/${slug}/verify`, v)).data,
+      (await api.post<Session<User>>(`/public/form/${slug}/verify`, v)).data,
   })
 }
 

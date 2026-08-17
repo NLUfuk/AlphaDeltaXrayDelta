@@ -27,7 +27,26 @@ public sealed class TicketAuthorizationService(
     IPermissionService permissions,
     IAppDbContext db)
 {
-    public async Task<TicketActor> ResolveAsync(Guid ticketCompanyId, Guid ticketOpenedById, CancellationToken ct = default)
+    /// <summary>
+    /// The one way in. Resolves the caller's relationship to <paramref name="ticket"/> AND enforces the
+    /// workspace boundary (<see cref="TicketWorkspace"/>) in the same breath, so a staff member without
+    /// ticket.view.all cannot read, comment on, edit, assign, re-status, delete or attach files to a
+    /// ticket outside their own work — the write paths obey exactly the boundary the board draws.
+    /// Every ticket operation calls this; the company/opener overload is private precisely so a new one
+    /// cannot be written that skips the check.
+    /// </summary>
+    public async Task<TicketActor> ResolveAsync(Ticket ticket, CancellationToken ct = default)
+    {
+        var actor = await ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        // Customers reach a ticket only as its opener (the overload below enforces that), so the
+        // boundary is a staff-side rule; a super admin holds every key and passes on Has().
+        if (actor.IsStaff && !TicketWorkspace.Contains(ticket, actor.UserId, actor.Has(PermissionKeys.TicketViewAll)))
+            throw new ForbiddenException("ticket.out_of_scope",
+                "This ticket is outside your workspace.");
+        return actor;
+    }
+
+    private async Task<TicketActor> ResolveAsync(Guid ticketCompanyId, Guid ticketOpenedById, CancellationToken ct = default)
     {
         var userId = currentUser.UserId
             ?? throw new UnauthorizedException("auth.required", "Authentication required.");

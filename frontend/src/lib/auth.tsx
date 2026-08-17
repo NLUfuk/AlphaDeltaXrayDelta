@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { api, tokens } from './api'
+import { api, refreshAccessToken, tokens } from './api'
 
 export type User = {
   id: string
@@ -16,8 +16,9 @@ type AuthContext = {
   loading: boolean
   impersonating: boolean
   login: (email: string, password: string) => Promise<void>
-  /** Adopts a session minted elsewhere (customer code verification returns the same AuthResult). */
-  adoptSession: (result: { accessToken: string; refreshToken: string; user: User }) => void
+  /** Adopts a session minted elsewhere (customer code verification returns the same body). The refresh
+   *  token is not in it — the server already set that cookie on the same response. */
+  adoptSession: (result: { accessToken: string; user: User }) => void
   /** Re-mints the token after a membership change (company opened/deleted). */
   refreshSession: () => Promise<void>
   logout: () => Promise<void>
@@ -27,10 +28,16 @@ type AuthContext = {
 
 const Ctx = createContext<AuthContext | null>(null)
 
+/** The server's non-secret "you are impersonating" marker (Api/Auth/SessionCookie.cs). The tokens
+ *  themselves are httpOnly and unreadable here, so this is how the strip survives a page reload. */
+function markedAsImpersonating() {
+  return document.cookie.split('; ').some((c) => c.startsWith('crm.imp='))
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [impersonating, setImpersonating] = useState(tokens.isImpersonating())
+  const [impersonating, setImpersonating] = useState(markedAsImpersonating)
   const queryClient = useQueryClient()
 
   // Every cached query belongs to whoever the token belonged to when it was fetched. Anything that
@@ -45,24 +52,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(next)
   }
 
-  // Hydrate from an existing token on load (survives refresh); a failed /me clears the session.
+  // Boot: the access token is gone (it only ever lived in memory), so ask the refresh cookie for a new
+  // one. This IS the "am I logged in?" check now — no cookie, or an expired one, answers 401 and the
+  // app starts logged out. The user object comes back on the same response, so no extra /me round trip.
   useEffect(() => {
-    if (!tokens.access()) return setLoading(false)
-    api
-      .get<User>('/auth/me')
-      .then((r) => setUser(r.data))
+    refreshAccessToken<User>()
+      .then((s) => setUser(s.user))
       .catch(() => tokens.clear())
       .finally(() => setLoading(false))
   }, [])
 
   async function login(email: string, password: string) {
     const { data } = await api.post('/auth/login', { email, password })
-    tokens.set(data.accessToken, data.refreshToken)
+    tokens.set(data.accessToken)
     setIdentity(data.user)
   }
 
-  function adoptSession(result: { accessToken: string; refreshToken: string; user: User }) {
-    tokens.set(result.accessToken, result.refreshToken)
+  function adoptSession(result: { accessToken: string; user: User }) {
+    tokens.set(result.accessToken)
     setIdentity(result.user)
   }
 
@@ -71,41 +78,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // memberships, so calling this right after the mutation makes the new company usable immediately
   // instead of after the ~15 min token lifetime.
   async function refreshSession() {
-    const rt = tokens.refresh()
-    if (!rt) return
-    const { data } = await api.post('/auth/refresh', { refreshToken: rt })
-    tokens.set(data.accessToken, data.refreshToken)
-    setUser(data.user)
+    const session = await refreshAccessToken<User>().catch(() => null)
+    if (session) setUser(session.user)
   }
 
   async function logout() {
-    const rt = tokens.refresh()
-    if (rt) await api.post('/auth/logout', { refreshToken: rt }).catch(() => {})
+    // The server revokes the token and clears the cookies; nothing to clear here but the access token
+    // in memory. Best-effort: a failed call must still end the session on this device.
+    await api.post('/auth/logout').catch(() => {})
     tokens.clear()
     setImpersonating(false)
     setIdentity(null)
   }
 
   // Super admin steps into another user's session (backend gates SuperAdmin-only, blocks super-admin
-  // targets, and audit-logs the real actor). The real admin session is snapshotted so they can return.
+  // targets, and audit-logs the real actor). The snapshot of the real admin's session is taken and
+  // rolled back server-side now — the browser has no refresh token to save or restore.
   async function impersonate(userId: string) {
-    tokens.beginImpersonation()
-    try {
-      const { data } = await api.post('/auth/impersonate', { userId })
-      tokens.set(data.accessToken, data.refreshToken)
-      setIdentity(data.user)
-      setImpersonating(true)
-    } catch (e) {
-      tokens.endImpersonation() // roll back the snapshot on failure
-      throw e
-    }
+    const { data } = await api.post('/auth/impersonate', { userId })
+    tokens.set(data.accessToken)
+    setIdentity(data.user)
+    setImpersonating(true)
   }
 
   async function stopImpersonation() {
-    if (!tokens.endImpersonation()) return
+    if (!impersonating) return
+    const { data } = await api.post('/auth/stop-impersonation')
+    tokens.set(data.accessToken)
     setImpersonating(false)
-    const { data } = await api.get<User>('/auth/me')
-    setIdentity(data)
+    setIdentity(data.user)
   }
 
   return (

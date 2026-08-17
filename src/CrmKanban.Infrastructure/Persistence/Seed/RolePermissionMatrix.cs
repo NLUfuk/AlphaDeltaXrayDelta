@@ -16,12 +16,15 @@ public static class RolePermissionMatrix
         [RoleType.SuperAdmin] = [.. PermissionKeys.All],
         [RoleType.Admin] =
         [
-            PermissionKeys.TicketView, PermissionKeys.TicketEdit, PermissionKeys.TicketDelete,
+            PermissionKeys.TicketView, PermissionKeys.TicketViewAll, PermissionKeys.TicketEdit, PermissionKeys.TicketDelete,
             PermissionKeys.TicketAssign, PermissionKeys.TicketStatusChange, PermissionKeys.TicketValue,
             PermissionKeys.CommentInternal,
             PermissionKeys.ReportCompany, PermissionKeys.SettingsManage, PermissionKeys.StatusManage,
             PermissionKeys.UserInvite, PermissionKeys.PermissionAssign,
         ],
+        // Personel deliberately does NOT get TicketViewAll: their default view is their own workspace —
+        // tickets assigned to them plus the ones they opened. An admin who wants a particular person to
+        // see the whole pipeline grants it to them individually on the permissions screen.
         [RoleType.Personel] =
         [
             PermissionKeys.TicketView, PermissionKeys.TicketStatusChange, PermissionKeys.CommentInternal,

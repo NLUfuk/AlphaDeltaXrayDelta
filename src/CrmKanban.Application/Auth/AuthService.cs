@@ -180,13 +180,24 @@ public sealed class AuthService(
         var now = clock.UtcNow;
         if (!token.IsActive(now))
         {
-            // Reuse of a revoked/expired token → likely theft. Revoke the whole chain for this user.
-            if (token.RevokedAt is not null)
+            // A revoked token that WAS replaced, presented moments after the rotation, is a benign race
+            // rather than theft: since the access token stopped being persisted, every tab refreshes on
+            // boot, so two tabs opened together hand in the same cookie microseconds apart. Treating the
+            // loser as reuse revoked the chain and logged the user out of both. Inside the grace window
+            // the caller is served from the replacement link instead. Everything else — an expired token,
+            // a revoked one with no replacement (logout, password change), or a stale one from outside
+            // the window — is still reuse and still revokes the whole chain.
+            var replacement = await BenignRotationRaceAsync(token, now, ct);
+            if (replacement is null)
             {
-                await RevokeAllAsync(token.UserId, now, ct);
-                await db.SaveChangesAsync(ct);
+                if (token.RevokedAt is not null)
+                {
+                    await RevokeAllAsync(token.UserId, now, ct);
+                    await db.SaveChangesAsync(ct);
+                }
+                throw new UnauthorizedException("auth.invalid_refresh", "Invalid refresh token.");
             }
-            throw new UnauthorizedException("auth.invalid_refresh", "Invalid refresh token.");
+            token = replacement;
         }
 
         var user = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Id == token.UserId, ct);
@@ -271,6 +282,21 @@ public sealed class AuthService(
         user.Anonymize();
         await RevokeAllAsync(userId, clock.UtcNow, ct);
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>The still-active token that replaced <paramref name="presented"/>, if presenting it now
+    /// is the multi-tab rotation race described in <see cref="AuthOptions.RefreshRotationGraceSeconds"/>
+    /// — otherwise null, which means "treat this as reuse". Requires all three: revoked, revoked inside
+    /// the window, and linked to a replacement that is itself still usable.</summary>
+    private async Task<RefreshToken?> BenignRotationRaceAsync(RefreshToken presented, DateTime now, CancellationToken ct)
+    {
+        if (presented.RevokedAt is not { } revokedAt || presented.ReplacedByTokenId is not { } replacementId)
+            return null;
+        if (now - revokedAt > TimeSpan.FromSeconds(_auth.RefreshRotationGraceSeconds))
+            return null;
+        var replacement = await db.RefreshTokens.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == replacementId, ct);
+        return replacement is not null && replacement.IsActive(now) ? replacement : null;
     }
 
     private async Task<AuthResult> IssueAsync(User user, CancellationToken ct, RefreshToken? rotatedFrom = null)

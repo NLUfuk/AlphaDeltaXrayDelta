@@ -104,9 +104,12 @@ public class AuthServiceTests
     [Fact]
     public async Task Reusing_a_rotated_token_revokes_the_whole_chain()
     {
-        var (svc, db, _) = Build(out _);
+        var (svc, db, clock) = Build(out _);
         var login = await svc.LoginAsync(new LoginRequest("u@x.io", "Passw0rd!"));
         await svc.RefreshAsync(new RefreshRequest(login.RefreshToken)); // rotates; old now revoked
+
+        // Past the rotation grace window, so this is a genuine replay and not the multi-tab race below.
+        clock.UtcNow = clock.UtcNow.AddSeconds(new AuthOptions().RefreshRotationGraceSeconds + 1);
 
         // Attacker replays the old, already-rotated token.
         var act = () => svc.RefreshAsync(new RefreshRequest(login.RefreshToken));
@@ -114,6 +117,43 @@ public class AuthServiceTests
 
         var active = await db.RefreshTokens.IgnoreQueryFilters().CountAsync(t => t.RevokedAt == null);
         active.Should().Be(0, "detecting reuse of a revoked token revokes every token in the chain");
+    }
+
+    /// <summary>
+    /// The access token is no longer persisted anywhere, so every tab refreshes when it boots and two
+    /// tabs opened together present the same cookie microseconds apart. Without a grace window the
+    /// second one looked exactly like theft and logged the user out of both — a self-inflicted denial
+    /// of service on the most ordinary user action there is.
+    /// </summary>
+    [Fact]
+    public async Task Replaying_a_just_rotated_token_is_served_not_treated_as_theft()
+    {
+        var (svc, db, _) = Build(out _);
+        var login = await svc.LoginAsync(new LoginRequest("u@x.io", "Passw0rd!"));
+        await svc.RefreshAsync(new RefreshRequest(login.RefreshToken)); // tab A rotates
+
+        // Tab B, same cookie, same instant.
+        var second = await svc.RefreshAsync(new RefreshRequest(login.RefreshToken));
+
+        second.AccessToken.Should().NotBeNullOrEmpty("the racing tab gets a working session");
+        second.RefreshToken.Should().NotBe(login.RefreshToken, "it is still a rotation, not a reissue of the old token");
+        var active = await db.RefreshTokens.IgnoreQueryFilters().CountAsync(t => t.RevokedAt == null);
+        active.Should().Be(1, "the chain survives — exactly one token is live");
+    }
+
+    /// <summary>The window is not a blanket amnesty: a token revoked with no replacement (logout,
+    /// password change) is reuse whenever it is presented, including one second later.</summary>
+    [Fact]
+    public async Task Replaying_a_logged_out_token_is_still_theft_even_immediately()
+    {
+        var (svc, db, _) = Build(out _);
+        var login = await svc.LoginAsync(new LoginRequest("u@x.io", "Passw0rd!"));
+        await svc.LogoutAsync(new RefreshRequest(login.RefreshToken)); // revoked, ReplacedByTokenId null
+
+        var act = () => svc.RefreshAsync(new RefreshRequest(login.RefreshToken));
+        await act.Should().ThrowAsync<UnauthorizedException>();
+
+        (await db.RefreshTokens.IgnoreQueryFilters().CountAsync(t => t.RevokedAt == null)).Should().Be(0);
     }
 
     [Fact]

@@ -126,7 +126,8 @@ public class MembershipRevocationTests
         var authz = new CrmKanban.Application.Tickets.TicketAuthorizationService(caller, new AllowAll(), db);
 
         // Not a member any more and not the opener → no relationship at all, so resolution must refuse.
-        var act = () => authz.ResolveAsync(revoked, ticketOpenedById: Guid.NewGuid());
+        var ticket = new CrmKanban.Domain.Entities.Ticket(revoked, "REV-1", Guid.NewGuid(), Guid.NewGuid(), "t", "b");
+        var act = () => authz.ResolveAsync(ticket);
 
         await act.Should().ThrowAsync<ForbiddenException>()
             .Where(e => e.Code == "ticket.forbidden", "per-record authorization must not read a soft-deleted membership as authority");

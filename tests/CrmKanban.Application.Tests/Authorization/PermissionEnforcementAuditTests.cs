@@ -56,6 +56,30 @@ public class PermissionEnforcementAuditTests
         }
     }
 
+    /// <summary>
+    /// The remaining Open/Closed hazard in this design, closed mechanically instead of by abstraction.
+    /// A new permission is "extension" everywhere it matters — it is a row in the seeded permission
+    /// table and a switch in the admin UI, no enforcement code branches on the key set — but declaring
+    /// one still means editing <see cref="PermissionKeys"/> in two spots: the const AND the
+    /// <see cref="PermissionKeys.All"/> list the seed reads. Omitting the second compiles, passes every
+    /// other test, and simply never creates the permission row, so the key can never be granted.
+    ///
+    /// <para>Building a catalog abstraction to remove the second edit would move Turkish UI text into
+    /// the domain to save one line. Making the omission fail the build is the smaller correct fix.</para>
+    /// </summary>
+    [Fact]
+    public void Every_declared_permission_constant_is_in_the_All_list_the_seed_reads()
+    {
+        var declared = typeof(PermissionKeys)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(f => f.FieldType == typeof(string))
+            .Select(f => (string)f.GetValue(null)!)
+            .ToList();
+
+        declared.Should().BeSubsetOf(PermissionKeys.All,
+            "a key missing from PermissionKeys.All is never seeded, so it can never be granted to anyone");
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

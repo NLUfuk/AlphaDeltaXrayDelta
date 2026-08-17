@@ -102,7 +102,7 @@ public class TicketViewPermissionTests
         var (companyId, _, _) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
 
-        var withView = await Query(options, staff, new Perms(PermissionKeys.TicketView)).ListAsync(new TicketListQuery());
+        var withView = await Query(options, staff, new Perms(PermissionKeys.TicketView, PermissionKeys.TicketViewAll)).ListAsync(new TicketListQuery());
         withView.Total.Should().Be(1, "the permission is what makes the board readable");
 
         var withoutView = await Query(options, staff, new Perms(PermissionKeys.TicketStatusChange)).ListAsync(new TicketListQuery());
@@ -131,7 +131,7 @@ public class TicketViewPermissionTests
         var (companyId, ticketId, _) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
 
-        var act = () => Query(options, staff, new Perms(PermissionKeys.TicketStatusChange)).GetDetailAsync(ticketId);
+        var act = () => Query(options, staff, new Perms(PermissionKeys.TicketStatusChange, PermissionKeys.TicketViewAll)).GetDetailAsync(ticketId);
 
         await act.Should().ThrowAsync<ForbiddenException>()
             .Where(e => e.Code == "ticket.permission_denied", "the detail is a read like any other");

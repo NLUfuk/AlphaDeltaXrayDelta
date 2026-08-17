@@ -82,7 +82,7 @@ public sealed class TicketCommandService(
     public async Task EditAsync(Guid ticketId, EditTicketRequest request, CancellationToken ct = default)
     {
         var ticket = await LoadAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketEdit);
 
         ticket.Edit(request.Title, request.Body);
@@ -93,7 +93,7 @@ public sealed class TicketCommandService(
     public async Task AssignAsync(Guid ticketId, AssignTicketRequest request, CancellationToken ct = default)
     {
         var ticket = await LoadAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketAssign);
 
         var old = ticket.AssignedToId;
@@ -118,7 +118,7 @@ public sealed class TicketCommandService(
     public async Task ChangeStatusAsync(Guid ticketId, ChangeStatusRequest request, CancellationToken ct = default)
     {
         var ticket = await LoadAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         TicketAuthorizationService.EnsureCanChangeStatus(actor, ticket);
 
         var from = await StatusAsync(ticket.StatusId, ct);
@@ -138,7 +138,7 @@ public sealed class TicketCommandService(
     public async Task ReopenAsync(Guid ticketId, ChangeStatusRequest request, CancellationToken ct = default)
     {
         var ticket = await LoadAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         if (actor.Kind != TicketActorKind.Customer)
             TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketStatusChange);
 
@@ -153,7 +153,7 @@ public sealed class TicketCommandService(
     public async Task SetPriorityAsync(Guid ticketId, SetPriorityRequest request, CancellationToken ct = default)
     {
         var ticket = await LoadAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         // Priority is set by staff, not the customer (spec §18.17).
         if (actor.Kind == TicketActorKind.Customer)
             throw new ForbiddenException("ticket.priority_forbidden", "The customer cannot set priority.");
@@ -174,7 +174,7 @@ public sealed class TicketCommandService(
     public async Task SetValueAsync(Guid ticketId, SetTicketValueRequest request, CancellationToken ct = default)
     {
         var ticket = await LoadAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         if (actor.Kind == TicketActorKind.Customer)
             throw new ForbiddenException("ticket.value_forbidden", "The customer cannot set the value.");
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketValue);
@@ -199,7 +199,7 @@ public sealed class TicketCommandService(
     public async Task ApproveAsync(Guid ticketId, bool trustCustomer = false, CancellationToken ct = default)
     {
         var ticket = await LoadPendingAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketEdit);
 
         ticket.Approve();
@@ -222,7 +222,7 @@ public sealed class TicketCommandService(
     public async Task RejectAsync(Guid ticketId, CancellationToken ct = default)
     {
         var ticket = await LoadPendingAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketEdit);
 
         ticket.Reject();
@@ -233,7 +233,7 @@ public sealed class TicketCommandService(
     public async Task DeleteAsync(Guid ticketId, CancellationToken ct = default)
     {
         var ticket = await LoadAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketDelete);
 
         db.TicketEvents.Add(Event(ticket, actor.UserId, TicketEventType.Deleted, ticket.Number, null));

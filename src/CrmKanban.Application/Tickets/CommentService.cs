@@ -17,7 +17,7 @@ public sealed class CommentService(IAppDbContext db, TicketAuthorizationService 
     public async Task<Guid> AddAsync(Guid ticketId, AddCommentRequest request, CancellationToken ct = default)
     {
         var ticket = await LoadTicketAsync(ticketId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         TicketAuthorizationService.EnsureCanComment(actor, request.IsInternal);
 
         var comment = new Comment(ticket.CompanyId, ticketId, actor.UserId, request.Body, request.IsInternal);
@@ -38,7 +38,7 @@ public sealed class CommentService(IAppDbContext db, TicketAuthorizationService 
     public async Task EditAsync(Guid commentId, EditCommentRequest request, CancellationToken ct = default)
     {
         var (comment, ticket) = await LoadCommentAsync(commentId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         // Editing a comment (incl. a customer's) is an admin power gated by ticket.edit — spec §8/§18.2.
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketEdit);
 
@@ -51,7 +51,7 @@ public sealed class CommentService(IAppDbContext db, TicketAuthorizationService 
     public async Task DeleteAsync(Guid commentId, CancellationToken ct = default)
     {
         var (comment, ticket) = await LoadCommentAsync(commentId, ct);
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
         TicketAuthorizationService.EnsurePermission(actor, PermissionKeys.TicketEdit);
 
         db.Comments.Remove(comment); // soft delete via interceptor

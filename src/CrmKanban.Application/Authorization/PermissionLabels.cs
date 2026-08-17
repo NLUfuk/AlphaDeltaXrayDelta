@@ -16,6 +16,7 @@ public static class PermissionLabels
     private static readonly IReadOnlyDictionary<string, string> Keys = new Dictionary<string, string>
     {
         ["ticket.view"] = "Talepleri görüntüle",
+        ["ticket.view.all"] = "Şirketin tüm taleplerini görüntüle",
         ["ticket.edit"] = "Talep düzenle",
         ["ticket.delete"] = "Talep sil",
         ["ticket.assign"] = "Talep ata",
@@ -35,7 +36,13 @@ public static class PermissionLabels
     {
         ["ticket.view"] =
             "Şirketin taleplerini okur: kanban panosu, talep listesi, talep detayı ve onay kuyruğu. " +
-            "Kapatılırsa bu şirketin hiçbir talebini göremez; kendi açtığı talepleri görmeye devam eder.",
+            "Kapatılırsa bu şirketin hiçbir talebini göremez; kendi açtığı talepleri görmeye devam eder. " +
+            "Hangi talepleri gördüğünü 'Şirketin tüm taleplerini görüntüle' belirler.",
+        ["ticket.view.all"] =
+            "Kapalıyken kullanıcı yalnız KENDİ çalışma alanını görür: kendisine atanmış talepler ve " +
+            "kendi açtığı talepler. Panoda, listede, aramada ve talep detayında geçerlidir — filtre " +
+            "sunucuda uygulanır, ekranda gizlenmez. Açıkken şirketin tüm taleplerini görür ve onay " +
+            "kuyruğunu kullanabilir. Yazma yetkileri (düzenle/ata/durum) de bu sınırın dışına çıkamaz.",
         ["ticket.edit"] =
             "Talebin başlığını ve içeriğini düzenler, yorumları düzenleyip siler, onay kuyruğundaki " +
             "talebi onaylar veya reddeder.",

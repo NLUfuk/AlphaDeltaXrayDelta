@@ -63,7 +63,7 @@ public sealed class AttachmentService(
         var ticket = await db.Tickets.IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.Id == ticketId && t.DeletedAt == null, ct)
             ?? throw new NotFoundException("ticket.not_found", "Ticket not found.");
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
 
         var limits = await LimitsAsync(ct);
         using var buffer = await BufferCappedAsync(content, limits.MaxSizeBytes, ct);
@@ -163,7 +163,7 @@ public sealed class AttachmentService(
             .FirstOrDefaultAsync(t => t.Id == attachment.TicketId && t.DeletedAt == null, ct)
             ?? throw new NotFoundException("ticket.not_found", "Ticket not found.");
 
-        var actor = await authz.ResolveAsync(ticket.CompanyId, ticket.OpenedById, ct);
+        var actor = await authz.ResolveAsync(ticket, ct);
 
         if (!actor.IsStaff && attachment.CommentId is { } commentId)
         {

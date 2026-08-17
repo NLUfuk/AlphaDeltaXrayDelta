@@ -38,6 +38,7 @@ const ERRORS: Record<string, string> = {
   'auth.impersonate_forbidden': 'Kullanıcı kimliğine bürünme yalnızca süper admin yetkisidir.',
   'auth.impersonate_inactive': 'Pasif bir hesabın kimliğine bürünülemez.',
   'auth.impersonate_superadmin': 'Başka bir süper adminin kimliğine bürünülemez.',
+  'auth.not_impersonating': 'Dönülecek bir yönetici oturumu yok. Lütfen tekrar giriş yapın.',
   'captcha.failed': 'Doğrulama başarısız. Lütfen tekrar deneyin.',
 
   // --- invitation / account activation ---
@@ -124,6 +125,7 @@ const ERRORS: Record<string, string> = {
   'ticket.not_found': 'Talep bulunamadı.',
   'ticket.forbidden': 'Bu talebe erişiminiz yok.',
   'ticket.view_forbidden': 'Bu şirketin taleplerini görüntüleyemezsiniz.',
+  'ticket.out_of_scope': 'Bu talep sizin çalışma alanınızda değil. Yalnızca size atanan ve sizin açtığınız talepleri görebilirsiniz.',
   'ticket.create_forbidden': 'Bu şirkette talep oluşturamazsınız.',
   'ticket.permission_denied': 'Bu işlem için yetkiniz yok.',
   'ticket.assignee_not_member': 'Atanan kişi bu şirketin üyesi değil.',

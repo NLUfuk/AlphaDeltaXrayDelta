@@ -95,7 +95,7 @@ public class TicketValueVisibilityTests
         var (companyId, ticketId) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
 
-        var detail = await QueriesFor(options, staff, PermissionKeys.TicketView).GetDetailAsync(ticketId);
+        var detail = await QueriesFor(options, staff, PermissionKeys.TicketView, PermissionKeys.TicketViewAll).GetDetailAsync(ticketId);
 
         detail.EstimatedValue.Should().BeNull();
         detail.ActualValue.Should().BeNull();
@@ -111,7 +111,7 @@ public class TicketValueVisibilityTests
         var (companyId, ticketId) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
 
-        var detail = await QueriesFor(options, staff, PermissionKeys.TicketView, PermissionKeys.TicketValue)
+        var detail = await QueriesFor(options, staff, PermissionKeys.TicketView, PermissionKeys.TicketViewAll, PermissionKeys.TicketValue)
             .GetDetailAsync(ticketId);
 
         detail.EstimatedValue.Should().Be(145_000m);
@@ -128,7 +128,7 @@ public class TicketValueVisibilityTests
         var (companyId, _) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
 
-        var columns = await QueriesFor(options, staff, PermissionKeys.TicketView)
+        var columns = await QueriesFor(options, staff, PermissionKeys.TicketView, PermissionKeys.TicketViewAll)
             .KanbanAsync(companyId, new TicketListQuery());
 
         columns.SelectMany(c => c.Tickets).Should().ContainSingle()
@@ -143,7 +143,7 @@ public class TicketValueVisibilityTests
         var (companyId, _) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
 
-        var columns = await QueriesFor(options, staff, PermissionKeys.TicketView, PermissionKeys.TicketValue)
+        var columns = await QueriesFor(options, staff, PermissionKeys.TicketView, PermissionKeys.TicketViewAll, PermissionKeys.TicketValue)
             .KanbanAsync(companyId, new TicketListQuery());
 
         columns.SelectMany(c => c.Tickets).Should().ContainSingle()
@@ -160,7 +160,7 @@ public class TicketValueVisibilityTests
         var (companyId, _) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
 
-        var page = await QueriesFor(options, staff, PermissionKeys.TicketView).ListAsync(new TicketListQuery());
+        var page = await QueriesFor(options, staff, PermissionKeys.TicketView, PermissionKeys.TicketViewAll).ListAsync(new TicketListQuery());
 
         page.Items.Should().ContainSingle().Which.Value.Should().BeNull();
     }
@@ -175,7 +175,7 @@ public class TicketValueVisibilityTests
         var (companyId, ticketId) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
         var db = new CrmDbContext(options, staff);
-        var perms = new Perms(PermissionKeys.TicketView, PermissionKeys.TicketEdit); // edit, but not value
+        var perms = new Perms(PermissionKeys.TicketView, PermissionKeys.TicketViewAll, PermissionKeys.TicketEdit); // edit, but not value
         var authz = new TicketAuthorizationService(staff, perms, db);
         var commands = new TicketCommandService(db, authz, staff, new FixedClock(), new Application.Settings.SettingsService(db, staff));
 
@@ -194,7 +194,7 @@ public class TicketValueVisibilityTests
         var (companyId, ticketId) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
         var db = new CrmDbContext(options, staff);
-        var perms = new Perms(PermissionKeys.TicketView, PermissionKeys.TicketValue);
+        var perms = new Perms(PermissionKeys.TicketView, PermissionKeys.TicketViewAll, PermissionKeys.TicketValue);
         var authz = new TicketAuthorizationService(staff, perms, db);
         var commands = new TicketCommandService(db, authz, staff, new FixedClock(), new Application.Settings.SettingsService(db, staff));
 
@@ -215,7 +215,7 @@ public class TicketValueVisibilityTests
         var (companyId, ticketId) = await SeedAsync(options, staffId);
         var staff = new Staff(staffId, companyId);
         var db = new CrmDbContext(options, staff);
-        var authz = new TicketAuthorizationService(staff, new Perms(PermissionKeys.TicketView, PermissionKeys.TicketValue), db);
+        var authz = new TicketAuthorizationService(staff, new Perms(PermissionKeys.TicketView, PermissionKeys.TicketViewAll, PermissionKeys.TicketValue), db);
         var commands = new TicketCommandService(db, authz, staff, new FixedClock(), new Application.Settings.SettingsService(db, staff));
 
         await commands.SetValueAsync(ticketId, new SetTicketValueRequest(100m, null));

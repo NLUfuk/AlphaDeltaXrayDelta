@@ -1,44 +1,21 @@
 import axios, { AxiosError } from 'axios'
 
-// ---- token storage (localStorage; single owner so auth.tsx and interceptors agree) ----
-// ponytail: localStorage is XSS-readable; fine for v1, move to httpOnly cookie if the threat model tightens.
-const ACCESS = 'crm.access'
-const REFRESH = 'crm.refresh'
-// While a super admin is impersonating, the real admin session is snapshotted here so they can return.
-const ORIG_ACCESS = 'crm.orig.access'
-const ORIG_REFRESH = 'crm.orig.refresh'
+// ---- access token: memory only ----
+// Both tokens used to live in localStorage. That meant a 14-day refresh token, readable by any script
+// that reached this page and by anyone who opened DevTools, and it survived closing the browser. Now
+// the refresh token is an httpOnly cookie the server sets (see Api/Auth/SessionCookie.cs) — this file
+// never sees it — and the access token lives in this variable, so a tab reload drops it and the app
+// asks /auth/refresh for a new one. Worst case for an injected script is the minutes left on one
+// access token; it cannot mint another after the tab closes.
+let accessToken: string | null = null
 
 export const tokens = {
-  access: () => localStorage.getItem(ACCESS),
-  refresh: () => localStorage.getItem(REFRESH),
-  set: (access: string, refresh: string) => {
-    localStorage.setItem(ACCESS, access)
-    localStorage.setItem(REFRESH, refresh)
+  access: () => accessToken,
+  set: (access: string) => {
+    accessToken = access
   },
   clear: () => {
-    localStorage.removeItem(ACCESS)
-    localStorage.removeItem(REFRESH)
-    localStorage.removeItem(ORIG_ACCESS)
-    localStorage.removeItem(ORIG_REFRESH)
-  },
-
-  isImpersonating: () => !!localStorage.getItem(ORIG_ACCESS),
-  // Snapshot the current (real admin) session once — a nested impersonate must not clobber the snapshot.
-  beginImpersonation: () => {
-    if (localStorage.getItem(ORIG_ACCESS)) return
-    localStorage.setItem(ORIG_ACCESS, localStorage.getItem(ACCESS) ?? '')
-    localStorage.setItem(ORIG_REFRESH, localStorage.getItem(REFRESH) ?? '')
-  },
-  // Restore the snapshotted admin session; returns false if there was none.
-  endImpersonation: () => {
-    const a = localStorage.getItem(ORIG_ACCESS)
-    const r = localStorage.getItem(ORIG_REFRESH)
-    localStorage.removeItem(ORIG_ACCESS)
-    localStorage.removeItem(ORIG_REFRESH)
-    if (!a || !r) return false
-    localStorage.setItem(ACCESS, a)
-    localStorage.setItem(REFRESH, r)
-    return true
+    accessToken = null
   },
 }
 
@@ -53,9 +30,27 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Refresh once on 401, then retry the original request. A failed refresh clears tokens; the router's
+/** The session body every auth endpoint now returns. No refreshToken field: it went out as a cookie. */
+export type Session<TUser = unknown> = { accessToken: string; accessTokenExpiresAt: string; user: TUser }
+
+/** Asks the server for a new access token. Sends no token itself — the refresh token rides along as an
+ *  httpOnly cookie the browser attaches on its own. Single-flight: concurrent 401s share one call, so
+ *  the rotation is not raced from within this tab. Rejects (401) when there is no usable cookie, which
+ *  is also how app startup finds out there is no session. */
+export function refreshAccessToken<TUser = unknown>(): Promise<Session<TUser>> {
+  refreshing ??= api
+    .post<Session<TUser>>('/auth/refresh')
+    .then((res) => {
+      tokens.set(res.data.accessToken)
+      return res.data
+    })
+    .finally(() => (refreshing = null))
+  return refreshing as Promise<Session<TUser>>
+}
+
+// Refresh once on 401, then retry the original request. A failed refresh clears the token; the router's
 // protected layout redirects to /login on the next render.
-let refreshing: Promise<string> | null = null
+let refreshing: Promise<Session> | null = null
 
 api.interceptors.response.use(
   (r) => r,
@@ -65,19 +60,10 @@ api.interceptors.response.use(
     const isAuthCall = url.includes('/auth/login') || url.includes('/auth/refresh')
 
     if (error.response?.status === 401 && original && !isAuthCall && !(original as { _retried?: boolean })._retried) {
-      const rt = tokens.refresh()
-      if (!rt) return Promise.reject(toApiError(error))
       try {
-        refreshing ??= api
-          .post('/auth/refresh', { refreshToken: rt })
-          .then((res) => {
-            tokens.set(res.data.accessToken, res.data.refreshToken)
-            return res.data.accessToken as string
-          })
-          .finally(() => (refreshing = null))
-        const access = await refreshing
+        const session = await refreshAccessToken()
         ;(original as { _retried?: boolean })._retried = true
-        original.headers!.Authorization = `Bearer ${access}`
+        original.headers!.Authorization = `Bearer ${session.accessToken}`
         return api(original)
       } catch {
         tokens.clear()

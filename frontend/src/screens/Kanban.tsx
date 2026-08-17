@@ -1,55 +1,77 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useCompanies, useMembers } from '../lib/admin'
+import { useMembers } from '../lib/admin'
 import { ALL_COMPANIES, useActiveCompany } from '../lib/company'
 import { errorText, PRIORITIES, priority as priorityOf, statusCategory } from '../lib/messages'
-import { useChangeStatus, useCreateTicket, useKanban, useModeration, useStatuses, type KanbanColumn, type KanbanFilters } from '../lib/tickets'
-import { Alert, Button, Icon, Input, LoadError, Loading, PickCompany, Select, Textarea } from '../ui/primitives'
-import { CustomerLink } from '../ui/CustomerLink'
+import { useChangeStatus, useCreateTicket, useKanban, useModeration, useStatuses, type KanbanFilters } from '../lib/tickets'
+import { Alert, Button, Icon, Input, LoadError, Loading, Modal, PickCompany, Select, Textarea } from '../ui/primitives'
 import { TicketCard } from '../ui/TicketCard'
 
 // Kanban board (spec §17.8) — the opportunity pool. Card drag = status change → same server rules
-// (§12). Native HTML5 DnD, no library. On mobile the columns stack vertically (Tailwind `max-md`),
-// the required list fallback. Filters (search / assignee / priority) map onto the backend
-// TicketListQuery the endpoint already binds. Layout follows Odoo's o_kanban_group: colored column
-// head with a count, a priority progress bar, and an inline quick-create per column.
+// (§12). Native HTML5 DnD, no library.
+//
+// Layout: side-by-side columns that scroll horizontally. Faz 36 had replaced this with a wrapping
+// vertical grid for one concrete reason — HTML5 drag does not auto-scroll its container, so a column
+// past the right edge was physically undroppable — and the grid solved that by making the board grow
+// downwards instead, which reviewers read (correctly) as the wrong shape for a pipeline. The columns
+// are back and the original problem is fixed at its source: `edgeScroll` below pans the board while a
+// dragged card hovers near an edge.
+//
+// The screen deliberately carries less than it used to. The customer link block moved to Şirketler
+// (it is company configuration, not daily board work), "Sütunları yönet" was a duplicate of the
+// sidebar's Sütunlar entry and is gone, the per-column inline create form was replaced by one dialog,
+// and the assignee/priority filters sit behind a toggle so the default board is a board.
 export default function Kanban() {
   const companyId = useActiveCompany()
   const [filters, setFilters] = useState<KanbanFilters>({})
+  const [showFilters, setShowFilters] = useState(false)
   const { data: columns, isLoading, error } = useKanban(companyId, filters)
   const { data: members } = useMembers(companyId)
-  const { data: companies } = useCompanies()
   const { data: pending } = useModeration(companyId)
   const { data: statuses } = useStatuses(companyId)
   const changeStatus = useChangeStatus(companyId)
   const create = useCreateTicket(companyId)
   const [drag, setDrag] = useState<{ id: string; fromStatusId: string } | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
+  /** Which column the create dialog will drop the new ticket into; null = dialog closed. */
   const [composeIn, setComposeIn] = useState<string | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
-  // One box open at a time: the open one spans the full row, so two open at once would push the rest
-  // of the board off the first screen — the problem this layout exists to solve.
-  const [expanded, setExpanded] = useState<string | null>(null)
 
-  const company = companies?.find((c) => c.id === companyId)
+  const board = useRef<HTMLDivElement>(null)
+  const scrollDir = useRef(0)
+  const raf = useRef<number | null>(null)
+
   const memberName = (id: string | null) => members?.find((m) => m.userId === id)?.name
 
   if (companyId === ALL_COMPANIES) return <PickCompany what="Pano" />
   if (!companyId) return <p className="text-muted">Bu kullanıcı bir şirkete bağlı değil (kanban için şirket gerekli).</p>
   if (error) return <LoadError error={error} what="Pano" />
 
+  // One rAF loop reading a direction ref, rather than a timer per edge: dragover fires at most every
+  // ~350ms and stops firing entirely when the pointer is held still, so driving the pan from the event
+  // itself would stutter and then stall exactly when the user is waiting to reach the last column.
+  function pump() {
+    const el = board.current
+    if (el && scrollDir.current !== 0) el.scrollLeft += scrollDir.current * 14
+    raf.current = scrollDir.current === 0 ? null : requestAnimationFrame(pump)
+  }
+
+  function edgeScroll(clientX: number | null) {
+    const el = board.current
+    if (!el || clientX === null) {
+      scrollDir.current = 0
+      return
+    }
+    const { left, right } = el.getBoundingClientRect()
+    const EDGE = 90 // px from either end that counts as "asking to pan"
+    scrollDir.current = clientX < left + EDGE ? -1 : clientX > right - EDGE ? 1 : 0
+    if (scrollDir.current !== 0 && raf.current === null) raf.current = requestAnimationFrame(pump)
+  }
+
   function clearDrag() {
     setDrag(null)
     setOverId(null)
-  }
-
-  // The compose form only exists inside an expanded box, so opening it has to expand that box too.
-  // Both entry points (header "Yeni" and the per-column "+") go through here — the header one used to
-  // set composeIn alone and therefore did nothing at all once Faz 36 made boxes collapsible.
-  function openCompose(statusId: string) {
-    setCreateError(null)
-    setExpanded(statusId)
-    setComposeIn((cur) => (cur === statusId ? null : statusId))
+    edgeScroll(null)
   }
 
   // A drag is the board's version of the status dropdown, so it obeys the same transition graph the
@@ -68,20 +90,28 @@ export default function Kanban() {
     clearDrag()
   }
 
-  async function quickCreate(column: KanbanColumn, values: { title: string; body: string; priority?: number }) {
+  function openCompose(statusId: string) {
+    setCreateError(null)
+    setComposeIn(statusId)
+  }
+
+  async function submitCompose(values: { title: string; body: string; priority?: number }) {
+    if (!composeIn) return
     setCreateError(null)
     try {
       // The backend always starts a ticket in the pool column; only a card added elsewhere is moved.
       const initial = columns?.[0]?.statusId
-      await create.mutateAsync({
-        ...values,
-        targetStatusId: column.statusId === initial ? undefined : column.statusId,
-      })
+      await create.mutateAsync({ ...values, targetStatusId: composeIn === initial ? undefined : composeIn })
       setComposeIn(null)
     } catch (err) {
       setCreateError(errorText(err))
     }
   }
+
+  const firstColumn = columns?.[0]?.statusId
+  const filtered = !!filters.assignedToId || filters.priority !== undefined
+  const emptyBoard = columns && columns.length > 0 && columns.every((c) => c.tickets.length === 0)
+    && !filters.search && !filtered
 
   return (
     <div className="space-y-4">
@@ -89,85 +119,81 @@ export default function Kanban() {
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-semibold text-ink">Fırsat havuzu</h1>
           <Button
-            onClick={() => { const first = columns?.[0]?.statusId; if (first) openCompose(first) }}
+            onClick={() => firstColumn && openCompose(firstColumn)}
             disabled={!columns?.length}
             className="gap-1.5"
           >
-            <Icon name="plus" />Yeni
+            <Icon name="plus" />Yeni talep
           </Button>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          {pending && pending.length > 0 && (
-            <Link to="/moderation" className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-700 ring-1 ring-amber-200">
-              <Icon name="inbox-arrow-down-outline" />{pending.length} onay bekliyor
-            </Link>
-          )}
-          <Link to="/admin/columns" className="flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-muted hover:text-ink">
-            <Icon name="view-column-outline" />Sütunları yönet
+        {/* Kept despite the simplification pass: a count of requests waiting on a human is a
+            notification, not a feature. The sidebar's "Onay kutusu" entry carries no number. */}
+        {pending && pending.length > 0 && (
+          <Link to="/moderation" className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700 ring-1 ring-amber-200">
+            <Icon name="inbox-arrow-down-outline" />{pending.length} onay bekliyor
           </Link>
-        </div>
+        )}
       </header>
 
-      {company && <CustomerLink companyId={company.id} companyName={company.name} />}
-
       <div className="flex flex-wrap items-center gap-2">
-        <div className="w-56">
+        <div className="w-64">
           <Input
             placeholder="Ara (no / başlık)…"
             value={filters.search ?? ''}
             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
           />
         </div>
-        <Select
-          value={filters.assignedToId ?? ''}
-          onChange={(e) => setFilters((f) => ({ ...f, assignedToId: e.target.value || undefined }))}
+        <button
+          onClick={() => setShowFilters((s) => !s)}
+          aria-expanded={showFilters}
+          className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors ${
+            filtered ? 'border-primary bg-primary/5 text-primary' : 'border-line text-muted hover:text-ink'
+          }`}
         >
-          <option value="">Atanan: herkes</option>
-          {members?.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
-        </Select>
-        <Select
-          value={filters.priority ?? ''}
-          onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value === '' ? undefined : Number(e.target.value) }))}
-        >
-          <option value="">Öncelik: tümü</option>
-          {PRIORITIES.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
-        </Select>
-        {(filters.search || filters.assignedToId || filters.priority !== undefined) && (
+          <Icon name="filter-variant" />Filtrele{filtered && ' (açık)'}
+        </button>
+        {showFilters && (
+          <>
+            <Select
+              value={filters.assignedToId ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, assignedToId: e.target.value || undefined }))}
+            >
+              <option value="">Atanan: herkes</option>
+              {members?.map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
+            </Select>
+            <Select
+              value={filters.priority ?? ''}
+              onChange={(e) => setFilters((f) => ({ ...f, priority: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            >
+              <option value="">Öncelik: tümü</option>
+              {PRIORITIES.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
+            </Select>
+          </>
+        )}
+        {(filters.search || filtered) && (
           <button onClick={() => setFilters({})} className="text-sm text-muted hover:text-ink">Temizle</button>
         )}
       </div>
 
       {isLoading && <Loading />}
-      {createError && <Alert>{createError}</Alert>}
-
-      {/* First-run guidance. Only when the board is genuinely empty — with a filter on, "hiç kart yok"
-          means the filter matched nothing, and telling that person how to start would be nonsense. */}
-      {columns && columns.length > 0 && columns.every((c) => c.tickets.length === 0)
-        && !filters.search && !filters.assignedToId && filters.priority === undefined && (
-        <EmptyBoard onNew={() => { const first = columns[0]?.statusId; if (first) openCompose(first) }} />
-      )}
       {/* A rejected move (permission, or a graph the client read before an admin changed it) left the
           card snapping back with no explanation. */}
       {changeStatus.isError && <Alert>{errorText(changeStatus.error)}</Alert>}
+      {emptyBoard && <EmptyBoard onNew={() => firstColumn && openCompose(firstColumn)} />}
 
-      {/* Box grid, not side-by-side columns. The old layout was a fixed-width horizontal strip
-          (w-72 × N inside overflow-x-auto): with 6 statuses only the first four fit, and because
-          HTML5 drag does not auto-scroll its container, the off-screen ones were unreachable — you
-          physically could not drop a card there. A wrapping grid puts every status on screen, so
-          every status is a reachable drop target. Cards stay draggable and a collapsed box is still
-          a drop target, so moving a ticket never needs the box to be open. */}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3">
+      <div
+        ref={board}
+        // The pan is driven from the board, not from each column: the pointer sitting past the last
+        // visible column is over the container, not over any column, which is precisely the case that
+        // used to be unreachable.
+        onDragOver={(e) => edgeScroll(e.clientX)}
+        onDragLeave={() => edgeScroll(null)}
+        className="flex gap-3 overflow-x-auto pb-2"
+      >
         {columns?.map((col) => {
           const cat = statusCategory(col.category)
           const color = col.color || cat.color
           const active = overId === col.statusId
-          const open = expanded === col.statusId
-          const preview = col.tickets.slice(0, 3)
-          const hidden = col.tickets.length - preview.length
-          // The drop signal belongs on the card area, not the whole box. Ringing the entire <section>
-          // lit up its header and its existing cards along with it, which testers read as "the board
-          // is dragging all of them, not the one I picked up". Inset ring = no layout shift.
-          const bodyClass = `space-y-2 p-2 ${active ? 'bg-primary/5 ring-2 ring-inset ring-primary/40' : ''}`
           return (
             <section
               key={col.statusId}
@@ -176,22 +202,14 @@ export default function Kanban() {
               onDragOver={(e) => { if (canDrop(col.statusId)) { e.preventDefault(); setOverId(col.statusId) } }}
               onDragLeave={() => setOverId((cur) => (cur === col.statusId ? null : cur))}
               onDrop={() => drop(col.statusId)}
-              className={`flex flex-col overflow-hidden rounded-xl border bg-canvas transition-colors ${
-                open ? 'col-span-full' : ''
-              } ${active ? 'border-primary' : 'border-line'}`}
+              className={`flex w-72 shrink-0 flex-col overflow-hidden rounded-xl border bg-canvas transition-colors ${
+                active ? 'border-primary' : 'border-line'
+              }`}
             >
-              <div className="h-1" style={{ backgroundColor: color }} />
-              <div className="border-b border-line bg-surface px-3 py-2.5">
+              <div className="h-1 shrink-0" style={{ backgroundColor: color }} />
+              <div className="shrink-0 border-b border-line bg-surface px-3 py-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => setExpanded(open ? null : col.statusId)}
-                    className="flex min-w-0 items-center gap-1.5 text-left"
-                    title={open ? 'Daralt' : 'Genişlet'}
-                    aria-expanded={open}
-                  >
-                    <Icon name={open ? 'chevron-down' : 'chevron-right'} className="shrink-0 text-muted" />
-                    <span className="truncate text-sm font-semibold text-ink">{col.statusName}</span>
-                  </button>
+                  <span className="truncate text-sm font-semibold text-ink">{col.statusName}</span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="rounded-full bg-canvas px-2 text-xs text-muted">{col.tickets.length}</span>
                     <button
@@ -206,68 +224,41 @@ export default function Kanban() {
                 <PriorityBar tickets={col.tickets} />
               </div>
 
-              {open ? (
-                <div className={bodyClass}>
-                  {composeIn === col.statusId && (
-                    <QuickCreate
-                      busy={create.isPending}
-                      onCancel={() => setComposeIn(null)}
-                      onCreate={(values) => quickCreate(col, values)}
-                    />
-                  )}
-                  {/* Expanded box spans the full row, so lay the cards out across it instead of
-                      leaving one narrow column of cards under a very wide header. */}
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-2">
-                    {col.tickets.map((t) => (
-                      <TicketCard
-                        key={t.id}
-                        ticket={t}
-                        assigneeName={memberName(t.assignedToId)}
-                        dragging={drag?.id === t.id}
-                        onDragStart={() => setDrag({ id: t.id, fromStatusId: col.statusId })}
-                        onDragEnd={clearDrag}
-                      />
-                    ))}
-                  </div>
-                  {col.tickets.length === 0 && composeIn !== col.statusId && (
-                    <p className="px-2 py-6 text-center text-xs text-muted">Boş</p>
-                  )}
-                </div>
-              ) : (
-                <div className={bodyClass}>
-                  {preview.map((t) => (
-                    <TicketCard
-                      key={t.id}
-                      ticket={t}
-                      assigneeName={memberName(t.assignedToId)}
-                      dragging={drag?.id === t.id}
-                      onDragStart={() => setDrag({ id: t.id, fromStatusId: col.statusId })}
-                      onDragEnd={clearDrag}
-                    />
-                  ))}
-                  {hidden > 0 && (
-                    <button
-                      onClick={() => setExpanded(col.statusId)}
-                      className="w-full rounded-md py-1.5 text-xs text-muted hover:bg-surface hover:text-primary"
-                    >
-                      +{hidden} daha…
-                    </button>
-                  )}
-                  {col.tickets.length === 0 && (
-                    <p className="px-2 py-6 text-center text-xs text-muted">Boş</p>
-                  )}
-                </div>
-              )}
+              {/* The drop signal belongs on the card area, not the whole box. Ringing the entire
+                  <section> lit up its header and its existing cards along with it, which testers read
+                  as "the board is dragging all of them". Inset ring = no layout shift. */}
+              <div
+                className={`min-h-24 flex-1 space-y-2 overflow-y-auto p-2 ${
+                  active ? 'bg-primary/5 ring-2 ring-inset ring-primary/40' : ''
+                }`}
+              >
+                {col.tickets.map((t) => (
+                  <TicketCard
+                    key={t.id}
+                    ticket={t}
+                    assigneeName={memberName(t.assignedToId)}
+                    dragging={drag?.id === t.id}
+                    onDragStart={() => setDrag({ id: t.id, fromStatusId: col.statusId })}
+                    onDragEnd={clearDrag}
+                  />
+                ))}
+                {col.tickets.length === 0 && <p className="px-2 py-6 text-center text-xs text-muted">Boş</p>}
+              </div>
             </section>
           )
         })}
       </div>
+
+      <Modal open={composeIn !== null} onClose={() => setComposeIn(null)} title="Yeni talep">
+        {createError && <div className="mb-3"><Alert>{createError}</Alert></div>}
+        <ComposeForm busy={create.isPending} onCancel={() => setComposeIn(null)} onCreate={submitCompose} />
+      </Modal>
     </div>
   )
 }
 
 /// What to do with an empty board. The columns are already drawn above it, so this is the missing
-/// half: where tickets come FROM. Three real actions, no tour and no dismiss state to persist — the
+/// half: where tickets come FROM. Two real actions, no tour and no dismiss state to persist — the
 /// card disappears the moment the first ticket exists, which is exactly when it stops being useful.
 function EmptyBoard({ onNew }: { onNew: () => void }) {
   return (
@@ -276,9 +267,8 @@ function EmptyBoard({ onNew }: { onNew: () => void }) {
         <Icon name="rocket-launch-outline" className="text-primary" />Pano boş — buradan başlayın
       </h2>
       <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-muted">
-        <li>Yukarıdaki <b>müşteri bağlantısını</b> kopyalayıp müşterinize gönderin; açtığı talepler bu havuza düşer.</li>
-        <li><b>+ Yeni</b> ile kendiniz talep açın (ya da bir sütunun <b>+</b> düğmesiyle doğrudan o aşamaya).</li>
-        <li><b>Sütunları yönet</b>'ten aşamaları kendi sürecinize göre adlandırın.</li>
+        <li><b>Yeni talep</b> ile kendiniz talep açın (ya da bir sütunun <b>+</b> düğmesiyle doğrudan o aşamaya).</li>
+        <li><b>Şirketler</b> sayfasındaki müşteri bağlantısını müşterinize gönderin; açtığı talepler bu havuza düşer.</li>
       </ol>
       <p className="mt-3 text-xs text-muted">Kartı bir sütundan diğerine sürüklemek talebin statüsünü değiştirir.</p>
       <Button onClick={onNew} className="mt-3 gap-1.5"><Icon name="plus" />İlk talebi aç</Button>
@@ -306,8 +296,8 @@ function PriorityBar({ tickets }: { tickets: { priority: number }[] }) {
   )
 }
 
-/// Inline quick create inside a column (Odoo's "+"): title, a short body and priority.
-function QuickCreate({
+/// The create form, now the dialog's only content instead of something rendered inside a column.
+function ComposeForm({
   busy,
   onCreate,
   onCancel,
@@ -327,25 +317,25 @@ function QuickCreate({
         e.preventDefault()
         onCreate({ ...values, priority: values.priority === '' ? undefined : values.priority })
       }}
-      className="space-y-2 rounded-md border border-primary/40 bg-surface p-2 shadow-card"
+      className="space-y-3"
     >
       <Input autoFocus required placeholder="Başlık" value={values.title}
         onChange={(e) => setValues({ ...values, title: e.target.value })} />
       <Textarea
-        required rows={2} placeholder="Kısa açıklama"
+        required rows={4} placeholder="Kısa açıklama"
         value={values.body} onChange={(e) => setValues({ ...values, body: e.target.value })}
       />
-      <div className="flex items-center gap-2">
-        <Select
-          className="flex-1 py-1.5"
-          value={values.priority}
-          onChange={(e) => setValues({ ...values, priority: e.target.value === '' ? '' : Number(e.target.value) })}
-        >
-          <option value="">Öncelik: varsayılan</option>
-          {PRIORITIES.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
-        </Select>
-        <Button type="submit" disabled={busy} className="px-3 py-1.5">{busy ? '…' : 'Ekle'}</Button>
-        <button type="button" onClick={onCancel} className="text-sm text-muted hover:text-ink">Vazgeç</button>
+      <Select
+        className="w-full"
+        value={values.priority}
+        onChange={(e) => setValues({ ...values, priority: e.target.value === '' ? '' : Number(e.target.value) })}
+      >
+        <option value="">Öncelik: varsayılan</option>
+        {PRIORITIES.map((p, i) => <option key={i} value={i}>{p.label}</option>)}
+      </Select>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="secondary" onClick={onCancel}>Vazgeç</Button>
+        <Button type="submit" disabled={busy}>{busy ? 'Ekleniyor…' : 'Talebi aç'}</Button>
       </div>
     </form>
   )
