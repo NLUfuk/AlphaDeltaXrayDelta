@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type {
   ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes,
 } from 'react'
@@ -166,28 +166,49 @@ export function Modal({
   width?: string
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  // Offset from the centred resting position; the drag ref holds the pointer-to-offset delta so the
+  // card does not jump to the cursor on grab.
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  const drag = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
     // showModal() throws if it is already open, and close() on a closed dialog is a no-op that still
     // fires nothing — so both directions are guarded rather than called blindly on every render.
-    if (open && !dialog.open) dialog.showModal()
+    if (open && !dialog.open) { setPos({ x: 0, y: 0 }); dialog.showModal() }
     else if (!open && dialog.open) dialog.close()
   }, [open])
 
   return (
     <dialog
       ref={ref}
+      // Tailwind's preflight zeroes the margin the UA sheet uses to centre a modal dialog, hence m-auto.
+      style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
       // Fires for Esc and for the form's method="dialog" alike, so the parent's state cannot drift
       // out of sync with what is actually on screen.
       onClose={onClose}
       // The dialog element itself is the full-viewport box; the visible card is the div inside it.
       // A click that lands on the element and not on the card is therefore a backdrop click.
       onClick={(e) => { if (e.target === ref.current) onClose() }}
-      className={`w-[calc(100%-2rem)] ${width} rounded-xl border border-line bg-surface p-0 text-ink shadow-lg backdrop:bg-black/40`}
+      className={`m-auto w-[calc(100%-2rem)] ${width} rounded-xl border border-line bg-surface p-0 text-ink shadow-lg backdrop:bg-black/40`}
     >
-      <div className="flex items-center justify-between border-b border-line px-5 py-3">
+      <div
+        // The header doubles as the drag handle. Pointer capture keeps the move/up events coming here
+        // even when the cursor outruns the card, so a fast drag cannot strand it mid-move.
+        onPointerDown={(e) => {
+          if ((e.target as HTMLElement).closest('button')) return
+          drag.current = { x: e.clientX - pos.x, y: e.clientY - pos.y }
+          e.currentTarget.setPointerCapture(e.pointerId)
+        }}
+        onPointerMove={(e) => {
+          if (!drag.current) return
+          setPos({ x: e.clientX - drag.current.x, y: e.clientY - drag.current.y })
+        }}
+        onPointerUp={() => { drag.current = null }}
+        onPointerCancel={() => { drag.current = null }}
+        className="flex cursor-move touch-none select-none items-center justify-between border-b border-line px-5 py-3"
+      >
         <h2 className="text-sm font-semibold text-ink">{title}</h2>
         <button
           type="button"

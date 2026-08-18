@@ -28,6 +28,8 @@
     <!-- API / hosting -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageVersion Include="Microsoft.OpenApi" Version="2.11.0" />
+    <!-- API explorer UI over /openapi/v1.json. .NET 10 ships no Swagger UI; dev-only (see Program.cs). -->
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.20" />
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
     <!-- DI abstractions (used by Application/Infrastructure) -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />

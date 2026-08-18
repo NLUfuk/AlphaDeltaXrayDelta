@@ -11,6 +11,7 @@ using CrmKanban.Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Scalar.AspNetCore;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -172,6 +173,9 @@ try
     if (app.Environment.IsDevelopment())
     {
         app.MapOpenApi();
+        // Browsable API explorer at /scalar over the doc MapOpenApi serves. Dev only: it lists every
+        // endpoint including admin ones, and prod already serves the SPA from wwwroot at /.
+        app.MapScalarApiReference();
     }
 
     // Single-site hosting (spec §17.8, deploy): when the SPA build is copied into wwwroot (MonsterASP.NET),
