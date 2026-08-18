@@ -228,7 +228,17 @@ function UserGroup({ title, icon, count, children }: { title: string; icon: stri
       </h2>
       {/* Wide table scrolls inside the card instead of pushing the page sideways. */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[46rem] text-sm">
+        {/* Each company group is its own table, so with the default auto layout every card sized its
+            columns from its own rows — "Tür"/"Durum" landed at a different x in every card. table-fixed
+            + colgroup makes the widths content-independent, hence identical across all groups. */}
+        <table className="w-full min-w-[46rem] table-fixed text-sm">
+          <colgroup>
+            <col className="w-[32%]" />{/* Kullanıcı */}
+            <col className="w-[12%]" />{/* Tür */}
+            <col className="w-[14%]" />{/* Durum */}
+            <col className="w-[32%]" />{/* İlişkili firmalar */}
+            <col className="w-[10%]" />{/* eylemler */}
+          </colgroup>
           <thead className="text-left text-xs uppercase tracking-wide text-muted">
             <tr className="border-b border-line">
               <th className="px-4 py-2 font-medium">Kullanıcı</th>
@@ -266,7 +276,9 @@ function UserTableRow({
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
             {u.name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
           </span>
-          <span>
+          {/* min-w-0 + break-words: the column is a fixed share now, so a long address has to wrap
+              inside the cell instead of painting over the "Tür" column next to it. */}
+          <span className="min-w-0 break-words">
             <span className="block font-medium text-ink">{u.name}</span>
             <span className="block text-xs text-muted">{u.email}</span>
           </span>
