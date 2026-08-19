@@ -1,4 +1,4 @@
-using CrmKanban.Application.Files;
+﻿using CrmKanban.Application.Files;
 using CrmKanban.Application.Tickets;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -152,14 +152,17 @@ public sealed class TicketsController(
     /// <summary>Attach a file to a ticket. The bytes proxy through the API (like the public path) so the
     /// browser never reaches the storage host and the real size is measured server-side. Authorized
     /// against the ticket. Capped at 11 MB (10 MB limit + envelope).</summary>
+    /// <param name="commentId">Optional: the message this file was sent with, so the ticket screen can
+    /// show it inside that message instead of in a separate pile.</param>
     [HttpPost("{id:guid}/attachments")]
     [RequestSizeLimit(11 * 1024 * 1024)]
-    public async Task<ActionResult<AttachmentDto>> UploadAttachment(Guid id, IFormFile file, CancellationToken ct)
+    public async Task<ActionResult<AttachmentDto>> UploadAttachment(
+        Guid id, IFormFile file, [FromQuery] Guid? commentId, CancellationToken ct)
     {
         if (file is null || file.Length == 0)
             return BadRequest(new { code = "attachment.empty", message = "No file was provided." });
         await using var stream = file.OpenReadStream();
-        return Ok(await attachments.StoreTicketUploadAsync(id, file.FileName, file.ContentType, stream, ct));
+        return Ok(await attachments.StoreTicketUploadAsync(id, file.FileName, file.ContentType, stream, commentId, ct));
     }
 
     /// <summary>Stream a private attachment back through the API; authorized against the ticket (a

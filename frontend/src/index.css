@@ -36,6 +36,53 @@
   color-scheme: dark;
 }
 
+/* Extra themes (Faz 59). Each is nothing but the same tokens with other values, declared AFTER
+   `.dark` so a dark-family theme can refine it (equal specificity — the later rule wins). Cost: this
+   block of CSS. No JavaScript runs when a theme is picked beyond writing one attribute. */
+
+/* Gece mavisi — dark, but navy instead of near-black, with an indigo primary. */
+[data-theme='midnight'] {
+  --color-primary: #6d83f2;
+  --color-primary-hover: #8195f5;
+  --color-canvas: #0b1220;
+  --color-surface: #131c2e;
+  --color-ink: #e3e9f7;
+  --color-muted: #92a0bd;
+  --color-line: #24304a;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 16px -8px rgba(0, 0, 0, 0.6);
+  --shadow-sidebar: 6px 0 24px -18px #000;
+  color-scheme: dark;
+}
+
+/* Sıcak kum — light and warm; easier on the eyes than white under long daytime use. */
+[data-theme='sand'] {
+  --color-primary: #9a5b2c;
+  --color-primary-hover: #83491f;
+  --color-accent: #b8763c;
+  --color-canvas: #f6f1e7;
+  --color-surface: #fffdf8;
+  --color-ink: #33291d;
+  --color-muted: #7d7061;
+  --color-line: #e7ddcc;
+  --shadow-card: 0 1px 2px rgba(74, 57, 36, 0.05), 0 4px 16px -8px rgba(74, 57, 36, 0.18);
+  --shadow-sidebar: 6px 0 24px -18px #c9bba4;
+}
+
+/* Zümrüt — light with a green primary; the status colours stay as they are, so "kapandı" green never
+   competes with the brand green for meaning. */
+[data-theme='forest'] {
+  --color-primary: #0f7a5a;
+  --color-primary-hover: #0b6349;
+  --color-accent: #12a06f;
+  --color-canvas: #f1f6f3;
+  --color-surface: #ffffff;
+  --color-ink: #12241d;
+  --color-muted: #5f7a70;
+  --color-line: #dde9e3;
+  --shadow-card: 0 1px 2px rgba(15, 60, 45, 0.05), 0 4px 16px -8px rgba(15, 60, 45, 0.18);
+  --shadow-sidebar: 6px 0 24px -18px #a8c4b7;
+}
+
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink);

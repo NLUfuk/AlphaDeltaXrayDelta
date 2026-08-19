@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Common;
 using CrmKanban.Application.Tickets;
@@ -57,13 +57,23 @@ public sealed class AttachmentService(
     /// never has to reach the storage host, and the real size is measured here instead of trusting the
     /// client. Resolving the actor authorizes the caller's relationship to the ticket first; the file is
     /// stored, linked at ticket level, and the new row is returned.</summary>
+    /// <param name="commentId">The message this file was sent with, if any. A file picked in the
+    /// composer belongs to what was written, not to a separate pile — that is what makes the ticket
+    /// screen able to show it in the conversation. Must belong to this ticket.</param>
     public async Task<AttachmentDto> StoreTicketUploadAsync(
-        Guid ticketId, string fileName, string declaredContentType, Stream content, CancellationToken ct = default)
+        Guid ticketId, string fileName, string declaredContentType, Stream content,
+        Guid? commentId = null, CancellationToken ct = default)
     {
         var ticket = await db.Tickets.IgnoreQueryFilters()
             .FirstOrDefaultAsync(t => t.Id == ticketId && t.DeletedAt == null, ct)
             ?? throw new NotFoundException("ticket.not_found", "Ticket not found.");
         var actor = await authz.ResolveAsync(ticket, ct);
+
+        // A file may only join a message on THIS ticket — otherwise an id from another ticket would
+        // hang the file (and its notification) off a conversation the uploader may not even read.
+        var comment = commentId is null ? null : await db.Comments.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.Id == commentId && c.TicketId == ticketId && c.DeletedAt == null, ct)
+            ?? throw new NotFoundException("comment.not_found", "Comment not found.");
 
         var limits = await LimitsAsync(ct);
         using var buffer = await BufferCappedAsync(content, limits.MaxSizeBytes, ct);
@@ -78,11 +88,15 @@ public sealed class AttachmentService(
         buffer.Position = 0;
         await storage.PutAsync(key, buffer, contentType, ct);
 
-        var attachment = new Attachment(ticket.CompanyId, ticket.Id, commentId: null, key, Sanitize(fileName), contentType, size, actor.UserId);
+        var attachment = new Attachment(ticket.CompanyId, ticket.Id, comment?.Id, key, Sanitize(fileName), contentType, size, actor.UserId);
         db.Attachments.Add(attachment);
-        // Ticket-level uploads are never on an internal note, so notifying the opener is safe (spec §7,
-        // §14). The matrix removes the actor, so a customer attaching to their own ticket isn't self-mailed.
-        db.TicketEvents.Add(new TicketEvent(ticket.CompanyId, ticket.Id, actor.UserId, TicketEventType.AttachmentAdded, null, ticket.Number));
+        // AttachmentAdded notifies the opener (§7, §14) — which is right for a file on the ticket or on a
+        // public message, and WRONG for one on an internal note: the customer must not even learn that a
+        // file appeared there (spec §20). The note's own InternalNoteAdded event already told the staff
+        // who needed to know, so silence here loses nothing. The matrix removes the actor either way, so
+        // a customer attaching to their own ticket is not self-notified.
+        if (comment is not { IsInternal: true })
+            db.TicketEvents.Add(new TicketEvent(ticket.CompanyId, ticket.Id, actor.UserId, TicketEventType.AttachmentAdded, null, ticket.Number));
         await db.SaveChangesAsync(ct);
         return ToDto(attachment);
     }
@@ -147,8 +161,9 @@ public sealed class AttachmentService(
     /// <summary>Attachment as shown in the ticket detail. The caller has already been authorized for the
     /// ticket; internal-comment attachments must be filtered out for customers by the caller. Url is the
     /// API's own proxy download path (not a presigned storage URL) so it is always same-origin.</summary>
-    public static AttachmentDto ToDto(Attachment a) =>
-        new(a.Id, a.FileName, a.ContentType, a.Size, $"/api/tickets/attachments/{a.Id}/download");
+    public static AttachmentDto ToDto(Attachment a, string? uploadedByName = null) =>
+        new(a.Id, a.FileName, a.ContentType, a.Size, $"/api/tickets/attachments/{a.Id}/download",
+            a.CommentId, uploadedByName, a.CreatedAt);
 
     /// <summary>Authorized download (spec §12): resolve the caller against the ticket, deny a customer
     /// any file on an internal note, then stream the object back through the API. Caller disposes the

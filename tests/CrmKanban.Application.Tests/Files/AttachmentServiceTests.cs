@@ -1,4 +1,4 @@
-using CrmKanban.Application.Abstractions;
+﻿using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Common;
 using CrmKanban.Application.Files;
 using CrmKanban.Application.Tickets;
@@ -226,6 +226,92 @@ public class AttachmentServiceTests
         var dto = await svc.StoreTicketUploadAsync(ticket.Id, "teklif.pdf", "", new MemoryStream("%PDF-1.7"u8.ToArray()));
 
         dto.ContentType.Should().Be("application/pdf");
+    }
+
+    [Fact]
+    public async Task A_file_sent_with_a_message_is_attached_to_that_message()
+    {
+        var companyId = Guid.NewGuid();
+        var staffId = Guid.NewGuid();
+
+        await using var seed = NewDbShared(out var options, new FakeUser(Guid.NewGuid(), true));
+        var ticket = new Ticket(companyId, "ACME-1", Guid.NewGuid(), Guid.NewGuid(), "t", "b");
+        ticket.Assign(staffId); // workspace scope (Faz 55): a personel reaches the tickets that are theirs
+        seed.Tickets.Add(ticket);
+        seed.Memberships.Add(new Membership(staffId, companyId, RoleType.Personel));
+        var comment = new Comment(companyId, ticket.Id, staffId, "ekte gonderiyorum", isInternal: false);
+        seed.Comments.Add(comment);
+        await seed.SaveChangesAsync();
+
+        var db = new CrmDbContext(options, new FakeUser(staffId, false, companyId));
+        var authz = new TicketAuthorizationService(new FakeUser(staffId, false, companyId), new FakePermissionService(), db);
+        var svc = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(), Settings(db), Options.Create(Opt));
+
+        var dto = await svc.StoreTicketUploadAsync(
+            ticket.Id, "teklif.pdf", "application/pdf", new MemoryStream("%PDF-1.7 x"u8.ToArray()), comment.Id);
+
+        // The row — and therefore the ticket screen — knows which message the file belongs to.
+        dto.CommentId.Should().Be(comment.Id);
+        (await db.Attachments.IgnoreQueryFilters().CountAsync(a => a.CommentId == comment.Id)).Should().Be(1);
+        // A public message: the opener still hears about the file (spec §7).
+        (await db.TicketEvents.IgnoreQueryFilters()
+            .CountAsync(e => e.TicketId == ticket.Id && e.EventType == TicketEventType.AttachmentAdded)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_file_on_an_internal_note_records_no_event_so_the_customer_never_hears_of_it()
+    {
+        var companyId = Guid.NewGuid();
+        var staffId = Guid.NewGuid();
+
+        await using var seed = NewDbShared(out var options, new FakeUser(Guid.NewGuid(), true));
+        var ticket = new Ticket(companyId, "ACME-1", Guid.NewGuid(), Guid.NewGuid(), "t", "b");
+        ticket.Assign(staffId); // workspace scope (Faz 55): a personel reaches the tickets that are theirs
+        seed.Tickets.Add(ticket);
+        seed.Memberships.Add(new Membership(staffId, companyId, RoleType.Personel));
+        var note = new Comment(companyId, ticket.Id, staffId, "ic not", isInternal: true);
+        seed.Comments.Add(note);
+        await seed.SaveChangesAsync();
+
+        var db = new CrmDbContext(options, new FakeUser(staffId, false, companyId));
+        var authz = new TicketAuthorizationService(new FakeUser(staffId, false, companyId), new FakePermissionService(), db);
+        var svc = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(), Settings(db), Options.Create(Opt));
+
+        await svc.StoreTicketUploadAsync(
+            ticket.Id, "maliyet.pdf", "application/pdf", new MemoryStream("%PDF-1.7 x"u8.ToArray()), note.Id);
+
+        // AttachmentAdded notifies the opener. On an internal note that would tell the customer a file
+        // appeared on a conversation they cannot see (spec §20) — so no event is recorded at all.
+        (await db.TicketEvents.IgnoreQueryFilters()
+            .CountAsync(e => e.TicketId == ticket.Id && e.EventType == TicketEventType.AttachmentAdded)).Should().Be(0);
+        (await db.Attachments.IgnoreQueryFilters().CountAsync(a => a.CommentId == note.Id)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task A_file_cannot_be_hung_off_another_tickets_message()
+    {
+        var companyId = Guid.NewGuid();
+        var staffId = Guid.NewGuid();
+
+        await using var seed = NewDbShared(out var options, new FakeUser(Guid.NewGuid(), true));
+        var mine = new Ticket(companyId, "ACME-1", Guid.NewGuid(), Guid.NewGuid(), "t", "b");
+        mine.Assign(staffId);
+        var other = new Ticket(companyId, "ACME-2", Guid.NewGuid(), Guid.NewGuid(), "t2", "b2");
+        other.Assign(staffId);
+        seed.Tickets.AddRange(mine, other);
+        seed.Memberships.Add(new Membership(staffId, companyId, RoleType.Personel));
+        var elsewhere = new Comment(companyId, other.Id, staffId, "baska talebin mesaji", isInternal: false);
+        seed.Comments.Add(elsewhere);
+        await seed.SaveChangesAsync();
+
+        var db = new CrmDbContext(options, new FakeUser(staffId, false, companyId));
+        var authz = new TicketAuthorizationService(new FakeUser(staffId, false, companyId), new FakePermissionService(), db);
+        var svc = new AttachmentService(db, new FakeFileStorage(), authz, new FixedClock(), Settings(db), Options.Create(Opt));
+
+        var act = () => svc.StoreTicketUploadAsync(
+            mine.Id, "teklif.pdf", "application/pdf", new MemoryStream("%PDF-1.7 x"u8.ToArray()), elsewhere.Id);
+
+        await act.Should().ThrowAsync<NotFoundException>();
     }
 
     // Shared in-memory root so a second context sees seeded rows.

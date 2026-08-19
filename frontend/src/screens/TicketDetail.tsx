@@ -6,7 +6,7 @@ import { PRIORITIES, errorText, formatDateTime, priority, statusCategory } from 
 import {
   downloadAttachment, isImage, useAttachmentBlobUrl,
   useAddComment, useAssignTicket, useChangeTicketStatus, useDeleteTicket, useReopenTicket, useSetTicketPriority, useSetTicketValue, useStatuses, useTicket, useUploadAttachment,
-  type Attachment,
+  type Attachment, type TicketDetail as TicketDetailData,
 } from '../lib/tickets'
 import { Alert, Badge, Button, Card, Icon, Input, LoadError, Loading, Select as SelectBox } from '../ui/primitives'
 
@@ -25,6 +25,50 @@ function ImageThumb({ attachment }: { attachment: Attachment }) {
         className="h-24 w-24 rounded-md border border-line object-cover transition hover:border-primary" />
     </a>
   )
+}
+
+/** Files shown inside a message: images as thumbnails, everything else as a download line. */
+function AttachmentStrip({ items }: { items: Attachment[] }) {
+  if (items.length === 0) return null
+  const images = items.filter((a) => isImage(a.contentType))
+  const docs = items.filter((a) => !isImage(a.contentType))
+  return (
+    <div className="mt-2 space-y-2">
+      {images.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {images.map((a) => <ImageThumb key={a.id} attachment={a} />)}
+        </div>
+      )}
+      {docs.map((a) => (
+        <button
+          key={a.id}
+          type="button"
+          onClick={() => downloadAttachment(a.id, a.fileName)}
+          className="flex items-center gap-1 text-sm text-primary hover:underline"
+        >
+          <Icon name="download" />{a.fileName}
+          <span className="text-xs text-muted">({Math.max(1, Math.round(a.size / 1024))} KB)</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+type ThreadEntry = { key: string; at: string; comment?: TicketDetailData['comments'][number]; attachments: Attachment[] }
+
+/** Messages and stand-alone uploads merged into one time-ordered thread. A file sent with a message
+ *  rides inside it; a file added by itself is its own entry, named and timed like a message — which is
+ *  what "who added it, in which conversation" means on screen. */
+function timeline(ticket: TicketDetailData): ThreadEntry[] {
+  const entries: ThreadEntry[] = ticket.comments.map((c) => ({
+    key: c.id,
+    at: c.createdAt,
+    comment: c,
+    attachments: ticket.attachments.filter((a) => a.commentId === c.id),
+  }))
+  for (const a of ticket.attachments.filter((a) => !a.commentId))
+    entries.push({ key: a.id, at: a.createdAt, attachments: [a] })
+  return entries.sort((x, y) => +new Date(x.at) - +new Date(y.at))
 }
 
 export default function TicketDetail() {
@@ -46,6 +90,9 @@ export default function TicketDetail() {
   const reopen = useReopenTicket(id, ticket?.companyId)
   const [body, setBody] = useState('')
   const [internal, setInternal] = useState(false)
+  // Files picked in the composer, held until send so they can be attached to the message itself.
+  const [files, setFiles] = useState<File[]>([])
+  const [sendError, setSendError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   // Which terminal status the customer just asked for (4 Closed / 5 Cancelled), pending confirmation.
   const [confirmTo, setConfirmTo] = useState<number | null>(null)
@@ -74,15 +121,28 @@ export default function TicketDetail() {
   const statusOptions = statuses?.filter(
     (s) => s.id === ticket.statusId || current?.allowedTargetStatusIds.includes(s.id)) ?? []
 
-  function send(e: React.FormEvent) {
+  // A message and its files travel together: the comment is created first so the uploads can name it,
+  // which is what puts the file inside the message on this screen (and keeps a file on an internal note
+  // out of the customer's sight, server-side). Files with no text are still allowed — they land on the
+  // ticket itself and show up in the thread at their own time.
+  async function send(e: React.FormEvent) {
     e.preventDefault()
-    if (!body.trim()) return
-    addComment.mutate({ body, isInternal: internal }, { onSuccess: () => setBody('') })
+    const text = body.trim()
+    if (!text && files.length === 0) return
+    setSendError(null)
+    try {
+      const commentId = text ? await addComment.mutateAsync({ body: text, isInternal: internal }) : undefined
+      for (const file of files) await upload.mutateAsync({ file, commentId })
+      setBody('')
+      setFiles([])
+    } catch (err) {
+      setSendError(errorText(err))
+    }
   }
 
   function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) upload.mutate(file)
+    const picked = Array.from(e.target.files ?? [])
+    if (picked.length) setFiles((f) => [...f, ...picked])
     e.target.value = '' // allow re-selecting the same file
   }
 
@@ -228,76 +288,71 @@ export default function TicketDetail() {
         />
       )}
 
-      <Card className="p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted">Ekler</span>
-          <label className="inline-flex cursor-pointer items-center gap-1 text-sm text-primary">
-            <Icon name="paperclip" />
-            {upload.isPending ? 'Yükleniyor…' : 'Dosya ekle'}
-            <input type="file" accept={ACCEPT} className="hidden" onChange={pickFile} disabled={upload.isPending} />
-          </label>
-        </div>
-        {ticket.attachments.length === 0 ? (
-          <p className="text-sm text-muted">Ek yok.</p>
-        ) : (
-          <>
-            {ticket.attachments.some((a) => isImage(a.contentType)) && (
-              <div className="mb-3 flex flex-wrap gap-2">
-                {ticket.attachments.filter((a) => isImage(a.contentType)).map((a) => (
-                  <ImageThumb key={a.id} attachment={a} />
-                ))}
-              </div>
-            )}
-            <ul className="space-y-1">
-              {ticket.attachments.filter((a) => !isImage(a.contentType)).map((a) => (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    onClick={() => downloadAttachment(a.id, a.fileName)}
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    <Icon name="download" />{a.fileName}
-                    <span className="text-xs text-muted">({Math.max(1, Math.round(a.size / 1024))} KB)</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-        {/* The server distinguishes wrong type, size, count, empty file and content mismatch, and the
-            catalog has a sentence for each — "tip veya boyut" threw all five away and made the user
-            guess which one they hit. */}
-        {upload.isError && <div className="mt-1"><Alert>{errorText(upload.error)}</Alert></div>}
-        <p className="mt-2 text-xs text-muted">Görsel (PNG, JPG, WEBP) ve belge (PDF, TXT, DOC, DOCX) yükleyebilirsiniz.</p>
-      </Card>
-
+      {/* One thread, in time order: every message with the files that came with it, plus files added
+          on their own. The old screen had a separate "Ekler" box that said nothing about who attached
+          what or when — a file that answers a question belongs next to the question. */}
       <div className="space-y-2">
-        {ticket.comments.map((c) => (
-          <div key={c.id} className={`rounded-lg p-3 text-sm shadow-sm ${c.isInternal ? 'bg-amber-50 text-amber-900' : 'bg-surface text-ink'}`}>
-            <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-              <span className="font-semibold text-ink">{c.authorName}</span>
-              {c.isInternal && <Badge label="İç not" color="#d97706" />}
-              <span>{formatDateTime(c.createdAt)}</span>
-              {c.isEdited && <span>(düzenlendi)</span>}
+        {timeline(ticket).map((entry) =>
+          entry.comment ? (
+            <div key={entry.key} className={`rounded-lg p-3 text-sm shadow-sm ${entry.comment.isInternal ? 'bg-amber-50 text-amber-900' : 'bg-surface text-ink'}`}>
+              <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+                <span className="font-semibold text-ink">{entry.comment.authorName}</span>
+                {entry.comment.isInternal && <Badge label="İç not" color="#d97706" />}
+                <span>{formatDateTime(entry.comment.createdAt)}</span>
+                {entry.comment.isEdited && <span>(düzenlendi)</span>}
+              </div>
+              <p className="whitespace-pre-wrap">{entry.comment.body}</p>
+              <AttachmentStrip items={entry.attachments} />
             </div>
-            <p className="whitespace-pre-wrap">{c.body}</p>
-          </div>
-        ))}
-        {ticket.comments.length === 0 && <p className="text-sm text-muted">Henüz yorum yok.</p>}
+          ) : (
+            <div key={entry.key} className="rounded-lg bg-surface p-3 text-sm shadow-sm">
+              <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+                <Icon name="paperclip" />
+                <span className="font-semibold text-ink">{entry.attachments[0].uploadedByName ?? '—'}</span>
+                <span>dosya ekledi</span>
+                <span>{formatDateTime(entry.at)}</span>
+              </div>
+              <AttachmentStrip items={entry.attachments} />
+            </div>
+          ),
+        )}
+        {timeline(ticket).length === 0 && <p className="text-sm text-muted">Henüz mesaj yok.</p>}
       </div>
 
       <Card className="p-4">
         <form onSubmit={send} className="space-y-2">
-          <Input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Yorum yaz…" />
-          <div className="flex items-center justify-between">
-            {isStaff ? (
-              <label className="flex items-center gap-2 text-sm text-muted">
-                <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
-                İç not (müşteri görmez)
+          <Input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Mesaj yaz…" />
+          {files.length > 0 && (
+            <ul className="flex flex-wrap gap-2">
+              {files.map((f, i) => (
+                <li key={`${f.name}-${i}`} className="flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-xs text-muted">
+                  <Icon name="paperclip" />{f.name}
+                  <button type="button" onClick={() => setFiles((all) => all.filter((_, x) => x !== i))} aria-label="Kaldır">
+                    <Icon name="close" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {(sendError || upload.isError) && <Alert>{sendError ?? errorText(upload.error)}</Alert>}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-4">
+              <label className="inline-flex cursor-pointer items-center gap-1 text-sm text-primary">
+                <Icon name="paperclip" />Dosya ekle
+                <input type="file" accept={ACCEPT} multiple className="hidden" onChange={pickFile} />
               </label>
-            ) : <span />}
-            <Button type="submit" disabled={addComment.isPending}><Icon name="send" className="mr-1" />Gönder</Button>
+              {isStaff && (
+                <label className="flex items-center gap-2 text-sm text-muted">
+                  <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
+                  İç not (müşteri görmez)
+                </label>
+              )}
+            </div>
+            <Button type="submit" disabled={addComment.isPending || upload.isPending}>
+              <Icon name="send" className="mr-1" />{addComment.isPending || upload.isPending ? 'Gönderiliyor…' : 'Gönder'}
+            </Button>
           </div>
+          <p className="text-xs text-muted">Görsel (PNG, JPG, WEBP) ve belge (PDF, TXT, DOC, DOCX) ekleyebilirsiniz.</p>
         </form>
       </Card>
     </div>
