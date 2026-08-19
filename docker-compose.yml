@@ -90,6 +90,8 @@ services:
       App__PublicBaseUrl: ${APP_PUBLIC_BASE_URL:-http://localhost:8080}
       # Demo data (two companies, tickets across every column, sample customers). Off for real production.
       Seed__Demo: ${SEED_DEMO:-false}
+      Seed__DemoPassword: ${SEED_DEMO_PASSWORD:-}
+      Seed__ResetHours: ${SEED_RESET_HOURS:-0}
     expose:
       - "8080"
 
