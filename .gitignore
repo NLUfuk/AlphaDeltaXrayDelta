@@ -86,3 +86,6 @@ docs/
 *.png
 /PROGRESS.md
 crm*.txt
+
+# Incremental deploy zips built from the publish-new/publish-live diff. Build artifacts, not source.
+faz*-deploy.zip
