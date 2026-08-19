@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using CrmKanban.Application.Auth;
@@ -38,6 +38,7 @@ public static class DependencyInjection
 
         services.AddScoped<Settings.SettingsService>();
         services.AddScoped<Notifications.EmailTemplateService>();
+        services.AddScoped<Notifications.NotificationFeedService>();
         services.AddScoped<Reports.ReportService>();
         services.AddScoped<Kvkk.KvkkService>();
 

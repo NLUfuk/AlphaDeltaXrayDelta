@@ -1,4 +1,4 @@
-using CrmKanban.Domain.Common;
+﻿using CrmKanban.Domain.Common;
 
 namespace CrmKanban.Domain.Entities;
 
@@ -51,6 +51,14 @@ public sealed class User : Entity
     }
 
     public void ClearMustChangePassword() => MustChangePassword = false;
+
+    /// <summary>When the user last opened their in-app notification list; everything recorded after it
+    /// is unread, null means nothing has been read yet. ONE column instead of a read flag per
+    /// notification: the feed is derived from <see cref="TicketEvent"/> rows at read time (there is no
+    /// notification row to mark), so a timestamp is the whole state that needs storing.</summary>
+    public DateTime? NotificationsSeenAt { get; private set; }
+
+    public void MarkNotificationsSeen(DateTime now) => NotificationsSeenAt = now;
 
     public void Deactivate() => IsActive = false;
     public void Activate() => IsActive = true;

@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { NavLink, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ALL_COMPANIES, setActiveCompany, useActiveCompany, useSelectableCompanies } from '../lib/company'
+import { useNotifications } from '../lib/notifications'
 import { isDark, toggleTheme } from '../lib/theme'
 import { Logo, LogoMark } from '../ui/Logo'
 import { Button, Icon, Loading, Select } from '../ui/primitives'
 
 type NavItem = { to: string; label: string; icon: string; end?: boolean }
 const NAV: NavItem[] = [
-  { to: '/', label: 'Pano', icon: 'view-dashboard-outline', end: true },
+  { to: '/', label: 'Ana sayfa', icon: 'home-outline', end: true },
+  { to: '/pano', label: 'Pano', icon: 'view-dashboard-outline' },
   { to: '/moderation', label: 'Onay kutusu', icon: 'inbox-arrow-down-outline' },
   { to: '/admin/columns', label: 'Sütunlar', icon: 'view-column-outline' },
   { to: '/admin/form-fields', label: 'Form alanları', icon: 'form-select' },
@@ -24,7 +26,8 @@ const SUPER_NAV: NavItem[] = [
 ]
 // A customer (no company membership) only has their own tickets — the staff tabs would 403 anyway.
 const CUSTOMER_NAV: NavItem[] = [
-  { to: '/', label: 'Taleplerim', icon: 'ticket-outline', end: true },
+  { to: '/', label: 'Ana sayfa', icon: 'home-outline', end: true },
+  { to: '/taleplerim', label: 'Taleplerim', icon: 'ticket-outline' },
 ]
 
 function NavLinks({ items, onNavigate, collapsed }: { items: NavItem[]; onNavigate: () => void; collapsed: boolean }) {
@@ -80,6 +83,31 @@ function CompanySwitcher() {
         {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
     </label>
+  )
+}
+
+/** Unread counter in the navbar. Shares the home screen's query key, so opening the app costs one
+ * request for both and marking everything read updates the badge without a refetch of its own. The
+ * bell links to the home screen rather than opening a dropdown: the full list is already there, and a
+ * second copy of it would be a second place to keep correct. */
+function NotificationBell() {
+  const { data } = useNotifications()
+  const unread = data?.unreadCount ?? 0
+  return (
+    <NavLink
+      to="/"
+      end
+      className="relative grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas"
+      title={unread > 0 ? `${unread} yeni bildirim` : 'Bildirimler'}
+      aria-label={unread > 0 ? `${unread} yeni bildirim` : 'Bildirimler'}
+    >
+      <Icon name={unread > 0 ? 'bell-ring-outline' : 'bell-outline'} className="text-xl" />
+      {unread > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-white">
+          {unread > 9 ? '9+' : unread}
+        </span>
+      )}
+    </NavLink>
   )
 }
 
@@ -174,6 +202,7 @@ export default function Shell() {
             </div>
             <div className="flex items-center justify-end gap-3 text-sm text-muted">
               <CompanySwitcher />
+              <NotificationBell />
               <button
                 className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas"
                 onClick={() => setDark(toggleTheme())}

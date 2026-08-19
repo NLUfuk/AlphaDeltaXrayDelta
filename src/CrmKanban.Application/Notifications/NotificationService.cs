@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Common;
 using CrmKanban.Domain.Entities;
@@ -68,7 +68,7 @@ public sealed class NotificationService(
         {
             var entry = NotificationMatrix.For(ev.EventType);
             if (entry is not null && tickets.TryGetValue(ev.TicketId, out var ticket))
-                foreach (var uid in ResolveRecipients(entry, ev, ticket, adminsByCompany[ev.CompanyId]))
+                foreach (var uid in NotificationMatrix.Recipients(entry, ev, ticket, adminsByCompany[ev.CompanyId]))
                     if (seen.Add((uid, ev.TicketId, ev.EventType)))
                         planned.Add((uid, entry, ev, ticket));
 
@@ -129,26 +129,6 @@ public sealed class NotificationService(
 
         await db.SaveChangesAsync(ct);
         return pending.Count;
-    }
-
-    private static HashSet<Guid> ResolveRecipients(
-        MatrixEntry entry, TicketEvent ev, Ticket ticket, IEnumerable<Guid> companyAdmins)
-    {
-        var set = new HashSet<Guid>();
-        foreach (var slot in entry.Slots)
-        {
-            switch (slot)
-            {
-                case RecipientSlot.Opener: set.Add(ticket.OpenedById); break;
-                case RecipientSlot.Assignee: if (ticket.AssignedToId is { } a) set.Add(a); break;
-                case RecipientSlot.CompanyAdmin: foreach (var admin in companyAdmins) set.Add(admin); break;
-            }
-        }
-
-        set.Remove(ev.ActorId); // never mail someone their own action (§14 golden rule)
-        if (entry.NotifyOpenerEvenIfActor) set.Add(ticket.OpenedById); // …except the Created receipt
-        if (ev.EventType == TicketEventType.InternalNoteAdded) set.Remove(ticket.OpenedById); // hard privacy rule (§20)
-        return set;
     }
 
     /// <summary>Same event, two voices: the customer who opened the ticket reads "talebiniz…" (a template

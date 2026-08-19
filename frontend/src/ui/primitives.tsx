@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type {
   ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes, TextareaHTMLAttributes,
 } from 'react'
@@ -257,5 +258,39 @@ export function Badge({ label, color }: { label: string; color: string }) {
     <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: color }}>
       {label}
     </span>
+  )
+}
+
+/** A KPI tile: one number, its label, an optional sample note. Lived in Dashboard until the home
+ *  screen needed the same tiles; two real users, so it moved here rather than being copied. */
+export function Tile({ label, value, sub, accent, icon, to }: {
+  label: string; value: number | string; sub?: string; accent: string; icon: string; to?: string
+}) {
+  const body = (
+    <Card className="flex h-full items-center gap-3 p-4">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl" style={{ backgroundColor: `${accent}1a`, color: accent }}>
+        <Icon name={icon} />
+      </span>
+      <div>
+        <div className="text-2xl font-semibold text-ink tabular-nums">{value}</div>
+        <div className="text-xs text-muted">{label}</div>
+        {sub && <div className="text-[11px] text-muted/80">{sub}</div>}
+      </div>
+    </Card>
+  )
+  // A tile that stands for a list is a link to that list; one without a destination stays inert
+  // rather than pretending to be clickable.
+  return to ? <Link to={to} className="block transition hover:opacity-90">{body}</Link> : body
+}
+
+export function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <Card className="p-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
+        {action}
+      </div>
+      {children}
+    </Card>
   )
 }
