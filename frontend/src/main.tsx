@@ -11,6 +11,8 @@ initTheme() // apply saved/system dark mode before first paint
 import Login from './screens/Login'
 import Shell from './screens/Shell'
 import Home from './screens/Home'
+import Kanban from './screens/Kanban'
+import CustomerTickets from './screens/CustomerTickets'
 import TicketDetail from './screens/TicketDetail'
 import PublicForm from './screens/PublicForm'
 import CustomerAccess from './screens/CustomerAccess'
@@ -55,6 +57,10 @@ const router = createBrowserRouter([
         element: <Shell />,
         children: [
           { index: true, element: <Home /> },
+          // The board and the customer's ticket list used to BE the index route. They moved aside so
+          // the index could become the per-role home screen; both are one nav click away.
+          { path: 'pano', element: <Kanban /> },
+          { path: 'taleplerim', element: <CustomerTickets /> },
           { path: 'account', element: <Account /> },
           { path: 'tickets/:id', element: <TicketDetail /> },
           { path: 'moderation', element: <Moderation /> },

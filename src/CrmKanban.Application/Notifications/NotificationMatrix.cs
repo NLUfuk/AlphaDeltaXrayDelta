@@ -1,3 +1,4 @@
+﻿using CrmKanban.Domain.Entities;
 using CrmKanban.Domain.Enums;
 
 namespace CrmKanban.Application.Notifications;
@@ -101,6 +102,40 @@ public static class NotificationMatrix
                 [RecipientSlot.Assignee], StaffTemplate.Update,
                 NotifyOpenerEvenIfActor: false, Critical: false),
         };
+
+    /// <summary>
+    /// Who this event notifies, as user ids. The two §14 rules that must never be re-implemented at a
+    /// call site live HERE, next to the matrix they qualify: the actor never hears about their own
+    /// action (except the Created receipt, which the opener always gets), and the opener is hard-excluded
+    /// from an internal note even if some other slot pulled them in (spec §20 — defense in depth on top
+    /// of the matrix entry that already omits them).
+    /// Shared by the email fan-out (<c>NotificationService</c>) and the in-app feed
+    /// (<c>NotificationFeedService</c>): one rule, two surfaces.
+    /// </summary>
+    public static HashSet<Guid> Recipients(
+        MatrixEntry entry, TicketEvent ev, Ticket ticket, IEnumerable<Guid> companyAdmins)
+    {
+        var set = new HashSet<Guid>();
+        foreach (var slot in entry.Slots)
+        {
+            switch (slot)
+            {
+                case RecipientSlot.Opener: set.Add(ticket.OpenedById); break;
+                case RecipientSlot.Assignee: if (ticket.AssignedToId is { } a) set.Add(a); break;
+                case RecipientSlot.CompanyAdmin: foreach (var admin in companyAdmins) set.Add(admin); break;
+            }
+        }
+
+        set.Remove(ev.ActorId); // never notify someone of their own action (§14 golden rule)
+        if (entry.NotifyOpenerEvenIfActor) set.Add(ticket.OpenedById); // …except the Created receipt
+        if (ev.EventType == TicketEventType.InternalNoteAdded) set.Remove(ticket.OpenedById); // hard privacy rule (§20)
+        return set;
+    }
+
+    /// <summary>Event types whose recipients include the given slot. Lets a database query pre-filter
+    /// on "could this event ever reach me?" without restating the matrix in SQL.</summary>
+    public static TicketEventType[] TypesFor(RecipientSlot slot) =>
+        [.. Default.Where(kv => kv.Value.Slots.Contains(slot)).Select(kv => kv.Key)];
 
     // Deleted, Unassigned → nobody. (Unassigned would have to mail the *previous* assignee; the event
     // carries their id in OldValue but no recipient slot resolves to it — add one if it's ever wanted.)

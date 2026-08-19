@@ -242,3 +242,38 @@ export const PRIORITIES = [
 export function priority(value: number) {
   return PRIORITIES[value] ?? { label: '—', color: '#6b7280' }
 }
+
+// TicketEventType (backend enum, sparse on purpose — 3/7/10 notify nobody) → the line a notification
+// shows. The email pipeline renders its own Turkish wording server-side because a mail is read outside
+// the app; inside it, enums become words here, like status category and priority above.
+const TICKET_EVENTS: Record<number, { text: string; icon: string }> = {
+  0: { text: 'Talep oluşturuldu', icon: 'plus-circle-outline' },
+  1: { text: 'Durum değişti', icon: 'swap-horizontal' },
+  2: { text: 'Talep size atandı', icon: 'account-arrow-right-outline' },
+  4: { text: 'Yeni yorum', icon: 'comment-text-outline' },
+  5: { text: 'İç not eklendi', icon: 'note-text-outline' },
+  6: { text: 'Öncelik değişti', icon: 'flag-outline' },
+  8: { text: 'Talep yeniden açıldı', icon: 'restore' },
+  9: { text: 'Başlık/içerik güncellendi', icon: 'pencil-outline' },
+  11: { text: 'Talep onaylandı', icon: 'check-circle-outline' },
+  12: { text: 'Talep reddedildi', icon: 'close-circle-outline' },
+  13: { text: 'Yeni dosya eklendi', icon: 'paperclip' },
+  14: { text: 'Tutar güncellendi', icon: 'cash' },
+}
+
+/** What a notification says. `newValue` is appended only for a status change, where it carries the
+ *  company's own column name — every other event's value is either internal (a priority enum name) or
+ *  meaningless on one line. */
+export function ticketEvent(type: number, newValue?: string | null) {
+  const known = TICKET_EVENTS[type] ?? { text: 'Güncelleme', icon: 'bell-outline' }
+  return type === 1 && newValue ? { ...known, text: `Durum: ${newValue}` } : known
+}
+
+/** Time-of-day greeting, Turkish office hours. Pure and hour-based so it can be tested without a clock. */
+export function greeting(now: Date = new Date()): string {
+  const h = now.getHours()
+  if (h < 5) return 'İyi geceler'
+  if (h < 12) return 'Günaydın'
+  if (h < 18) return 'İyi günler'
+  return 'İyi akşamlar'
+}

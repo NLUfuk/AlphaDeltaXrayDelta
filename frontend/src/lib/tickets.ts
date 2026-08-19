@@ -77,6 +77,19 @@ export function useMyTickets() {
 // Companies the customer already works with (has a ticket at) — the only ones they can message from the
 // portal. First contact with a new company is that company's public form, not the portal.
 export type MyCompany = { id: string; name: string }
+/** Tickets currently assigned to one person — the staff home screen's "my work" list. Asks for the
+ *  server's maximum page so the counts on the tiles are the real ones; past that the board, not a
+ *  landing page, is the right tool.
+ *  ponytail: counts saturate at 100 assigned tickets; page through it only if that becomes normal. */
+export function useAssignedTickets(userId: string | undefined) {
+  return useQuery({
+    queryKey: ['tickets', 'assigned', userId],
+    enabled: !!userId,
+    queryFn: async () =>
+      (await api.get<Paged<TicketListItem>>('/tickets', { params: { assignedToId: userId, pageSize: 100 } })).data,
+  })
+}
+
 export function useMyCompanies() {
   return useQuery({
     queryKey: ['my-companies'],

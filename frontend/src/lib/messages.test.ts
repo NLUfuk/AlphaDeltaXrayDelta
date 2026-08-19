@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { AxiosError, AxiosHeaders } from 'axios'
 import { describe, expect, it } from 'vitest'
 import { toApiError } from './api'
-import { errorText, passwordProblem } from './messages'
+import { errorText, greeting, passwordProblem, ticketEvent } from './messages'
 
 function axiosErrorWith(status: number, data: unknown): AxiosError {
   const config = { headers: new AxiosHeaders() }
@@ -117,5 +117,38 @@ describe('special-character set matches the backend definition', () => {
       if (frontendAccepts !== backend.test(char)) disagreements.push(`${JSON.stringify(char)} (${code})`)
     }
     expect(disagreements).toEqual([])
+  })
+})
+
+describe('greeting', () => {
+  // The home screen's first line. Boundaries, not midpoints: 04:59 is still night, 05:00 is not.
+  it.each([
+    [0, 'İyi geceler'],
+    [4, 'İyi geceler'],
+    [5, 'Günaydın'],
+    [11, 'Günaydın'],
+    [12, 'İyi günler'],
+    [17, 'İyi günler'],
+    [18, 'İyi akşamlar'],
+    [23, 'İyi akşamlar'],
+  ])('says the right thing at %i:00', (hour, expected) => {
+    expect(greeting(new Date(2026, 7, 19, hour, 0, 0))).toBe(expected)
+  })
+})
+
+describe('ticketEvent', () => {
+  it('names the event type', () => {
+    expect(ticketEvent(4).text).toBe('Yeni yorum')
+    expect(ticketEvent(5).text).toBe('İç not eklendi')
+  })
+
+  it('shows the status name a company chose for its own column', () => {
+    expect(ticketEvent(1, 'Teklif Hazırlanıyor').text).toBe('Durum: Teklif Hazırlanıyor')
+    // A status change with no name still says something rather than rendering "Durum: undefined".
+    expect(ticketEvent(1, null).text).toBe('Durum değişti')
+  })
+
+  it('falls back for an event type it does not know (the enum is sparse and can grow)', () => {
+    expect(ticketEvent(99).text).toBe('Güncelleme')
   })
 })
