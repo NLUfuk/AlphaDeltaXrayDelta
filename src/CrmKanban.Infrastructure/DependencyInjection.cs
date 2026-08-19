@@ -1,4 +1,4 @@
-using CrmKanban.Application.Abstractions;
+﻿using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Auth;
 using CrmKanban.Domain.Entities;
 using CrmKanban.Infrastructure.Identity;
@@ -100,8 +100,11 @@ public static class DependencyInjection
         services.AddSingleton(new SeederOptions(
             SuperAdminEmail: config["SuperAdmin:Email"] ?? Environment.GetEnvironmentVariable("SUPERADMIN_EMAIL"),
             SuperAdminPassword: config["SuperAdmin:Password"] ?? Environment.GetEnvironmentVariable("SUPERADMIN_PASSWORD")));
+        // Demo environment settings (password, reset interval) — infrastructure, never UI-editable (§13).
+        services.Configure<DemoOptions>(config.GetSection("Seed"));
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<DevSeeder>();
+        services.AddScoped<DemoResetService>();
 
         return services;
     }

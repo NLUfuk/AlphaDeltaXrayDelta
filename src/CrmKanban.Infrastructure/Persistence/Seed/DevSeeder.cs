@@ -10,6 +10,7 @@ using CrmKanban.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CrmKanban.Infrastructure.Persistence.Seed;
 
@@ -37,9 +38,13 @@ public sealed class DevSeeder(
     DbContextOptions<CrmDbContext> options,
     PasswordHasher<User> passwordHasher,
     IFileStorage storage,
+    IOptions<DemoOptions> demoOptions,
     ILogger<DevSeeder> logger)
 {
-    private const string Password = "Demo!2026Pass";
+    /// <summary>The demo accounts' shared password, from configuration (<c>Seed:DemoPassword</c>).
+    /// It used to be a constant right here — and this repository is public, so that constant was a
+    /// working live credential for anyone who read it. Never put it back.</summary>
+    private string Password => demoOptions.Value.DemoPassword!;
 
     private sealed record Person(string Email, string First, string Last);
     // A tiny attachment: filename + text content the seeder actually stores, so the download round-trips.
@@ -59,12 +64,23 @@ public sealed class DevSeeder(
 
     public async Task SeedAsync(CancellationToken ct = default)
     {
+        // Fail closed. Without a configured password there is nothing sensible to give these accounts:
+        // inventing one would either be guessable (the old constant) or unknowable to the operator.
+        if (!demoOptions.Value.HasUsablePassword)
+        {
+            logger.LogWarning(
+                "Demo seeding skipped: Seed:DemoPassword is not set (or shorter than {Min} characters). "
+                + "Set it via environment (Seed__DemoPassword) to enable the demo tenants.",
+                DemoOptions.MinPasswordLength);
+            return;
+        }
+
         await using var db = new CrmDbContext(options, SystemCurrentUserService.System);
 
         var pdf = new FileSpec("teklif-formu.txt", "text/plain", "Demo teklif dokumani — birim fiyat ve teslim kosullari.");
         var photo = new FileSpec("hasar-tutanagi.txt", "text/plain", "Demo tutanak — hasar tespiti ve fotograf referanslari.");
 
-        await SeedCompanyAsync(db, "Anadolu Tekstil", "tekstil",
+        await SeedCompanyAsync(db, "Anadolu Tekstil", DemoTenants.Tekstil,
             admin: new Person("admin@tekstil.local", "Derya", "Yönetici"),
             personel: new Person("uretim@tekstil.local", "Pelin", "Üretim"),
             customers:
@@ -120,7 +136,7 @@ public sealed class DevSeeder(
                     [], Pending: true),
             ], ct);
 
-        await SeedCompanyAsync(db, "Ege Mermer", "mermer",
+        await SeedCompanyAsync(db, "Ege Mermer", DemoTenants.Mermer,
             admin: new Person("admin@mermer.local", "Kerem", "Yönetici"),
             personel: new Person("saha@mermer.local", "Burak", "Saha"),
             customers:
@@ -171,7 +187,7 @@ public sealed class DevSeeder(
         // A services firm, on a FORKED board: the two extra columns are the only place in the demo where
         // "her şirketin kendi panosu" is visible as data rather than as a claim. Money is on nearly every
         // ticket here — an agency prices per job, so the revenue report has a dense month to draw.
-        await SeedCompanyAsync(db, "Piksel Yazılım Ajansı", "yazilim",
+        await SeedCompanyAsync(db, "Piksel Yazılım Ajansı", DemoTenants.Yazilim,
             admin: new Person("admin@piksel.local", "Selin", "Yönetici"),
             personel: new Person("gelistirici@piksel.local", "Emre", "Geliştirici"),
             customers:
@@ -235,7 +251,7 @@ public sealed class DevSeeder(
 
         // Operations, global board, deliberately money-light: several tickets carry no amount at all so
         // the report's "tutarı girilmemiş" case is real data and not a hypothetical.
-        await SeedCompanyAsync(db, "Marmara Lojistik", "lojistik",
+        await SeedCompanyAsync(db, "Marmara Lojistik", DemoTenants.Lojistik,
             admin: new Person("admin@marmara.local", "Hakan", "Yönetici"),
             personel: new Person("operasyon@marmara.local", "İpek", "Operasyon"),
             customers:
@@ -285,6 +301,10 @@ public sealed class DevSeeder(
         await db.SaveChangesAsync(ct);
         await SeedCrossCuttingAsync(db, ct);
         await SeedHistoryAsync(db, ct);
+
+        // Runs on EVERY startup, not just the first: an environment seeded under the old constant is
+        // exactly the case this has to fix.
+        await RotateDemoPasswordsAsync(db, ct);
     }
 
     // The two workflow columns that make "Piksel Yazılım" a FORKED board rather than a copy of the
@@ -312,7 +332,7 @@ public sealed class DevSeeder(
     /// </summary>
     private async Task SeedCrossCuttingAsync(CrmDbContext db, CancellationToken ct)
     {
-        const string secondSlug = "tekstil-ihracat";
+        const string secondSlug = DemoTenants.TekstilIhracat;
         if (await db.Companies.IgnoreQueryFilters().AnyAsync(c => c.Slug == secondSlug, ct)) return;
 
         var admin = await db.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == "admin@tekstil.local", ct);
@@ -578,8 +598,10 @@ public sealed class DevSeeder(
             }
         }
 
-        logger.LogInformation("Dev demo data seeded: company '{Slug}' ({Name}), admin {Admin} (pwd {Pwd}).",
-            slug, name, adminUser.Email, Password);
+        // The password is a secret now — it is configured, not printed. Logs on shared hosting are
+        // readable from the control panel, which would undo the whole point of taking it out of the repo.
+        logger.LogInformation("Dev demo data seeded: company '{Slug}' ({Name}), admin {Admin}.",
+            slug, name, adminUser.Email);
     }
 
     /// <summary>
@@ -685,6 +707,55 @@ public sealed class DevSeeder(
         db.StatusTransitions.AddRange(transitions);
 
         return (rows.ToDictionary(s => s.Id), transitions, byDef);
+    }
+
+    /// <summary>
+    /// Brings every existing demo account onto the configured password.
+    ///
+    /// <para>This is the half that actually closes the hole. <see cref="SeedCompanyAsync"/> bails out as
+    /// soon as the company slug exists, so on an environment that was already seeded, changing the
+    /// password in configuration would change NOTHING — the old hashes would keep working and the fix
+    /// would be imaginary. (Faz 53 taught this exact lesson with the allowed file types: a code change
+    /// that never touches existing rows does not change the running system.)</para>
+    ///
+    /// <para>Who counts as a demo account: anyone who is a member of a demo tenant, or who opened a
+    /// ticket in one. Never a super admin — they hold the real credentials from
+    /// <see cref="DatabaseSeeder"/> and must not be touched — and never an account that has no password
+    /// yet, because those are pending invitations and setting a password would silently activate them.</para>
+    /// </summary>
+    private async Task<int> RotateDemoPasswordsAsync(CrmDbContext db, CancellationToken ct)
+    {
+        var companyIds = await db.Companies.IgnoreQueryFilters()
+            .Where(c => DemoTenants.Slugs.Contains(c.Slug)).Select(c => c.Id).ToListAsync(ct);
+        if (companyIds.Count == 0) return 0;
+
+        var memberIds = await db.Memberships.IgnoreQueryFilters()
+            .Where(m => companyIds.Contains(m.CompanyId)).Select(m => m.UserId).ToListAsync(ct);
+        var openerIds = await db.Tickets.IgnoreQueryFilters()
+            .Where(t => companyIds.Contains(t.CompanyId)).Select(t => t.OpenedById).ToListAsync(ct);
+        var ids = memberIds.Concat(openerIds).Distinct().ToList();
+
+        var users = await db.Users.IgnoreQueryFilters()
+            .Where(u => ids.Contains(u.Id) && !u.IsSuperAdmin && u.PasswordHash != null)
+            .ToListAsync(ct);
+
+        var rotated = 0;
+        foreach (var user in users)
+        {
+            // Verify first so a run that changes nothing writes nothing (the hash is salted, so a blind
+            // re-hash would rewrite every row on every startup).
+            if (passwordHasher.VerifyHashedPassword(user, user.PasswordHash!, Password) != PasswordVerificationResult.Failed)
+                continue;
+            user.SetPasswordHash(passwordHasher.HashPassword(user, Password));
+            rotated++;
+        }
+
+        if (rotated > 0)
+        {
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Demo passwords rotated for {Count} account(s).", rotated);
+        }
+        return rotated;
     }
 
     private User ActiveUser(Person p)

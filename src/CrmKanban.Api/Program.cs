@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using CrmKanban.Api.Auth;
 using CrmKanban.Api.Middleware;
@@ -57,6 +57,11 @@ try
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
     builder.Services.AddHostedService<CrmKanban.Api.Notifications.NotificationWorker>();
+
+    // Demo tenants get wiped and re-seeded every Seed:ResetHours hours, so whatever a visitor does to
+    // the shared demo does not outlive the interval. Not registered at all when it is unset/zero.
+    if (builder.Configuration.GetValue<int>("Seed:ResetHours") > 0)
+        builder.Services.AddHostedService<CrmKanban.Api.Notifications.DemoResetWorker>();
 
     // Per-request caller identity from the JWT (overrides the anonymous default from AddInfrastructure).
     builder.Services.AddHttpContextAccessor();
@@ -176,6 +181,15 @@ try
         // Browsable API explorer at /scalar over the doc MapOpenApi serves. Dev only: it lists every
         // endpoint including admin ones, and prod already serves the SPA from wwwroot at /.
         app.MapScalarApiReference();
+
+        // Manual trigger for the demo reset, so the wipe/re-seed path can be exercised without waiting
+        // out the worker's interval. DEVELOPMENT ONLY — it destroys the demo tenants, and in production
+        // the schedule is the only thing allowed to do that.
+        app.MapPost("/api/dev/demo-reset", async (DemoResetService reset, CancellationToken ct) =>
+        {
+            await reset.ResetAsync(ct);
+            return Results.NoContent();
+        }).AllowAnonymous();
     }
 
     // Single-site hosting (spec §17.8, deploy): when the SPA build is copied into wwwroot (MonsterASP.NET),
