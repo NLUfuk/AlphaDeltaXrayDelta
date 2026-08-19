@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom'
 import { useAuth, type User } from '../lib/auth'
 import { useReportCompany, useSelectableCompanies } from '../lib/company'
-import { formatDateTime, greeting, priority as priorityOf, statusCategory, ticketEvent } from '../lib/messages'
-import { useMarkNotificationsSeen, useNotifications, type NotificationItem } from '../lib/notifications'
+import { greeting, priority as priorityOf, statusCategory } from '../lib/messages'
+import { useNotifications } from '../lib/notifications'
 import { useReport } from '../lib/reports'
 import { useAssignedTickets, useModeration, useMyTickets, type TicketListItem } from '../lib/tickets'
 import { BarList } from '../ui/charts'
-import { Badge, Button, Icon, LoadError, Loading, Panel, Tile } from '../ui/primitives'
+import { MarkAllSeen, NotificationList } from '../ui/NotificationList'
+import { Badge, LoadError, Loading, Panel, Tile } from '../ui/primitives'
 
 // The landing screen. It used to be a two-line dispatcher that dropped staff straight onto the board
 // and customers onto a bare list — the same screen for a super admin, a company admin, a support agent
@@ -219,56 +220,17 @@ function TicketRows({ items }: { items: TicketListItem[] }) {
 }
 
 /** The in-app half of the notification pipeline (spec §14): the same events that go out by e-mail,
- *  listed for whoever they were addressed to. Reading is a deliberate click — opening the home screen
- *  does not silently mark everything read, or the badge would be useless to anyone who lands here first. */
+ *  listed for whoever they were addressed to. The rows themselves live in ui/NotificationList so the
+ *  navbar bell shows exactly this list, not a second implementation of it. */
 function Notifications() {
-  const { data, isLoading, error } = useNotifications()
-  const markSeen = useMarkNotificationsSeen()
-
-  if (isLoading) return <Loading />
-  if (error) return <LoadError error={error} what="Bildirimler" />
-
-  const items = data?.items ?? []
+  const { data } = useNotifications()
   const unread = data?.unreadCount ?? 0
-
   return (
     <Panel
       title={unread > 0 ? `Bildirimler (${unread} yeni)` : 'Bildirimler'}
-      action={
-        unread > 0 ? (
-          <Button variant="secondary" onClick={() => markSeen.mutate()} disabled={markSeen.isPending}>
-            <Icon name="check-all" className="mr-1" />Tümünü okundu işaretle
-          </Button>
-        ) : undefined
-      }
+      action={<MarkAllSeen unread={unread} />}
     >
-      {items.length === 0 ? (
-        <p className="text-sm text-muted">Yeni bir hareket yok.</p>
-      ) : (
-        <div className="space-y-1">
-          {items.map((n) => <NotificationRow key={n.eventId} item={n} />)}
-        </div>
-      )}
+      <NotificationList />
     </Panel>
-  )
-}
-
-function NotificationRow({ item }: { item: NotificationItem }) {
-  const ev = ticketEvent(item.eventType, item.newValue)
-  return (
-    <Link
-      to={`/tickets/${item.ticketId}`}
-      className={`flex items-start gap-3 rounded-lg p-2 transition hover:bg-canvas ${item.isUnread ? 'bg-primary/5' : ''}`}
-    >
-      <Icon name={ev.icon} className={`mt-0.5 text-lg ${item.isUnread ? 'text-primary' : 'text-muted'}`} />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm text-ink">
-          <span className={item.isUnread ? 'font-semibold' : ''}>{ev.text}</span>
-          <span className="text-muted"> — {item.ticketNumber}</span>
-        </p>
-        <p className="truncate text-xs text-muted">{item.ticketTitle}</p>
-      </div>
-      <span className="shrink-0 text-xs text-muted">{formatDateTime(item.createdAt)}</span>
-    </Link>
   )
 }

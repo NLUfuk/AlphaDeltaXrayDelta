@@ -3,8 +3,9 @@ import { NavLink, Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { ALL_COMPANIES, setActiveCompany, useActiveCompany, useSelectableCompanies } from '../lib/company'
 import { useNotifications } from '../lib/notifications'
-import { isDark, toggleTheme } from '../lib/theme'
+import { applyTheme, currentTheme, THEMES, type ThemeId } from '../lib/theme'
 import { Logo, LogoMark } from '../ui/Logo'
+import { MarkAllSeen, NotificationList } from '../ui/NotificationList'
 import { Button, Icon, Loading, Select } from '../ui/primitives'
 
 type NavItem = { to: string; label: string; icon: string; end?: boolean }
@@ -86,28 +87,86 @@ function CompanySwitcher() {
   )
 }
 
-/** Unread counter in the navbar. Shares the home screen's query key, so opening the app costs one
- * request for both and marking everything read updates the badge without a refetch of its own. The
- * bell links to the home screen rather than opening a dropdown: the full list is already there, and a
- * second copy of it would be a second place to keep correct. */
+/** Theme picker. Was a light/dark toggle; a switch cannot offer five palettes, and cycling through
+ * them with one button makes the user press it four times to get back. Writing the choice is the whole
+ * of the work — see lib/theme.ts for why more themes cost no runtime. */
+function ThemePicker() {
+  const [theme, setTheme] = useState<ThemeId>(currentTheme)
+  return (
+    <label className="flex items-center gap-1" title="Tema">
+      <Icon name="palette-outline" className="text-xl text-muted" />
+      <span className="sr-only">Tema</span>
+      <Select
+        value={theme}
+        onChange={(e) => {
+          const next = e.target.value as ThemeId
+          applyTheme(next)
+          setTheme(next)
+        }}
+        className="w-auto py-1.5"
+      >
+        {THEMES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+      </Select>
+    </label>
+  )
+}
+
+/** The navbar bell. It used to be a link to the home screen, which did nothing visible when you were
+ * already there and nothing at all on some screens — a bell you can press and see no notifications is
+ * broken however it is wired. Now it opens the list in place, on every screen. The list itself is the
+ * shared component, so this is a second mount point and not a second implementation.
+ *
+ * Closing: a full-screen backdrop behind the panel. That is what makes an outside click (and Esc, via
+ * the button's own focus) close it without a document-level listener to install, leak and reason about. */
 function NotificationBell() {
   const { data } = useNotifications()
+  const [open, setOpen] = useState(false)
   const unread = data?.unreadCount ?? 0
+
   return (
-    <NavLink
-      to="/"
-      end
-      className="relative grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas"
-      title={unread > 0 ? `${unread} yeni bildirim` : 'Bildirimler'}
-      aria-label={unread > 0 ? `${unread} yeni bildirim` : 'Bildirimler'}
-    >
-      <Icon name={unread > 0 ? 'bell-ring-outline' : 'bell-outline'} className="text-xl" />
-      {unread > 0 && (
-        <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-white">
-          {unread > 9 ? '9+' : unread}
-        </span>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="relative grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas"
+        title={unread > 0 ? `${unread} yeni bildirim` : 'Bildirimler'}
+        aria-label={unread > 0 ? `${unread} yeni bildirim` : 'Bildirimler'}
+        aria-expanded={open}
+      >
+        <Icon name={unread > 0 ? 'bell-ring-outline' : 'bell-outline'} className="text-xl" />
+        {unread > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] font-bold leading-4 text-white">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-11 z-50 w-80 rounded-xl border border-line bg-surface p-3 shadow-card sm:w-96">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-ink">
+                Bildirimler{unread > 0 && <span className="text-muted"> ({unread} yeni)</span>}
+              </span>
+              <MarkAllSeen unread={unread} />
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {/* Ten here, the full list on the home screen — a popover is for "what just happened". */}
+              <NotificationList take={10} onNavigate={() => setOpen(false)} />
+            </div>
+            <NavLink
+              to="/"
+              end
+              onClick={() => setOpen(false)}
+              className="mt-2 block rounded-lg p-2 text-center text-sm font-medium text-primary hover:bg-canvas"
+            >
+              Ana sayfada tümünü gör →
+            </NavLink>
+          </div>
+        </>
       )}
-    </NavLink>
+    </div>
   )
 }
 
@@ -117,7 +176,6 @@ export default function Shell() {
   const { user, loading, logout, impersonating, stopImpersonation } = useAuth()
   const [open, setOpen] = useState(false) // mobile off-canvas sidebar
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('crm.sidebar') === 'collapsed')
-  const [dark, setDark] = useState(isDark())
   if (loading) return <Loading className="p-8" />
   if (!user) return <Navigate to="/login" replace />
 
@@ -203,14 +261,7 @@ export default function Shell() {
             <div className="flex items-center justify-end gap-3 text-sm text-muted">
               <CompanySwitcher />
               <NotificationBell />
-              <button
-                className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-canvas"
-                onClick={() => setDark(toggleTheme())}
-                aria-label={dark ? 'Açık temaya geç' : 'Koyu temaya geç'}
-                title={dark ? 'Açık tema' : 'Koyu tema'}
-              >
-                <Icon name={dark ? 'weather-sunny' : 'weather-night'} className="text-xl" />
-              </button>
+              <ThemePicker />
               <NavLink to="/account" className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-primary/5" title="Hesabım">
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                   {user.name.slice(0, 1).toUpperCase()}

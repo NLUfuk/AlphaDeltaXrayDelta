@@ -62,7 +62,18 @@ export type TicketDetail = {
 
 export type CustomFieldValue = { label: string; value: string }
 
-export type Attachment = { id: string; fileName: string; contentType: string; size: number; url: string }
+export type Attachment = {
+  id: string
+  fileName: string
+  contentType: string
+  size: number
+  url: string
+  /** The message this file was sent with; null when it was attached to the ticket itself. Lets the
+   *  ticket screen show a file where it happened instead of in a separate pile. */
+  commentId: string | null
+  uploadedByName: string | null
+  createdAt: string
+}
 
 export type Paged<T> = { items: T[]; total: number; page: number; pageSize: number }
 
@@ -292,10 +303,10 @@ export function useDeleteTicket(ticketId: string, companyId: string | undefined)
 export function useUploadAttachment(ticketId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (file: File) => {
+    mutationFn: ({ file, commentId }: { file: File; commentId?: string }) => {
       const form = new FormData()
       form.append('file', file)
-      return api.post(`/tickets/${ticketId}/attachments`, form)
+      return api.post(`/tickets/${ticketId}/attachments`, form, { params: commentId ? { commentId } : undefined })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ticket', ticketId] }),
   })
@@ -333,8 +344,9 @@ export async function downloadAttachment(id: string, fileName: string) {
 export function useAddComment(ticketId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (v: { body: string; isInternal: boolean }) =>
-      api.post(`/tickets/${ticketId}/comments`, { body: v.body, isInternal: v.isInternal }),
+    // Returns the new comment's id so files picked in the composer can be attached to THIS message.
+    mutationFn: async (v: { body: string; isInternal: boolean }) =>
+      (await api.post<{ id: string }>(`/tickets/${ticketId}/comments`, { body: v.body, isInternal: v.isInternal })).data.id,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ticket', ticketId] }),
   })
 }

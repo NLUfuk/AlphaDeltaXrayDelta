@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useMembers } from '../lib/admin'
+import { useAuth } from '../lib/auth'
 import { ALL_COMPANIES, useActiveCompany } from '../lib/company'
 import { errorText, PRIORITIES, priority as priorityOf, statusCategory } from '../lib/messages'
 import { useChangeStatus, useCreateTicket, useKanban, useModeration, useStatuses, type KanbanFilters } from '../lib/tickets'
@@ -22,6 +23,7 @@ import { TicketCard } from '../ui/TicketCard'
 // sidebar's Sütunlar entry and is gone, the per-column inline create form was replaced by one dialog,
 // and the assignee/priority filters sit behind a toggle so the default board is a board.
 export default function Kanban() {
+  const { user } = useAuth()
   const companyId = useActiveCompany()
   const [filters, setFilters] = useState<KanbanFilters>({})
   const [showFilters, setShowFilters] = useState(false)
@@ -43,6 +45,9 @@ export default function Kanban() {
 
   const memberName = (id: string | null) => members?.find((m) => m.userId === id)?.name
 
+  // The board is staff-only server-side; since it got its own address, a customer could type it and
+  // land on a staff message about companies. Send them where their work actually is.
+  if (user && !user.isSuperAdmin && user.companies.length === 0) return <Navigate to="/" replace />
   if (companyId === ALL_COMPANIES) return <PickCompany what="Pano" />
   if (!companyId) return <p className="text-muted">Bu kullanıcı bir şirkete bağlı değil (kanban için şirket gerekli).</p>
   if (error) return <LoadError error={error} what="Pano" />

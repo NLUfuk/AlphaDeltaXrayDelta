@@ -1,4 +1,4 @@
-using CrmKanban.Application.Abstractions;
+﻿using CrmKanban.Application.Abstractions;
 using CrmKanban.Application.Authorization;
 using CrmKanban.Application.Common;
 using CrmKanban.Domain.Authorization;
@@ -159,9 +159,18 @@ public sealed class TicketQueryService(
         var visibleCommentIds = comments.Select(c => (Guid?)c.Id).ToHashSet();
         var attachmentRows = await db.Attachments.IgnoreQueryFilters()
             .Where(a => a.TicketId == ticketId && a.DeletedAt == null).ToListAsync(ct);
-        var attachmentDtos = attachmentRows
+        var visibleAttachments = attachmentRows
             .Where(a => a.CommentId == null || visibleCommentIds.Contains(a.CommentId))
-            .Select(Files.AttachmentService.ToDto).ToList();
+            .ToList();
+        // Who uploaded what, resolved in one round trip — the screen names the person next to the file.
+        var uploaderIds = visibleAttachments.Select(a => a.UploadedById).Distinct().ToList();
+        var uploaderNames = await db.Users.IgnoreQueryFilters()
+            .Where(u => uploaderIds.Contains(u.Id))
+            .Select(u => new { u.Id, Name = u.FirstName + " " + u.LastName })
+            .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        var attachmentDtos = visibleAttachments
+            .Select(a => Files.AttachmentService.ToDto(a, uploaderNames.GetValueOrDefault(a.UploadedById, "—")))
+            .ToList();
 
         var customFields = ParseCustomFields(ticket.CustomFieldsJson);
 
